@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/url"
 )
@@ -18,7 +19,20 @@ type ToolForm struct {
 	Name          string         `json:"name"`
 	Content       string         `json:"content"`
 	Meta          ToolMeta       `json:"meta"`
-	AccessControl map[string]any `json:"access_control,omitempty"`
+	AccessControl map[string]any `json:"-"`
+}
+
+// MarshalJSON serialises the form using the API's access_grants list, derived
+// from the provider's access_control representation.
+func (f ToolForm) MarshalJSON() ([]byte, error) {
+	type alias ToolForm
+	return json.Marshal(struct {
+		alias
+		AccessGrants []accessGrant `json:"access_grants"`
+	}{
+		alias:        alias(f),
+		AccessGrants: accessControlToGrants(f.AccessControl),
+	})
 }
 
 // ToolResponse captures basic tool details.
@@ -27,9 +41,24 @@ type ToolResponse struct {
 	UserID        string         `json:"user_id"`
 	Name          string         `json:"name"`
 	Meta          ToolMeta       `json:"meta"`
-	AccessControl map[string]any `json:"access_control,omitempty"`
+	AccessControl map[string]any `json:"-"`
 	UpdatedAt     int64          `json:"updated_at"`
 	CreatedAt     int64          `json:"created_at"`
+}
+
+// UnmarshalJSON decodes the API's access_grants list into the provider's
+// access_control representation.
+func (r *ToolResponse) UnmarshalJSON(data []byte) error {
+	type alias ToolResponse
+	aux := struct {
+		*alias
+		AccessGrants []accessGrant `json:"access_grants"`
+	}{alias: (*alias)(r)}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	r.AccessControl = grantsToAccessControl(aux.AccessGrants)
+	return nil
 }
 
 // ToolModel includes full tool content and specifications.
@@ -40,9 +69,24 @@ type ToolModel struct {
 	Content       string           `json:"content"`
 	Specs         []map[string]any `json:"specs"`
 	Meta          ToolMeta         `json:"meta"`
-	AccessControl map[string]any   `json:"access_control,omitempty"`
+	AccessControl map[string]any   `json:"-"`
 	UpdatedAt     int64            `json:"updated_at"`
 	CreatedAt     int64            `json:"created_at"`
+}
+
+// UnmarshalJSON decodes the API's access_grants list into the provider's
+// access_control representation.
+func (r *ToolModel) UnmarshalJSON(data []byte) error {
+	type alias ToolModel
+	aux := struct {
+		*alias
+		AccessGrants []accessGrant `json:"access_grants"`
+	}{alias: (*alias)(r)}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	r.AccessControl = grantsToAccessControl(aux.AccessGrants)
+	return nil
 }
 
 // ToolAccessResponse captures tool details with access metadata.
@@ -51,11 +95,26 @@ type ToolAccessResponse struct {
 	UserID        string         `json:"user_id"`
 	Name          string         `json:"name"`
 	Meta          ToolMeta       `json:"meta"`
-	AccessControl map[string]any `json:"access_control,omitempty"`
+	AccessControl map[string]any `json:"-"`
 	UpdatedAt     int64          `json:"updated_at"`
 	CreatedAt     int64          `json:"created_at"`
 	User          *User          `json:"user,omitempty"`
 	WriteAccess   *bool          `json:"write_access,omitempty"`
+}
+
+// UnmarshalJSON decodes the API's access_grants list into the provider's
+// access_control representation.
+func (r *ToolAccessResponse) UnmarshalJSON(data []byte) error {
+	type alias ToolAccessResponse
+	aux := struct {
+		*alias
+		AccessGrants []accessGrant `json:"access_grants"`
+	}{alias: (*alias)(r)}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	r.AccessControl = grantsToAccessControl(aux.AccessGrants)
+	return nil
 }
 
 // ToolUserResponse captures tool details including user metadata.
@@ -64,10 +123,25 @@ type ToolUserResponse struct {
 	UserID        string         `json:"user_id"`
 	Name          string         `json:"name"`
 	Meta          ToolMeta       `json:"meta"`
-	AccessControl map[string]any `json:"access_control,omitempty"`
+	AccessControl map[string]any `json:"-"`
 	UpdatedAt     int64          `json:"updated_at"`
 	CreatedAt     int64          `json:"created_at"`
 	User          *User          `json:"user,omitempty"`
+}
+
+// UnmarshalJSON decodes the API's access_grants list into the provider's
+// access_control representation.
+func (r *ToolUserResponse) UnmarshalJSON(data []byte) error {
+	type alias ToolUserResponse
+	aux := struct {
+		*alias
+		AccessGrants []accessGrant `json:"access_grants"`
+	}{alias: (*alias)(r)}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	r.AccessControl = grantsToAccessControl(aux.AccessGrants)
+	return nil
 }
 
 // CreateTool provisions a new tool.
