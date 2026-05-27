@@ -1,0 +1,43 @@
+# Build artifacts
+.gocache
+bin/
+dist/
+/terraform-provider-openwebui
+/terraform-provider-openwebui.exe
+*.exe
+
+# Tests & coverage
+tests/
+coverage.out
+coverage.html
+
+# Terraform state & local CLI config
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+.terraform.lock.hcl
+*.tfrc
+.terraformrc
+
+# Local secrets / env
+.env
+.env.*
+
+# Dependencies
+vendor/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+tmp/
+
+# Not yet tracked (add back as the provider matures)
+README.md
+CHANGELOG.md
+docs/
+examples/
+openapi.json
