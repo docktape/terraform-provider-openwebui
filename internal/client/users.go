@@ -29,13 +29,12 @@ type listUsersResponse struct {
 }
 
 // SearchUsers finds users whose username, email, or name matches the provided query.
+// The API paginates server-side (fixed page size); the limit argument is retained
+// for call-site compatibility but is no longer a supported query parameter.
 func (c *Client) SearchUsers(ctx context.Context, query string, limit int) ([]User, error) {
 	values := url.Values{}
 	if query != "" {
 		values.Set("query", query)
-	}
-	if limit > 0 {
-		values.Set("limit", fmt.Sprintf("%d", limit))
 	}
 
 	var resp listUsersResponse
