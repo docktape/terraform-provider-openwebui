@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -11,9 +12,22 @@ import (
 type KnowledgeForm struct {
 	Name          string         `json:"name"`
 	Description   string         `json:"description"`
-	AccessControl map[string]any `json:"access_control,omitempty"`
+	AccessControl map[string]any `json:"-"`
 	Data          map[string]any `json:"data,omitempty"`
 	Meta          map[string]any `json:"meta,omitempty"`
+}
+
+// MarshalJSON serialises the form using the API's access_grants list, derived
+// from the provider's access_control representation.
+func (f KnowledgeForm) MarshalJSON() ([]byte, error) {
+	type alias KnowledgeForm
+	return json.Marshal(struct {
+		alias
+		AccessGrants []accessGrant `json:"access_grants"`
+	}{
+		alias:        alias(f),
+		AccessGrants: accessControlToGrants(f.AccessControl),
+	})
 }
 
 // FileModel represents a file associated with a knowledge base entry.
@@ -37,10 +51,23 @@ type KnowledgeResponse struct {
 	Description   string         `json:"description"`
 	CreatedAt     int64          `json:"created_at"`
 	UpdatedAt     int64          `json:"updated_at"`
-	AccessControl map[string]any `json:"access_control,omitempty"`
+	AccessControl map[string]any `json:"-"`
 	Data          map[string]any `json:"data,omitempty"`
 	Meta          map[string]any `json:"meta,omitempty"`
 	Files         []FileModel    `json:"files,omitempty"`
+}
+
+func (r *KnowledgeResponse) UnmarshalJSON(data []byte) error {
+	type alias KnowledgeResponse
+	aux := struct {
+		*alias
+		AccessGrants []accessGrant `json:"access_grants"`
+	}{alias: (*alias)(r)}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	r.AccessControl = grantsToAccessControl(aux.AccessGrants)
+	return nil
 }
 
 // KnowledgeFilesResponse is returned by the knowledge detail endpoint and includes file metadata.
@@ -51,10 +78,23 @@ type KnowledgeFilesResponse struct {
 	Description   string         `json:"description"`
 	CreatedAt     int64          `json:"created_at"`
 	UpdatedAt     int64          `json:"updated_at"`
-	AccessControl map[string]any `json:"access_control,omitempty"`
+	AccessControl map[string]any `json:"-"`
 	Data          map[string]any `json:"data,omitempty"`
 	Meta          map[string]any `json:"meta,omitempty"`
 	Files         []FileModel    `json:"files"`
+}
+
+func (r *KnowledgeFilesResponse) UnmarshalJSON(data []byte) error {
+	type alias KnowledgeFilesResponse
+	aux := struct {
+		*alias
+		AccessGrants []accessGrant `json:"access_grants"`
+	}{alias: (*alias)(r)}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	r.AccessControl = grantsToAccessControl(aux.AccessGrants)
+	return nil
 }
 
 // CreateKnowledge provisions a new knowledge base entry.
@@ -86,9 +126,22 @@ type KnowledgeListItem struct {
 	Description   string         `json:"description"`
 	CreatedAt     int64          `json:"created_at"`
 	UpdatedAt     int64          `json:"updated_at"`
-	AccessControl map[string]any `json:"access_control,omitempty"`
+	AccessControl map[string]any `json:"-"`
 	Data          map[string]any `json:"data,omitempty"`
 	Meta          map[string]any `json:"meta,omitempty"`
+}
+
+func (r *KnowledgeListItem) UnmarshalJSON(data []byte) error {
+	type alias KnowledgeListItem
+	aux := struct {
+		*alias
+		AccessGrants []accessGrant `json:"access_grants"`
+	}{alias: (*alias)(r)}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	r.AccessControl = grantsToAccessControl(aux.AccessGrants)
+	return nil
 }
 
 // ListKnowledge retrieves all knowledge entries visible to the caller.
