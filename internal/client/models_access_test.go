@@ -72,3 +72,27 @@ func TestGetModelParsesAccessGrants(t *testing.T) {
 		t.Fatalf("expected write.group_ids=[g9], got %+v", out.AccessControl)
 	}
 }
+
+func TestDeleteModelSendsBody(t *testing.T) {
+	var gotMethod, gotQuery string
+	var gotBody map[string]any
+	c := newModelTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotQuery = r.URL.RawQuery
+		body, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(body, &gotBody)
+		_, _ = w.Write([]byte(`true`))
+	})
+	if err := c.DeleteModel(context.Background(), "m1"); err != nil {
+		t.Fatalf("DeleteModel: %v", err)
+	}
+	if gotMethod != http.MethodPost {
+		t.Fatalf("expected POST, got %s", gotMethod)
+	}
+	if gotQuery != "" {
+		t.Fatalf("expected no query string, got %q", gotQuery)
+	}
+	if gotBody["id"] != "m1" {
+		t.Fatalf("expected body id=m1, got %+v", gotBody)
+	}
+}
