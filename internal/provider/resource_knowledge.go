@@ -97,9 +97,8 @@ func (r *knowledgeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"updated_at": schema.StringAttribute{
-				Computed:      true,
-				Description:   "Last update date in YYYY-MM-DD format.",
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				Computed:    true,
+				Description: "Last update date in YYYY-MM-DD format.",
 			},
 			"user_id": schema.StringAttribute{
 				Computed:    true,

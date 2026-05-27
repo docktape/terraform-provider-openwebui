@@ -98,9 +98,8 @@ func (r *promptResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()},
 			},
 			"timestamp": schema.StringAttribute{
-				Computed:      true,
-				Description:   "Prompt timestamp formatted as YYYY-MM-DD.",
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				Computed:    true,
+				Description: "Prompt timestamp formatted as YYYY-MM-DD.",
 			},
 			"user_id": schema.StringAttribute{
 				Computed:    true,
