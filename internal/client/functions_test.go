@@ -90,3 +90,51 @@ func TestDeleteFunction(t *testing.T) {
 		t.Fatalf("DeleteFunction: %v", err)
 	}
 }
+
+func TestUpdateFunction(t *testing.T) {
+	c := newFunctionsTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/functions/id/my_filter/update" {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{"id":"my_filter","user_id":"u1","type":"filter","name":"Renamed","content":"class Filter:\n    pass\n","is_active":true,"is_global":false,"created_at":1,"updated_at":3}`))
+	})
+	out, err := c.UpdateFunction(context.Background(), "my_filter", FunctionForm{ID: "my_filter", Name: "Renamed", Content: "class Filter:\n    pass\n"})
+	if err != nil {
+		t.Fatalf("UpdateFunction: %v", err)
+	}
+	if out.Name != "Renamed" {
+		t.Fatalf("unexpected response: %+v", out)
+	}
+}
+
+func TestToggleFunction(t *testing.T) {
+	c := newFunctionsTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/functions/id/my_filter/toggle" {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{"id":"my_filter","user_id":"u1","type":"filter","is_active":true,"is_global":false,"created_at":1,"updated_at":4}`))
+	})
+	out, err := c.ToggleFunction(context.Background(), "my_filter")
+	if err != nil {
+		t.Fatalf("ToggleFunction: %v", err)
+	}
+	if !out.IsActive {
+		t.Fatalf("expected is_active true, got %+v", out)
+	}
+}
+
+func TestToggleFunctionGlobal(t *testing.T) {
+	c := newFunctionsTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/functions/id/my_filter/toggle/global" {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{"id":"my_filter","user_id":"u1","type":"filter","is_active":true,"is_global":true,"created_at":1,"updated_at":5}`))
+	})
+	out, err := c.ToggleFunctionGlobal(context.Background(), "my_filter")
+	if err != nil {
+		t.Fatalf("ToggleFunctionGlobal: %v", err)
+	}
+	if !out.IsGlobal {
+		t.Fatalf("expected is_global true, got %+v", out)
+	}
+}

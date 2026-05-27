@@ -59,3 +59,33 @@ func (c *Client) DeleteFunction(ctx context.Context, id string) error {
 	path := "functions/id/" + url.PathEscape(id) + "/delete"
 	return c.do(ctx, http.MethodDelete, path, nil, nil, nil)
 }
+
+// UpdateFunction updates an existing function by ID.
+func (c *Client) UpdateFunction(ctx context.Context, id string, form FunctionForm) (*FunctionModel, error) {
+	var resp FunctionModel
+	path := "functions/id/" + url.PathEscape(id) + "/update"
+	if err := c.do(ctx, http.MethodPost, path, nil, form, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// ToggleFunction flips a function's is_active flag.
+func (c *Client) ToggleFunction(ctx context.Context, id string) (*FunctionModel, error) {
+	var resp FunctionModel
+	path := "functions/id/" + url.PathEscape(id) + "/toggle"
+	if err := c.do(ctx, http.MethodPost, path, nil, nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// ToggleFunctionGlobal flips a function's is_global flag.
+func (c *Client) ToggleFunctionGlobal(ctx context.Context, id string) (*FunctionModel, error) {
+	var resp FunctionModel
+	path := "functions/id/" + url.PathEscape(id) + "/toggle/global"
+	if err := c.do(ctx, http.MethodPost, path, nil, nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
