@@ -38,6 +38,7 @@ tmp/
 # Not yet tracked (add back as the provider matures)
 README.md
 CHANGELOG.md
-docs/
-examples/
 openapi.json
+
+docs_legacy/
+examples_legacy/
