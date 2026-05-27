@@ -138,3 +138,54 @@ func TestToggleFunctionGlobal(t *testing.T) {
 		t.Fatalf("expected is_global true, got %+v", out)
 	}
 }
+
+func TestGetFunctionValves(t *testing.T) {
+	c := newFunctionsTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/functions/id/my_filter/valves" {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{"priority":5}`))
+	})
+	out, err := c.GetFunctionValves(context.Background(), "my_filter")
+	if err != nil {
+		t.Fatalf("GetFunctionValves: %v", err)
+	}
+	if out["priority"].(float64) != 5 {
+		t.Fatalf("unexpected valves: %+v", out)
+	}
+}
+
+func TestGetFunctionValvesSpec(t *testing.T) {
+	c := newFunctionsTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/functions/id/my_filter/valves/spec" {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{"type":"object","properties":{"priority":{"type":"integer"}}}`))
+	})
+	out, err := c.GetFunctionValvesSpec(context.Background(), "my_filter")
+	if err != nil {
+		t.Fatalf("GetFunctionValvesSpec: %v", err)
+	}
+	if out["type"] != "object" {
+		t.Fatalf("unexpected spec: %+v", out)
+	}
+}
+
+func TestUpdateFunctionValves(t *testing.T) {
+	var gotBody map[string]any
+	c := newFunctionsTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/functions/id/my_filter/valves/update" {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		body, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(body, &gotBody)
+		_, _ = w.Write([]byte(`{"priority":9}`))
+	})
+	out, err := c.UpdateFunctionValves(context.Background(), "my_filter", map[string]any{"priority": 9})
+	if err != nil {
+		t.Fatalf("UpdateFunctionValves: %v", err)
+	}
+	if gotBody["priority"].(float64) != 9 || out["priority"].(float64) != 9 {
+		t.Fatalf("unexpected valves: sent %+v got %+v", gotBody, out)
+	}
+}

@@ -89,3 +89,33 @@ func (c *Client) ToggleFunctionGlobal(ctx context.Context, id string) (*Function
 	}
 	return &resp, nil
 }
+
+// GetFunctionValves retrieves valve settings for a function.
+func (c *Client) GetFunctionValves(ctx context.Context, id string) (map[string]any, error) {
+	var resp map[string]any
+	path := "functions/id/" + url.PathEscape(id) + "/valves"
+	if err := c.do(ctx, http.MethodGet, path, nil, nil, &resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// GetFunctionValvesSpec retrieves the valve specification for a function.
+func (c *Client) GetFunctionValvesSpec(ctx context.Context, id string) (map[string]any, error) {
+	var resp map[string]any
+	path := "functions/id/" + url.PathEscape(id) + "/valves/spec"
+	if err := c.do(ctx, http.MethodGet, path, nil, nil, &resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// UpdateFunctionValves updates valve settings for a function.
+func (c *Client) UpdateFunctionValves(ctx context.Context, id string, valves map[string]any) (map[string]any, error) {
+	var resp map[string]any
+	path := "functions/id/" + url.PathEscape(id) + "/valves/update"
+	if err := c.do(ctx, http.MethodPost, path, nil, valves, &resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
