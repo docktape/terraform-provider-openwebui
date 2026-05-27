@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/url"
 )
@@ -14,7 +15,20 @@ type ModelForm struct {
 	Params        map[string]any `json:"params"`
 	BaseModelID   *string        `json:"base_model_id,omitempty"`
 	IsActive      *bool          `json:"is_active,omitempty"`
-	AccessControl map[string]any `json:"access_control,omitempty"`
+	AccessControl map[string]any `json:"-"`
+}
+
+// MarshalJSON serialises the form using the API's access_grants list, derived
+// from the provider's access_control representation.
+func (f ModelForm) MarshalJSON() ([]byte, error) {
+	type alias ModelForm
+	return json.Marshal(struct {
+		alias
+		AccessGrants []accessGrant `json:"access_grants"`
+	}{
+		alias:        alias(f),
+		AccessGrants: accessControlToGrants(f.AccessControl),
+	})
 }
 
 // ModelResponse captures details returned by the model endpoints.
@@ -26,9 +40,24 @@ type ModelResponse struct {
 	Params        map[string]any `json:"params"`
 	BaseModelID   *string        `json:"base_model_id,omitempty"`
 	IsActive      bool           `json:"is_active"`
-	AccessControl map[string]any `json:"access_control,omitempty"`
+	AccessControl map[string]any `json:"-"`
 	CreatedAt     int64          `json:"created_at"`
 	UpdatedAt     int64          `json:"updated_at"`
+}
+
+// UnmarshalJSON decodes the API's access_grants list into the provider's
+// access_control representation.
+func (r *ModelResponse) UnmarshalJSON(data []byte) error {
+	type alias ModelResponse
+	aux := struct {
+		*alias
+		AccessGrants []accessGrant `json:"access_grants"`
+	}{alias: (*alias)(r)}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	r.AccessControl = grantsToAccessControl(aux.AccessGrants)
+	return nil
 }
 
 // CreateModel registers a new model.
