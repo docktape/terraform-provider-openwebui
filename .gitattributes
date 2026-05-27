@@ -1,0 +1,19 @@
+# Normalize line endings. Store text as LF in the repository and check it out
+# as LF on every platform, so gofmt/CI stay consistent regardless of a
+# developer's core.autocrlf setting on Windows.
+* text=auto eol=lf
+
+# Go toolchain (gofmt) expects LF.
+*.go text eol=lf
+
+# Shell scripts must stay LF to remain executable.
+*.sh text eol=lf
+
+# Treat common binary assets as binary so they are never line-ending munged.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.zip binary
+*.gz binary
