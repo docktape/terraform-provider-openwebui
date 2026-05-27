@@ -95,14 +95,12 @@ func (r *functionResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
 			},
 			"type": schema.StringAttribute{
-				Computed:      true,
-				Description:   "Function type derived from the source: pipe, filter, or action.",
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				Computed:    true,
+				Description: "Function type derived from the source: pipe, filter, or action.",
 			},
 			"manifest_json": schema.StringAttribute{
-				Computed:      true,
-				Description:   "JSON manifest derived from the source frontmatter.",
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				Computed:    true,
+				Description: "JSON manifest derived from the source frontmatter.",
 			},
 			"user_id": schema.StringAttribute{
 				Computed:    true,
@@ -114,9 +112,8 @@ func (r *functionResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
 			},
 			"updated_at": schema.Int64Attribute{
-				Computed:      true,
-				Description:   "Unix timestamp of the last function update.",
-				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
+				Computed:    true,
+				Description: "Unix timestamp of the last function update.",
 			},
 		},
 	}
