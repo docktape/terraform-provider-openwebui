@@ -60,7 +60,9 @@ func (c *Client) ListGroups(ctx context.Context) ([]GroupResponse, error) {
 // GetGroup retrieves a group by identifier.
 func (c *Client) GetGroup(ctx context.Context, id string) (*GroupResponse, error) {
 	var resp GroupResponse
-	path := fmt.Sprintf("groups/id/%s", url.PathEscape(id))
+	// /export returns the full group plus its member user_ids, which the plain
+	// /id/{id} endpoint no longer includes (membership moved to a separate table).
+	path := fmt.Sprintf("groups/id/%s/export", url.PathEscape(id))
 	if err := c.do(ctx, http.MethodGet, path, nil, nil, &resp); err != nil {
 		return nil, err
 	}
