@@ -94,6 +94,6 @@ func (c *Client) UpdateModel(ctx context.Context, id string, form ModelForm) (*M
 
 // DeleteModel removes a model by identifier.
 func (c *Client) DeleteModel(ctx context.Context, id string) error {
-	query := url.Values{"id": []string{id}}
-	return c.do(ctx, http.MethodPost, "models/model/delete", query, nil, nil)
+	body := map[string]string{"id": id}
+	return c.do(ctx, http.MethodPost, "models/model/delete", nil, body, nil)
 }
