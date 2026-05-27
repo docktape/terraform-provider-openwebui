@@ -4,9 +4,9 @@ import "testing"
 
 func TestFunctionTogglesNeeded(t *testing.T) {
 	cases := []struct {
-		name                                              string
-		curActive, curGlobal, wantActive, wantGlobal      bool
-		expectActive, expectGlobal                        bool
+		name                                         string
+		curActive, curGlobal, wantActive, wantGlobal bool
+		expectActive, expectGlobal                   bool
 	}{
 		{"no change", false, false, false, false, false, false},
 		{"activate", false, false, true, false, true, false},
