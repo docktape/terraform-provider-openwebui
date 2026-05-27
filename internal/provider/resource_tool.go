@@ -118,9 +118,8 @@ func (r *toolResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
 			},
 			"updated_at": schema.Int64Attribute{
-				Computed:      true,
-				Description:   "Unix timestamp of the last tool update.",
-				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
+				Computed:    true,
+				Description: "Unix timestamp of the last tool update.",
 			},
 			"write_access": schema.BoolAttribute{
 				Computed:      true,
