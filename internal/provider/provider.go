@@ -131,6 +131,8 @@ func (p *openWebUIProvider) Resources(_ context.Context) []func() resource.Resou
 		NewSuggestionsConfigResource,
 		NewBannersConfigResource,
 		NewOAuthClientResource,
+		NewFunctionResource,
+		NewFunctionValvesResource,
 	}
 }
 
