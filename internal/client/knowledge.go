@@ -8,6 +8,9 @@ import (
 	"net/url"
 )
 
+// knowledgeListPageSize mirrors the backend PAGE_ITEM_COUNT for GET /knowledge/.
+const knowledgeListPageSize = 30
+
 // KnowledgeForm models the payload for creating or updating knowledge records.
 type KnowledgeForm struct {
 	Name          string         `json:"name"`
@@ -144,14 +147,32 @@ func (r *KnowledgeListItem) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// ListKnowledge retrieves all knowledge entries visible to the caller.
+// knowledgeListResponse is the paginated envelope returned by GET /knowledge/.
+type knowledgeListResponse struct {
+	Items []KnowledgeListItem `json:"items"`
+	Total int                 `json:"total"`
+}
+
+// ListKnowledge retrieves all knowledge entries visible to the caller, paging
+// through the server-paginated GET /knowledge/ endpoint until exhausted.
 func (c *Client) ListKnowledge(ctx context.Context) ([]KnowledgeListItem, error) {
-	var resp []KnowledgeListItem
-	if err := c.do(ctx, http.MethodGet, "knowledge/list", nil, nil, &resp); err != nil {
-		return nil, err
+	var all []KnowledgeListItem
+	for page := 1; ; page++ {
+		values := url.Values{}
+		values.Set("page", fmt.Sprintf("%d", page))
+
+		var resp knowledgeListResponse
+		if err := c.do(ctx, http.MethodGet, "knowledge/", values, nil, &resp); err != nil {
+			return nil, err
+		}
+
+		all = append(all, resp.Items...)
+		if len(resp.Items) < knowledgeListPageSize || len(all) >= resp.Total {
+			break
+		}
 	}
 
-	return resp, nil
+	return all, nil
 }
 
 // UpdateKnowledge mutates an existing knowledge record.
