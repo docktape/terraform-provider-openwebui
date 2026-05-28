@@ -42,11 +42,11 @@ func (d *promptDataSource) Schema(_ context.Context, _ datasource.SchemaRequest,
 			},
 			"id": schema.StringAttribute{
 				Computed:    true,
-				Description: "Identifier for the prompt (mirrors the command).",
+				Description: "Server-assigned prompt identifier (UUID).",
 			},
-			"title": schema.StringAttribute{
+			"name": schema.StringAttribute{
 				Computed:    true,
-				Description: "Prompt title displayed in Open WebUI.",
+				Description: "Prompt name displayed in Open WebUI.",
 			},
 			"content": schema.StringAttribute{
 				Computed:    true,
@@ -62,9 +62,13 @@ func (d *promptDataSource) Schema(_ context.Context, _ datasource.SchemaRequest,
 				Computed:    true,
 				Description: "Group names granted write access.",
 			},
-			"timestamp": schema.StringAttribute{
+			"created_at": schema.StringAttribute{
 				Computed:    true,
-				Description: "Prompt timestamp formatted as YYYY-MM-DD.",
+				Description: "Prompt creation date formatted as YYYY-MM-DD.",
+			},
+			"updated_at": schema.StringAttribute{
+				Computed:    true,
+				Description: "Prompt last-update date formatted as YYYY-MM-DD.",
 			},
 			"user_id": schema.StringAttribute{
 				Computed:    true,
@@ -85,7 +89,7 @@ func (d *promptDataSource) Configure(_ context.Context, req datasource.Configure
 	}
 }
 
-// Read retrieves the prompt definition.
+// Read retrieves the prompt definition by matching its command in the prompt list.
 func (d *promptDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	if d.client == nil {
 		resp.Diagnostics.AddError("Unconfigured API client", "Expected provider to configure the Open WebUI client before using the prompt data source.")
@@ -98,7 +102,8 @@ func (d *promptDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 		return
 	}
 
-	if config.Command.IsUnknown() || config.Command.IsNull() || config.Command.ValueString() == "" {
+	command := config.Command.ValueString()
+	if config.Command.IsUnknown() || config.Command.IsNull() || command == "" {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("command"),
 			"Missing prompt command",
@@ -107,22 +112,30 @@ func (d *promptDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 		return
 	}
 
-	current, err := d.client.GetPrompt(ctx, config.Command.ValueString())
+	prompts, err := d.client.ListPrompts(ctx)
 	if err != nil {
-		if err == client.ErrNotFound {
-			resp.Diagnostics.AddAttributeError(
-				path.Root("command"),
-				"Prompt not found",
-				"No Open WebUI prompt was found with the supplied command.",
-			)
-			return
-		}
-
-		resp.Diagnostics.AddError("Read prompt failed", err.Error())
+		resp.Diagnostics.AddError("List prompts failed", err.Error())
 		return
 	}
 
-	state, diags := promptResponseToModel(ctx, d.client, current)
+	var match *client.PromptModel
+	for i := range prompts {
+		if prompts[i].Command == command {
+			match = &prompts[i]
+			break
+		}
+	}
+
+	if match == nil {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("command"),
+			"Prompt not found",
+			"No Open WebUI prompt was found with the supplied command.",
+		)
+		return
+	}
+
+	state, diags := promptResponseToModel(ctx, d.client, match)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
