@@ -2,9 +2,11 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 )
 
 // GroupForm represents the payload for creating a group.
@@ -57,6 +59,10 @@ func (c *Client) ListGroups(ctx context.Context) ([]GroupResponse, error) {
 	return resp, nil
 }
 
+// notFoundDetail is the body phrase Open WebUI returns (with HTTP 401) when a
+// group does not exist; see ERROR_MESSAGES.NOT_FOUND in the backend.
+const notFoundDetail = "We could not find what you're looking for"
+
 // GetGroup retrieves a group by identifier.
 func (c *Client) GetGroup(ctx context.Context, id string) (*GroupResponse, error) {
 	var resp GroupResponse
@@ -64,6 +70,14 @@ func (c *Client) GetGroup(ctx context.Context, id string) (*GroupResponse, error
 	// /id/{id} endpoint no longer includes (membership moved to a separate table).
 	path := fmt.Sprintf("groups/id/%s/export", url.PathEscape(id))
 	if err := c.do(ctx, http.MethodGet, path, nil, nil, &resp); err != nil {
+		// A missing group is reported as 401 with a NOT_FOUND detail body, not
+		// 404, so map that case to ErrNotFound to let callers treat external
+		// deletion as resource removal. Genuine auth failures carry a different
+		// detail and remain hard errors.
+		var apiErr *APIError
+		if errors.As(err, &apiErr) && apiErr.Status == http.StatusUnauthorized && strings.Contains(apiErr.Body, notFoundDetail) {
+			return nil, ErrNotFound
+		}
 		return nil, err
 	}
 
