@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -25,26 +24,16 @@ type promptResource struct {
 	client *client.Client
 }
 
-// normalizePromptCommand ensures commands sent to the API always include a single
-// leading slash, while preserving the user-specified value in Terraform state.
-func normalizePromptCommand(command string) string {
-	if command == "" {
-		return command
-	}
-
-	trimmed := strings.TrimPrefix(command, "/")
-	return "/" + trimmed
-}
-
 // promptResourceModel describes Terraform state.
 type promptResourceModel struct {
 	ID          types.String `tfsdk:"id"`
 	Command     types.String `tfsdk:"command"`
-	Title       types.String `tfsdk:"title"`
+	Name        types.String `tfsdk:"name"`
 	Content     types.String `tfsdk:"content"`
 	ReadGroups  types.List   `tfsdk:"read_groups"`
 	WriteGroups types.List   `tfsdk:"write_groups"`
-	Timestamp   types.String `tfsdk:"timestamp"`
+	CreatedAt   types.String `tfsdk:"created_at"`
+	UpdatedAt   types.String `tfsdk:"updated_at"`
 	UserID      types.String `tfsdk:"user_id"`
 }
 
@@ -64,20 +53,16 @@ func (r *promptResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:      true,
-				Description:   "Terraform resource identifier (mirrors the command).",
+				Description:   "Server-assigned prompt identifier (UUID).",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"command": schema.StringAttribute{
 				Required:    true,
 				Description: "Unique command string used to invoke the prompt.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
-			"title": schema.StringAttribute{
+			"name": schema.StringAttribute{
 				Required:    true,
-				Description: "Prompt title displayed in Open WebUI.",
+				Description: "Prompt name displayed in Open WebUI.",
 			},
 			"content": schema.StringAttribute{
 				Required:    true,
@@ -97,9 +82,14 @@ func (r *promptResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				Description:   "Group names or IDs granted write access to the prompt (also receive read access).",
 				PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()},
 			},
-			"timestamp": schema.StringAttribute{
+			"created_at": schema.StringAttribute{
+				Computed:      true,
+				Description:   "Prompt creation date formatted as YYYY-MM-DD.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"updated_at": schema.StringAttribute{
 				Computed:    true,
-				Description: "Prompt timestamp formatted as YYYY-MM-DD.",
+				Description: "Prompt last-update date formatted as YYYY-MM-DD.",
 			},
 			"user_id": schema.StringAttribute{
 				Computed:    true,
@@ -133,10 +123,9 @@ func (r *promptResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 
-	planCommand := plan.Command.ValueString()
 	form := client.PromptForm{
-		Command: normalizePromptCommand(planCommand),
-		Title:   plan.Title.ValueString(),
+		Command: plan.Command.ValueString(),
+		Name:    plan.Name.ValueString(),
 		Content: plan.Content.ValueString(),
 	}
 
@@ -162,10 +151,6 @@ func (r *promptResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 
-	// Ensure command attribute is persisted from plan (API echoes the same value).
-	state.Command = types.StringValue(planCommand)
-	state.ID = types.StringValue(planCommand)
-
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -182,7 +167,7 @@ func (r *promptResource) Read(ctx context.Context, req resource.ReadRequest, res
 		return
 	}
 
-	current, err := r.client.GetPrompt(ctx, state.Command.ValueString())
+	current, err := r.client.GetPrompt(ctx, state.ID.ValueString())
 	if err != nil {
 		if err == client.ErrNotFound {
 			resp.State.RemoveResource(ctx)
@@ -197,9 +182,6 @@ func (r *promptResource) Read(ctx context.Context, req resource.ReadRequest, res
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	updated.Command = types.StringValue(state.Command.ValueString())
-	updated.ID = types.StringValue(state.Command.ValueString())
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &updated)...)
 }
@@ -223,10 +205,9 @@ func (r *promptResource) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 
-	normalizedCommand := normalizePromptCommand(state.Command.ValueString())
 	form := client.PromptForm{
-		Command: normalizedCommand,
-		Title:   plan.Title.ValueString(),
+		Command: plan.Command.ValueString(),
+		Name:    plan.Name.ValueString(),
 		Content: plan.Content.ValueString(),
 	}
 
@@ -240,22 +221,19 @@ func (r *promptResource) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 
-	updatedPrompt, err := r.client.UpdatePrompt(ctx, state.Command.ValueString(), form)
+	updatedPrompt, err := r.client.UpdatePrompt(ctx, state.ID.ValueString(), form)
 	if err != nil {
 		resp.Diagnostics.AddError("Update prompt failed", err.Error())
 		return
 	}
 
-	state, diags := promptResponseToModel(ctx, r.client, updatedPrompt)
+	newState, diags := promptResponseToModel(ctx, r.client, updatedPrompt)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	state.Command = types.StringValue(plan.Command.ValueString())
-	state.ID = types.StringValue(plan.Command.ValueString())
-
-	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &newState)...)
 }
 
 // Delete removes the prompt.
@@ -271,7 +249,7 @@ func (r *promptResource) Delete(ctx context.Context, req resource.DeleteRequest,
 		return
 	}
 
-	if err := r.client.DeletePrompt(ctx, state.Command.ValueString()); err != nil {
+	if err := r.client.DeletePrompt(ctx, state.ID.ValueString()); err != nil {
 		if err == client.ErrNotFound {
 			resp.State.RemoveResource(ctx)
 			return
@@ -281,10 +259,9 @@ func (r *promptResource) Delete(ctx context.Context, req resource.DeleteRequest,
 	}
 }
 
-// ImportState allows importing by command identifier.
+// ImportState allows importing by the server UUID.
 func (r *promptResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("command"), req, resp)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
 // promptResponseToModel maps API objects into Terraform state structures.
@@ -318,13 +295,14 @@ func promptResponseToModel(ctx context.Context, apiClient *client.Client, resp *
 	}
 
 	state := promptResourceModel{
-		ID:          types.StringValue(resp.Command),
+		ID:          types.StringValue(resp.ID),
 		Command:     types.StringValue(resp.Command),
-		Title:       types.StringValue(resp.Title),
+		Name:        types.StringValue(resp.Name),
 		Content:     types.StringValue(resp.Content),
 		ReadGroups:  readList,
 		WriteGroups: writeList,
-		Timestamp:   formatDateValue(resp.Timestamp),
+		CreatedAt:   formatDateValue(resp.CreatedAt),
+		UpdatedAt:   formatDateValue(resp.UpdatedAt),
 		UserID:      types.StringValue(resp.UserID),
 	}
 
