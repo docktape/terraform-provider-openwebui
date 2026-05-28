@@ -7,6 +7,9 @@ import (
 	"net/url"
 )
 
+// filesListPageSize mirrors the backend PAGE_SIZE for GET /files/.
+const filesListPageSize = 30
+
 // FileMeta captures metadata returned with files.
 type FileMeta struct {
 	Name        *string `json:"name,omitempty"`
@@ -51,17 +54,33 @@ func (c *Client) UploadFile(ctx context.Context, filePath string, metadata strin
 	return &resp, nil
 }
 
-// ListFiles lists files available to the user.
-func (c *Client) ListFiles(ctx context.Context, includeContent bool) ([]FileModelResponse, error) {
-	query := url.Values{}
-	query.Set("content", fmt.Sprintf("%t", includeContent))
+// fileListResponse is the paginated envelope returned by GET /files/.
+type fileListResponse struct {
+	Items []FileModelResponse `json:"items"`
+	Total int                 `json:"total"`
+}
 
-	var resp []FileModelResponse
-	if err := c.do(ctx, http.MethodGet, "files/", query, nil, &resp); err != nil {
-		return nil, err
+// ListFiles lists files available to the user, paging through the
+// server-paginated GET /files/ endpoint until exhausted.
+func (c *Client) ListFiles(ctx context.Context, includeContent bool) ([]FileModelResponse, error) {
+	var all []FileModelResponse
+	for page := 1; ; page++ {
+		query := url.Values{}
+		query.Set("content", fmt.Sprintf("%t", includeContent))
+		query.Set("page", fmt.Sprintf("%d", page))
+
+		var resp fileListResponse
+		if err := c.do(ctx, http.MethodGet, "files/", query, nil, &resp); err != nil {
+			return nil, err
+		}
+
+		all = append(all, resp.Items...)
+		if len(resp.Items) < filesListPageSize || len(all) >= resp.Total {
+			break
+		}
 	}
 
-	return resp, nil
+	return all, nil
 }
 
 // SearchFiles searches for files by filename pattern.
