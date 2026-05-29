@@ -1,5 +1,11 @@
 .PHONY: build test testacc tidy fmt clean docs
 
+ifeq ($(OS),Windows_NT)
+    SET_TF_ACC := set TF_ACC=1&&
+else
+    SET_TF_ACC := TF_ACC=1
+endif
+
 BIN      ?= terraform-provider-openwebui
 GO       ?= go
 BIN_DIR  ?= $(CURDIR)/bin
@@ -13,7 +19,7 @@ test:
 	$(GO) test ./...
 
 testacc:
-	TF_ACC=1 $(GO) test ./internal/provider/... -v -count=1 -timeout 30m
+	$(SET_TF_ACC) $(GO) test ./internal/provider/... -v -count=1 -timeout 30m
 
 tidy:
 	$(GO) mod tidy
