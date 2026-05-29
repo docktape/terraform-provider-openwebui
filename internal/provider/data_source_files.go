@@ -51,39 +51,40 @@ func (d *filesDataSource) Metadata(_ context.Context, req datasource.MetadataReq
 // Schema defines the files data source schema.
 func (d *filesDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Returns a filtered list of files uploaded to Open WebUI.",
 		Attributes: map[string]schema.Attribute{
 			"filename": schema.StringAttribute{
 				Optional:    true,
-				Description: "Filename pattern to search for (supports wildcards).",
+				Description: "Filename substring to filter by. Returns all files if omitted.",
 			},
 			"content": schema.BoolAttribute{
 				Optional:    true,
 				Computed:    true,
-				Description: "Whether to include file content metadata in responses.",
+				Description: "Whether to include file content metadata in the response.",
 			},
 			"skip": schema.Int64Attribute{
 				Optional:    true,
 				Computed:    true,
-				Description: "Number of results to skip when searching.",
+				Description: "Number of results to skip for pagination.",
 			},
 			"limit": schema.Int64Attribute{
 				Optional:    true,
 				Computed:    true,
-				Description: "Maximum number of results to return when searching.",
+				Description: "Maximum number of results to return.",
 			},
 			"files": schema.ListNestedAttribute{
 				Computed:    true,
-				Description: "List of files matching the query.",
+				Description: "List of files matching the filter criteria.",
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
-						"id":         schema.StringAttribute{Computed: true},
-						"filename":   schema.StringAttribute{Computed: true},
-						"hash":       schema.StringAttribute{Computed: true},
-						"user_id":    schema.StringAttribute{Computed: true},
-						"data_json":  schema.StringAttribute{Computed: true},
-						"meta_json":  schema.StringAttribute{Computed: true},
-						"created_at": schema.Int64Attribute{Computed: true},
-						"updated_at": schema.Int64Attribute{Computed: true},
+						"id":         schema.StringAttribute{Computed: true, Description: "UUID of the file."},
+						"filename":   schema.StringAttribute{Computed: true, Description: "Original filename as stored by Open WebUI."},
+						"hash":       schema.StringAttribute{Computed: true, Description: "SHA-256 hash of the file content."},
+						"user_id":    schema.StringAttribute{Computed: true, Description: "Owner user identifier."},
+						"data_json":  schema.StringAttribute{Computed: true, Description: "JSON data blob associated with the file."},
+						"meta_json":  schema.StringAttribute{Computed: true, Description: "JSON metadata blob associated with the file."},
+						"created_at": schema.Int64Attribute{Computed: true, Description: "Unix timestamp of when the file was uploaded."},
+						"updated_at": schema.Int64Attribute{Computed: true, Description: "Unix timestamp of when the file record was last updated."},
 					},
 				},
 			},

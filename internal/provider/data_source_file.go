@@ -45,42 +45,43 @@ func (d *fileDataSource) Metadata(_ context.Context, req datasource.MetadataRequ
 // Schema defines the file data source schema.
 func (d *fileDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Looks up an uploaded file by its UUID.",
 		Attributes: map[string]schema.Attribute{
 			"file_id": schema.StringAttribute{
 				Required:    true,
-				Description: "Identifier of the file to look up.",
+				Description: "UUID of the file to look up.",
 			},
 			"id": schema.StringAttribute{
 				Computed:    true,
-				Description: "Unique identifier assigned by Open WebUI.",
+				Description: "UUID of the file. Set after lookup.",
 			},
 			"filename": schema.StringAttribute{
 				Computed:    true,
-				Description: "Filename as stored by Open WebUI.",
+				Description: "Original filename as stored by Open WebUI.",
 			},
 			"hash": schema.StringAttribute{
 				Computed:    true,
-				Description: "Hash returned by Open WebUI for the file.",
+				Description: "SHA-256 hash of the file content.",
 			},
 			"user_id": schema.StringAttribute{
 				Computed:    true,
-				Description: "Identifier of the user who owns the file.",
+				Description: "Owner user identifier.",
 			},
 			"data_json": schema.StringAttribute{
 				Computed:    true,
-				Description: "JSON data payload returned by Open WebUI.",
+				Description: "JSON data blob associated with the file as returned by Open WebUI.",
 			},
 			"meta_json": schema.StringAttribute{
 				Computed:    true,
-				Description: "JSON metadata returned by Open WebUI.",
+				Description: "JSON metadata blob associated with the file as returned by Open WebUI.",
 			},
 			"created_at": schema.Int64Attribute{
 				Computed:    true,
-				Description: "Unix timestamp of file creation.",
+				Description: "Unix timestamp of when the file was uploaded.",
 			},
 			"updated_at": schema.Int64Attribute{
 				Computed:    true,
-				Description: "Unix timestamp of last update.",
+				Description: "Unix timestamp of when the file record was last updated.",
 			},
 		},
 	}
