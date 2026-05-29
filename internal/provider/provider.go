@@ -46,15 +46,39 @@ func (p *openWebUIProvider) Metadata(_ context.Context, req provider.MetadataReq
 // Schema defines the provider-level schema.
 func (p *openWebUIProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "The **openwebui** provider manages resources in an [Open WebUI](https://openwebui.com) deployment via its REST API.\n\n" +
+			"## Resources\n\n" +
+			"- `openwebui_knowledge` — knowledge base entries\n" +
+			"- `openwebui_model` — custom model definitions\n" +
+			"- `openwebui_prompt` — reusable prompt commands\n" +
+			"- `openwebui_group` — user groups with permissions\n" +
+			"- `openwebui_tool` / `openwebui_tool_valves` — Python tools and their settings\n" +
+			"- `openwebui_pipeline` / `openwebui_pipeline_valves` — pipeline registrations and settings\n" +
+			"- `openwebui_file` / `openwebui_knowledge_file` — uploaded files and knowledge attachments\n" +
+			"- `openwebui_function` / `openwebui_function_valves` — Python functions and their settings\n" +
+			"- `openwebui_config_import` — bulk configuration restore\n" +
+			"- `openwebui_connections_config` — direct connection settings\n" +
+			"- `openwebui_tool_servers_config` — external tool server registrations\n" +
+			"- `openwebui_code_execution_config` — code execution and interpreter settings\n" +
+			"- `openwebui_models_config` — default model ordering settings\n" +
+			"- `openwebui_suggestions_config` — default prompt suggestions\n" +
+			"- `openwebui_banners_config` — UI announcement banners\n" +
+			"- `openwebui_oauth_client` — OAuth client registrations\n\n" +
+			"## Data Sources\n\n" +
+			"- `openwebui_model`, `openwebui_knowledge`, `openwebui_prompt`, `openwebui_group`, `openwebui_tool`, `openwebui_pipeline` — look up existing objects by name or ID\n" +
+			"- `openwebui_file`, `openwebui_files` — look up uploaded files\n" +
+			"- `openwebui_config_export` — export the current Open WebUI configuration\n" +
+			"- `openwebui_user` — look up a user by email or ID\n" +
+			"- `openwebui_tool_server_verify` — verify connectivity to a tool server\n",
 		Attributes: map[string]schema.Attribute{
 			"endpoint": schema.StringAttribute{
 				Optional:    true,
-				Description: "Base URL for the Open WebUI API. Defaults to http://localhost:3000/api/v1.",
+				Description: "Base URL for the Open WebUI API, e.g. `https://openwebui.example.com/api/v1`. Defaults to `http://localhost:3000/api/v1`. Can also be set via the `OPENWEBUI_ENDPOINT` environment variable.",
 			},
 			"token": schema.StringAttribute{
 				Optional:    true,
 				Sensitive:   true,
-				Description: "API token used to authenticate against the Open WebUI API. Can also be supplied via the OPENWEBUI_TOKEN environment variable.",
+				Description: "Bearer token used to authenticate requests to the Open WebUI API. Can also be set via the `OPENWEBUI_TOKEN` environment variable.",
 			},
 		},
 	}
