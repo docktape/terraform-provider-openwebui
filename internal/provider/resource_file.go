@@ -54,62 +54,63 @@ func (r *fileResource) Metadata(_ context.Context, req resource.MetadataRequest,
 // Schema defines the file resource schema.
 func (r *fileResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Uploads a local file to Open WebUI. Replacement is forced on any attribute change because files are immutable after upload.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:      true,
-				Description:   "Unique identifier assigned by Open WebUI.",
+				Description:   "UUID assigned by Open WebUI on upload.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"source_path": schema.StringAttribute{
 				Required:      true,
-				Description:   "Local path to the file to upload.",
+				Description:   "Absolute or module-relative path to the file to upload. Forces replacement.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 			},
 			"metadata_json": schema.StringAttribute{
 				Optional:      true,
-				Description:   "Optional JSON metadata sent during upload.",
+				Description:   "Optional JSON metadata to attach to the file on upload. e.g. `jsonencode({ category = \"docs\" })`. Forces replacement.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 			},
 			"process": schema.BoolAttribute{
 				Optional:      true,
 				Computed:      true,
-				Description:   "Whether Open WebUI should process the file after upload.",
+				Description:   "Whether Open WebUI should process the file for RAG (chunk and embed it). Defaults to `false`.",
 				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown(), boolplanmodifier.RequiresReplace()},
 			},
 			"process_in_background": schema.BoolAttribute{
 				Optional:      true,
 				Computed:      true,
-				Description:   "Whether file processing should be queued in the background.",
+				Description:   "Whether RAG processing runs asynchronously. Only relevant when `process = true`. Defaults to `false`.",
 				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown(), boolplanmodifier.RequiresReplace()},
 			},
 			"filename": schema.StringAttribute{
 				Computed:    true,
-				Description: "Filename as stored by Open WebUI.",
+				Description: "Original filename as stored by Open WebUI. Set by Open WebUI.",
 			},
 			"hash": schema.StringAttribute{
 				Computed:    true,
-				Description: "Hash returned by Open WebUI for the uploaded file.",
+				Description: "SHA-256 hash of the uploaded file content. Set by Open WebUI.",
 			},
 			"user_id": schema.StringAttribute{
 				Computed:    true,
-				Description: "Identifier of the user who owns the file.",
+				Description: "Owner user identifier. Set by Open WebUI.",
 			},
 			"data_json": schema.StringAttribute{
 				Computed:    true,
-				Description: "JSON data payload returned by Open WebUI.",
+				Description: "JSON data blob associated with the file as returned by Open WebUI.",
 			},
 			"meta_json": schema.StringAttribute{
 				Computed:    true,
-				Description: "JSON metadata returned by Open WebUI.",
+				Description: "JSON metadata blob associated with the file as returned by Open WebUI.",
 			},
 			"created_at": schema.Int64Attribute{
 				Computed:      true,
-				Description:   "Unix timestamp of file creation.",
+				Description:   "Unix timestamp of when the file was uploaded. Set by Open WebUI.",
 				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
 			},
 			"updated_at": schema.Int64Attribute{
 				Computed:      true,
-				Description:   "Unix timestamp of last update.",
+				Description:   "Unix timestamp of when the file record was last updated. Set by Open WebUI.",
 				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
 			},
 		},
