@@ -51,58 +51,59 @@ func (r *knowledgeResource) Metadata(_ context.Context, req resource.MetadataReq
 // Schema describes the resource schema.
 func (r *knowledgeResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Manages a knowledge base entry in Open WebUI.\n\nOmit both `read_groups` and `write_groups` to leave the entry publicly accessible.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:      true,
-				Description:   "Unique identifier for the knowledge base entry.",
+				Description:   "UUID assigned by Open WebUI on create.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"name": schema.StringAttribute{
 				Required:    true,
-				Description: "Human-readable name for the knowledge entry.",
+				Description: "Human-readable name of the knowledge base.",
 			},
 			"description": schema.StringAttribute{
 				Required:    true,
-				Description: "Detailed description of the knowledge entry.",
+				Description: "Description shown in the Open WebUI interface.",
 			},
 			"data_json": schema.StringAttribute{
 				Optional:      true,
 				Computed:      true,
-				Description:   "JSON payload describing additional data for the knowledge entry.",
+				Description:   "Optional JSON object sent as additional metadata during create and update. e.g. `jsonencode({ category = \"support\" })`.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"meta_json": schema.StringAttribute{
 				Optional:      true,
 				Computed:      true,
-				Description:   "JSON payload describing metadata for the knowledge entry.",
+				Description:   "JSON metadata stored on the knowledge entry. Open WebUI may enrich this after create. e.g. `jsonencode({ source = \"internal\" })`.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"read_groups": schema.ListAttribute{
 				ElementType:   types.StringType,
 				Optional:      true,
 				Computed:      true,
-				Description:   "Group names or IDs granted read access to the knowledge entry.",
+				Description:   "List of group names or IDs granted read access. Leave unset or empty for public access.",
 				PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()},
 			},
 			"write_groups": schema.ListAttribute{
 				ElementType:   types.StringType,
 				Optional:      true,
 				Computed:      true,
-				Description:   "Group names or IDs granted write access to the knowledge entry.",
+				Description:   "List of group names or IDs granted write access. Groups here automatically receive read access too. Leave unset or empty for public access.",
 				PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()},
 			},
 			"created_at": schema.StringAttribute{
 				Computed:      true,
-				Description:   "Creation date in YYYY-MM-DD format.",
+				Description:   "Creation date in `YYYY-MM-DD` format. Set by Open WebUI.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"updated_at": schema.StringAttribute{
 				Computed:    true,
-				Description: "Last update date in YYYY-MM-DD format.",
+				Description: "Last-updated date in `YYYY-MM-DD` format. Set by Open WebUI.",
 			},
 			"user_id": schema.StringAttribute{
 				Computed:    true,
-				Description: "Identifier of the user who owns the knowledge entry.",
+				Description: "Identifier of the Open WebUI user that owns the knowledge entry. Set by Open WebUI.",
 			},
 		},
 	}
