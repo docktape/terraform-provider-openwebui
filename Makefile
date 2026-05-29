@@ -1,25 +1,10 @@
-
-.PHONY: build test tidy fmt clean
-
-BIN ?= terraform-provider-openwebui
-GO ?= go
-BIN_DIR ?= $(CURDIR)/bin
-VERSION ?= 0.0.0-dev
-LDFLAGS ?= -X github.com/docktape/terraform-provider-openwebui/internal/provider.Version=$(VERSION)
-
-# Build the provider binary into ./bin. Point a Terraform dev override at $(BIN_DIR)
-# to test it locally (see README.md > Local Development & Testing).
-build:
-	$(GO) build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/$(BIN)
+.PHONY: test testacc docs
 
 test:
-	$(GO) test ./...
+	go test ./...
 
-tidy:
-	$(GO) mod tidy
+testacc:
+	TF_ACC=1 go test ./internal/provider/... -v -count=1 -timeout 30m
 
-fmt:
-	$(GO) fmt ./...
-
-clean:
-	rm -rf $(BIN_DIR)
+docs:
+	go generate ./...
