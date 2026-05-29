@@ -40,71 +40,76 @@ func (d *groupDataSource) Metadata(_ context.Context, req datasource.MetadataReq
 // Schema describes the group data source schema.
 func (d *groupDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Looks up an existing group by name or ID.",
 		Attributes: map[string]schema.Attribute{
 			"group_id": schema.StringAttribute{
 				Optional:    true,
 				Computed:    true,
-				Description: "Identifier of the group to retrieve. If omitted, `name` must be provided.",
+				Description: "UUID of the group to look up directly. If omitted, `name` must be provided.",
 			},
 			"id": schema.StringAttribute{
 				Computed:    true,
-				Description: "Unique identifier assigned by Open WebUI.",
+				Description: "UUID of the group. Set after lookup.",
 			},
 			"name": schema.StringAttribute{
 				Optional:    true,
 				Computed:    true,
-				Description: "Group name used to locate the record when `group_id` is not supplied.",
+				Description: "Name of the group to look up. Must match exactly (case-insensitive).",
 			},
 			"description": schema.StringAttribute{
 				Computed:    true,
-				Description: "Group description.",
+				Description: "Human-readable description of the group's purpose.",
 			},
 			"users": schema.ListAttribute{
 				ElementType: types.StringType,
 				Computed:    true,
-				Description: "User identifiers (or usernames/emails) that belong to the group.",
+				Description: "List of user email addresses or UUIDs in this group.",
 			},
 			"permissions": schema.SingleNestedAttribute{
-				Computed:    true,
-				Description: "Fine-grained permission flags organised by category.",
+				Computed:            true,
+				MarkdownDescription: "Permission flags for group members returned by Open WebUI.",
 				Attributes: map[string]schema.Attribute{
 					"workspace": schema.MapAttribute{
 						ElementType: types.BoolType,
 						Computed:    true,
+						Description: "Workspace-level permissions. Valid keys: `models`, `knowledge`, `prompts`, `tools`.",
 					},
 					"sharing": schema.MapAttribute{
 						ElementType: types.BoolType,
 						Computed:    true,
+						Description: "Sharing permissions. Valid keys: `public_models`, `public_knowledge`, `public_prompts`, `public_tools`.",
 					},
 					"chat": schema.MapAttribute{
 						ElementType: types.BoolType,
 						Computed:    true,
+						Description: "Chat-level permissions. Valid keys: `controls`, `valves`, `system_prompt`, `params`, `file_upload`, `delete`, `delete_message`, `continue_response`, `regenerate_response`, `rate_response`, `edit`, `share`, `export`, `stt`, `tts`, `call`, `multiple_models`, `temporary`, `temporary_enforced`.",
 					},
 					"features": schema.MapAttribute{
 						ElementType: types.BoolType,
 						Computed:    true,
+						Description: "Feature access permissions. Valid keys: `direct_tool_servers`, `web_search`, `image_generation`, `code_interpreter`, `notes`.",
 					},
 				},
 			},
 			"meta_json": schema.StringAttribute{
 				Computed:    true,
-				Description: "JSON metadata associated with the group.",
+				Description: "JSON metadata blob associated with the group as returned by Open WebUI.",
 			},
 			"data_json": schema.StringAttribute{
 				Computed:    true,
-				Description: "JSON payload containing additional group data.",
+				Description: "JSON data blob associated with the group as returned by Open WebUI.",
 			},
 			"user_id": schema.StringAttribute{
 				Computed:    true,
-				Description: "Identifier of the user who owns the group.",
+				Description: "Owner user identifier.",
 			},
 			"created_at": schema.StringAttribute{
 				Computed:    true,
-				Description: "Creation date assigned by Open WebUI (YYYY-MM-DD).",
+				Description: "Creation date in `YYYY-MM-DD` format.",
 			},
 			"updated_at": schema.StringAttribute{
 				Computed:    true,
-				Description: "Last update date assigned by Open WebUI (YYYY-MM-DD).",
+				Description: "Last-updated date in `YYYY-MM-DD` format.",
 			},
 		},
 	}
