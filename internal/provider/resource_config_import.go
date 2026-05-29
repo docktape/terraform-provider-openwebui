@@ -41,16 +41,17 @@ func (r *configImportResource) Metadata(_ context.Context, req resource.Metadata
 // Schema defines the config import schema.
 func (r *configImportResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Restores an Open WebUI configuration from a JSON blob. This is a singleton resource — applying it replaces the entire current configuration.\n\n~> **Warning:** `config_json` may contain secrets. Treat the Terraform state for this resource as sensitive.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:      true,
-				Description:   "Singleton identifier for config import.",
+				Description:   "Singleton identifier, always `config_import`.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"config_json": schema.StringAttribute{
 				Required:    true,
 				Sensitive:   true,
-				Description: "Full configuration export payload as JSON.",
+				Description: "Full Open WebUI configuration as a JSON string, as produced by the `openwebui_config_export` data source.",
 			},
 		},
 	}
