@@ -62,35 +62,36 @@ func (r *groupResource) Metadata(_ context.Context, req resource.MetadataRequest
 // Schema defines the resource schema for groups.
 func (r *groupResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Manages a user group in Open WebUI. Groups control workspace and chat permissions and are used for resource access control.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:      true,
-				Description:   "Unique identifier assigned by Open WebUI.",
+				Description:   "UUID assigned by Open WebUI on create.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"name": schema.StringAttribute{
 				Required:    true,
-				Description: "Group name.",
+				Description: "Unique display name of the group.",
 			},
 			"description": schema.StringAttribute{
 				Required:    true,
-				Description: "Group description.",
+				Description: "Human-readable description of the group's purpose.",
 			},
 			"users": schema.ListAttribute{
 				ElementType: types.StringType,
 				Optional:    true,
-				Description: "Usernames or email addresses resolved to user IDs when managing group membership.",
+				Description: "List of user email addresses or UUIDs who are members of this group.",
 			},
 			"permissions": schema.SingleNestedAttribute{
-				Optional:    true,
-				Computed:    true,
-				Description: "Fine-grained permission flags organised by category.",
+				Optional:            true,
+				Computed:            true,
+				MarkdownDescription: "Optional permission overrides for group members. Omit to use Open WebUI defaults.",
 				Attributes: map[string]schema.Attribute{
 					"workspace": schema.MapAttribute{
 						Optional:      true,
 						Computed:      true,
 						ElementType:   types.BoolType,
-						Description:   "Workspace-level permissions.",
+						Description:   "Workspace-level permissions. Valid keys: `models`, `knowledge`, `prompts`, `tools`.",
 						PlanModifiers: []planmodifier.Map{mapplanmodifier.UseStateForUnknown()},
 						Validators: []validator.Map{
 							mapvalidator.KeysAre(stringvalidator.OneOf(groupPermissionsWorkspaceKeys...)),
@@ -100,7 +101,7 @@ func (r *groupResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						Optional:      true,
 						Computed:      true,
 						ElementType:   types.BoolType,
-						Description:   "Sharing permissions.",
+						Description:   "Sharing permissions. Valid keys: `public_models`, `public_knowledge`, `public_prompts`, `public_tools`.",
 						PlanModifiers: []planmodifier.Map{mapplanmodifier.UseStateForUnknown()},
 						Validators: []validator.Map{
 							mapvalidator.KeysAre(stringvalidator.OneOf(groupPermissionsSharingKeys...)),
@@ -110,7 +111,7 @@ func (r *groupResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						Optional:      true,
 						Computed:      true,
 						ElementType:   types.BoolType,
-						Description:   "Chat-related permissions.",
+						Description:   "Chat-level permissions. Valid keys: `controls`, `valves`, `system_prompt`, `params`, `file_upload`, `delete`, `delete_message`, `continue_response`, `regenerate_response`, `rate_response`, `edit`, `share`, `export`, `stt`, `tts`, `call`, `multiple_models`, `temporary`, `temporary_enforced`.",
 						PlanModifiers: []planmodifier.Map{mapplanmodifier.UseStateForUnknown()},
 						Validators: []validator.Map{
 							mapvalidator.KeysAre(stringvalidator.OneOf(groupPermissionsChatKeys...)),
@@ -120,7 +121,7 @@ func (r *groupResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						Optional:      true,
 						Computed:      true,
 						ElementType:   types.BoolType,
-						Description:   "Feature toggle permissions.",
+						Description:   "Feature access permissions. Valid keys: `direct_tool_servers`, `web_search`, `image_generation`, `code_interpreter`, `notes`.",
 						PlanModifiers: []planmodifier.Map{mapplanmodifier.UseStateForUnknown()},
 						Validators: []validator.Map{
 							mapvalidator.KeysAre(stringvalidator.OneOf(groupPermissionsFeaturesKeys...)),
@@ -130,16 +131,16 @@ func (r *groupResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 			},
 			"user_id": schema.StringAttribute{
 				Computed:    true,
-				Description: "Identifier of the user who owns the group.",
+				Description: "Owner user identifier. Set by Open WebUI.",
 			},
 			"created_at": schema.StringAttribute{
 				Computed:      true,
-				Description:   "Creation date assigned by Open WebUI (YYYY-MM-DD).",
+				Description:   "Creation date in `YYYY-MM-DD` format. Set by Open WebUI.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"updated_at": schema.StringAttribute{
 				Computed:    true,
-				Description: "Last update date assigned by Open WebUI (YYYY-MM-DD).",
+				Description: "Last-updated date in `YYYY-MM-DD` format. Set by Open WebUI.",
 			},
 		},
 	}
