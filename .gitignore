@@ -42,3 +42,7 @@ openapi.json
 
 docs_legacy/
 examples_legacy/
+
+# MemPalace per-project files
+mempalace.yaml
+entities.json
