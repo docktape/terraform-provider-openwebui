@@ -43,39 +43,40 @@ func (d *toolServerVerifyDataSource) Metadata(_ context.Context, req datasource.
 // Schema defines the tool server verify schema.
 func (d *toolServerVerifyDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Verifies that an external tool server is reachable and returns a valid OpenAPI spec.",
 		Attributes: map[string]schema.Attribute{
 			"url": schema.StringAttribute{
 				Required:    true,
-				Description: "Tool server base URL to verify.",
+				Description: "Base URL of the tool server to verify.",
 			},
 			"path": schema.StringAttribute{
 				Required:    true,
-				Description: "Tool server path to verify.",
+				Description: "Path to the OpenAPI spec endpoint, e.g. `/openapi.json`.",
 			},
 			"type": schema.StringAttribute{
 				Optional:    true,
-				Description: "Optional tool server type.",
+				Description: "Tool server type identifier.",
 			},
 			"auth_type": schema.StringAttribute{
 				Optional:    true,
-				Description: "Optional authentication type.",
+				Description: "Authentication type for the tool server, e.g. `bearer`.",
 			},
 			"headers_json": schema.StringAttribute{
 				Optional:    true,
-				Description: "Optional headers JSON for the tool server.",
+				Description: "JSON object of additional HTTP headers to send. e.g. `jsonencode({ X-Api-Version = \"2\" })`.",
 			},
 			"key": schema.StringAttribute{
 				Optional:    true,
 				Sensitive:   true,
-				Description: "Optional authentication key for the tool server.",
+				Description: "API key or bearer token. Sensitive.",
 			},
 			"config_json": schema.StringAttribute{
 				Optional:    true,
-				Description: "Optional tool server config JSON.",
+				Description: "Additional JSON configuration for the verification request.",
 			},
 			"verified": schema.BoolAttribute{
 				Computed:    true,
-				Description: "Whether the tool server verification succeeded.",
+				Description: "`true` if the server responded with a valid OpenAPI spec.",
 			},
 		},
 	}

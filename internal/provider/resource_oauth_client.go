@@ -44,19 +44,20 @@ func (r *oauthClientResource) Metadata(_ context.Context, req resource.MetadataR
 // Schema defines the OAuth client schema.
 func (r *oauthClientResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Registers an OAuth client with Open WebUI.\n\n~> **Note:** The OAuth client registration endpoint is write-only. Terraform preserves state from the last apply and cannot detect out-of-band changes.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:      true,
-				Description:   "OAuth client identifier (mirrors client_id).",
+				Description:   "Mirrors `client_id`.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"url": schema.StringAttribute{
 				Required:    true,
-				Description: "OAuth provider URL.",
+				Description: "OAuth provider URL to register the client with.",
 			},
 			"client_id": schema.StringAttribute{
 				Required:    true,
-				Description: "OAuth client identifier to register.",
+				Description: "OAuth client identifier to register. Forces replacement.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 					stringplanmodifier.RequiresReplace(),
@@ -68,7 +69,7 @@ func (r *oauthClientResource) Schema(_ context.Context, _ resource.SchemaRequest
 			},
 			"type": schema.StringAttribute{
 				Optional:    true,
-				Description: "Optional OAuth client type query parameter.",
+				Description: "OAuth client type, e.g. `confidential` or `public`.",
 			},
 		},
 	}

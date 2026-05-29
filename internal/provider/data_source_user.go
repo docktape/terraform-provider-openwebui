@@ -48,28 +48,56 @@ func (d *userDataSource) Metadata(_ context.Context, req datasource.MetadataRequ
 // Schema defines the user data source schema.
 func (d *userDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Looks up an Open WebUI user by email, username, or UUID.",
 		Attributes: map[string]schema.Attribute{
 			"user_id": schema.StringAttribute{
 				Optional:    true,
-				Description: "Identifier of the user to retrieve.",
+				Description: "UUID of the user to look up directly. Use this or `query`, not both.",
 			},
 			"query": schema.StringAttribute{
 				Optional:    true,
-				Description: "Search query used to locate a user when user_id is not provided.",
+				Description: "Email address or username to search for.",
 			},
 			"id": schema.StringAttribute{
 				Computed:    true,
-				Description: "Unique identifier assigned by Open WebUI.",
+				Description: "UUID of the user. Set after lookup.",
 			},
-			"name":              schema.StringAttribute{Computed: true},
-			"email":             schema.StringAttribute{Computed: true},
-			"username":          schema.StringAttribute{Computed: true},
-			"role":              schema.StringAttribute{Computed: true},
-			"profile_image_url": schema.StringAttribute{Computed: true},
-			"bio":               schema.StringAttribute{Computed: true},
-			"last_active_at":    schema.Int64Attribute{Computed: true},
-			"updated_at":        schema.Int64Attribute{Computed: true},
-			"created_at":        schema.Int64Attribute{Computed: true},
+			"name": schema.StringAttribute{
+				Computed:    true,
+				Description: "Display name of the user.",
+			},
+			"email": schema.StringAttribute{
+				Computed:    true,
+				Description: "Email address of the user.",
+			},
+			"username": schema.StringAttribute{
+				Computed:    true,
+				Description: "Username of the user.",
+			},
+			"role": schema.StringAttribute{
+				Computed:    true,
+				Description: "Role of the user, e.g. `admin` or `user`.",
+			},
+			"profile_image_url": schema.StringAttribute{
+				Computed:    true,
+				Description: "URL of the user's profile image.",
+			},
+			"bio": schema.StringAttribute{
+				Computed:    true,
+				Description: "User bio.",
+			},
+			"last_active_at": schema.Int64Attribute{
+				Computed:    true,
+				Description: "Unix timestamp of the user's last activity.",
+			},
+			"updated_at": schema.Int64Attribute{
+				Computed:    true,
+				Description: "Unix timestamp of when the user record was last updated.",
+			},
+			"created_at": schema.Int64Attribute{
+				Computed:    true,
+				Description: "Unix timestamp of when the user account was created.",
+			},
 		},
 	}
 }
