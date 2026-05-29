@@ -54,15 +54,16 @@ func (r *functionResource) Metadata(_ context.Context, req resource.MetadataRequ
 // Schema defines the function resource schema.
 func (r *functionResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Manages an Open WebUI function — a Pipe, Filter, or Action plugin written in Python.\n\nThe `type` and `manifest_json` are derived by Open WebUI from the Python source you provide and are read-only. The class you define (`Pipe`, `Filter`, or `Action`) determines the type.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:      true,
-				Description:   "Identifier of the function (mirrors function_id).",
+				Description:   "Mirrors `function_id`.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"function_id": schema.StringAttribute{
 				Required:    true,
-				Description: "Function identifier. Must be a valid identifier (letters, digits, underscores); lowercased by Open WebUI. Changing it forces replacement.",
+				Description: "Unique identifier for the function, e.g. `content_filter`. Must be lowercase letters, digits, or underscores. Forces replacement.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 					stringplanmodifier.RequiresReplace(),
@@ -70,50 +71,50 @@ func (r *functionResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 			},
 			"name": schema.StringAttribute{
 				Required:    true,
-				Description: "Display name for the function.",
+				Description: "Display name of the function.",
 			},
 			"content": schema.StringAttribute{
 				Required:    true,
-				Description: "Python source for the function. The defined class (Pipe/Filter/Action) determines the function type.",
+				Description: "Python source code. The top-level class (`Pipe`, `Filter`, or `Action`) determines the function type.",
 			},
 			"description": schema.StringAttribute{
 				Optional:      true,
 				Computed:      true,
-				Description:   "Human-readable function description (meta.description).",
+				Description:   "Short description shown in the Open WebUI interface.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"is_active": schema.BoolAttribute{
 				Optional:      true,
 				Computed:      true,
-				Description:   "Whether the function is enabled. Defaults to false (Open WebUI default).",
+				Description:   "Whether the function is enabled. Defaults to `false`.",
 				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
 			},
 			"is_global": schema.BoolAttribute{
 				Optional:      true,
 				Computed:      true,
-				Description:   "Whether the function is applied globally to every chat. Defaults to false (Open WebUI default).",
+				Description:   "Whether the function is applied globally to every chat. Defaults to `false`.",
 				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
 			},
 			"type": schema.StringAttribute{
 				Computed:    true,
-				Description: "Function type derived from the source: pipe, filter, or action.",
+				Description: "Function type derived from the Python source: `pipe`, `filter`, or `action`. Read-only; set by Open WebUI.",
 			},
 			"manifest_json": schema.StringAttribute{
 				Computed:    true,
-				Description: "JSON manifest derived from the source frontmatter.",
+				Description: "JSON manifest derived from the Python frontmatter. Read-only; set by Open WebUI.",
 			},
 			"user_id": schema.StringAttribute{
 				Computed:    true,
-				Description: "Identifier of the user who owns the function.",
+				Description: "Owner user identifier. Set by Open WebUI.",
 			},
 			"created_at": schema.Int64Attribute{
 				Computed:      true,
-				Description:   "Unix timestamp of function creation.",
+				Description:   "Unix timestamp of creation. Set by Open WebUI.",
 				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
 			},
 			"updated_at": schema.Int64Attribute{
 				Computed:    true,
-				Description: "Unix timestamp of the last function update.",
+				Description: "Unix timestamp of last update. Set by Open WebUI.",
 			},
 		},
 	}

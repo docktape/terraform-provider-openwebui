@@ -44,15 +44,16 @@ func (r *functionValvesResource) Metadata(_ context.Context, req resource.Metada
 // Schema defines the function valves schema.
 func (r *functionValvesResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Configures the Valves (settings) of an Open WebUI function.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:      true,
-				Description:   "Identifier of the function valves resource (mirrors function_id).",
+				Description:   "Mirrors `function_id`.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"function_id": schema.StringAttribute{
 				Required:    true,
-				Description: "Function identifier to configure valves for.",
+				Description: "Identifier of the function whose valves to configure. Forces replacement.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 					stringplanmodifier.RequiresReplace(),
@@ -61,12 +62,12 @@ func (r *functionValvesResource) Schema(_ context.Context, _ resource.SchemaRequ
 			"valves_json": schema.StringAttribute{
 				Optional:      true,
 				Computed:      true,
-				Description:   "JSON payload describing valve settings.",
+				Description:   "JSON object of valve values to apply. Keys must match the function's Valves schema. e.g. `jsonencode({ priority = 5 })`.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"spec_json": schema.StringAttribute{
 				Computed:    true,
-				Description: "JSON schema describing the available valve settings.",
+				Description: "JSON schema of the function's Valves class. Read-only; returned by Open WebUI.",
 			},
 		},
 	}
