@@ -48,35 +48,41 @@ func (r *pipelineValvesResource) Metadata(_ context.Context, req resource.Metada
 // Schema defines the pipeline valves schema.
 func (r *pipelineValvesResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Configures the Valves (settings) of an Open WebUI pipeline.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				Computed:      true,
-				Description:   "Identifier of the pipeline valves resource (mirrors pipeline_id).",
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				Computed:            true,
+				Description:         "Composite identifier in the form `pipeline_id:url_idx`.",
+				MarkdownDescription: "Composite identifier in the form `pipeline_id:url_idx`.",
+				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"pipeline_id": schema.StringAttribute{
-				Required:    true,
-				Description: "Pipeline identifier to configure valves for.",
+				Required:            true,
+				Description:         "Pipeline identifier to configure valves for. Forces replacement.",
+				MarkdownDescription: "Pipeline identifier to configure valves for. Forces replacement.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"url_idx": schema.Int64Attribute{
-				Optional:      true,
-				Computed:      true,
-				Description:   "Pipeline URL index (defaults to 0).",
-				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
+				Optional:            true,
+				Computed:            true,
+				Description:         "URL index of the pipeline server. Defaults to 0.",
+				MarkdownDescription: "URL index of the pipeline server. Defaults to 0.",
+				PlanModifiers:       []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
 			},
 			"valves_json": schema.StringAttribute{
-				Optional:      true,
-				Computed:      true,
-				Description:   "JSON payload describing valve settings.",
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				Optional:            true,
+				Computed:            true,
+				Description:         "JSON object of valve values to apply to the pipeline. e.g. `jsonencode({ temperature = 0.7 })`.",
+				MarkdownDescription: "JSON object of valve values to apply to the pipeline. e.g. `jsonencode({ temperature = 0.7 })`.",
+				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"spec_json": schema.StringAttribute{
-				Computed:    true,
-				Description: "JSON schema describing the available valve settings.",
+				Computed:            true,
+				Description:         "JSON schema of the pipeline's Valves class. Read-only; returned by Open WebUI.",
+				MarkdownDescription: "JSON schema of the pipeline's Valves class. Read-only; returned by Open WebUI.",
 			},
 		},
 	}
