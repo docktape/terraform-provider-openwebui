@@ -40,54 +40,55 @@ func (d *knowledgeDataSource) Metadata(_ context.Context, req datasource.Metadat
 // Schema describes the knowledge data source schema.
 func (d *knowledgeDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Looks up an existing knowledge base entry by name or ID.",
 		Attributes: map[string]schema.Attribute{
 			"knowledge_id": schema.StringAttribute{
 				Optional:    true,
 				Computed:    true,
-				Description: "Identifier of the knowledge entry to retrieve. If omitted, `name` must be provided.",
+				Description: "UUID of the knowledge base to look up directly. If omitted, `name` must be provided.",
 			},
 			"name": schema.StringAttribute{
 				Optional:    true,
 				Computed:    true,
-				Description: "Case-insensitive knowledge name used to locate the entry when `knowledge_id` is not supplied.",
+				Description: "Name of the knowledge base to look up. Must match exactly (case-insensitive).",
 			},
 			"id": schema.StringAttribute{
 				Computed:    true,
-				Description: "Unique identifier assigned by Open WebUI.",
+				Description: "UUID of the knowledge base. Set after lookup.",
 			},
 			"description": schema.StringAttribute{
 				Computed:    true,
-				Description: "Detailed description of the knowledge entry.",
+				Description: "Description returned by Open WebUI.",
 			},
 			"data_json": schema.StringAttribute{
 				Computed:    true,
-				Description: "JSON payload describing additional knowledge data.",
+				Description: "JSON data blob associated with the knowledge base as returned by Open WebUI.",
 			},
 			"meta_json": schema.StringAttribute{
 				Computed:    true,
-				Description: "JSON payload describing metadata for the knowledge entry.",
+				Description: "JSON metadata blob associated with the knowledge base as returned by Open WebUI.",
 			},
 			"read_groups": schema.ListAttribute{
 				ElementType: types.StringType,
 				Computed:    true,
-				Description: "Group names granted read access.",
+				Description: "Read-access group names currently applied to this knowledge base.",
 			},
 			"write_groups": schema.ListAttribute{
 				ElementType: types.StringType,
 				Computed:    true,
-				Description: "Group names granted write access.",
+				Description: "Write-access group names currently applied to this knowledge base.",
 			},
 			"created_at": schema.StringAttribute{
 				Computed:    true,
-				Description: "Creation date in YYYY-MM-DD format.",
+				Description: "Creation date in `YYYY-MM-DD` format.",
 			},
 			"updated_at": schema.StringAttribute{
 				Computed:    true,
-				Description: "Last update date in YYYY-MM-DD format.",
+				Description: "Last-updated date in `YYYY-MM-DD` format.",
 			},
 			"user_id": schema.StringAttribute{
 				Computed:    true,
-				Description: "Identifier of the user who owns the knowledge entry.",
+				Description: "Owner user identifier.",
 			},
 		},
 	}
