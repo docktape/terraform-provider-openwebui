@@ -44,29 +44,34 @@ func (r *toolValvesResource) Metadata(_ context.Context, req resource.MetadataRe
 // Schema defines the tool valves schema.
 func (r *toolValvesResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Configures the Valves (settings) of an Open WebUI tool. Valves are the tool's user-configurable parameters.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				Computed:      true,
-				Description:   "Identifier of the tool valves resource (mirrors tool_id).",
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				Computed:            true,
+				Description:         "Mirrors `tool_id`.",
+				MarkdownDescription: "Mirrors `tool_id`.",
+				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"tool_id": schema.StringAttribute{
-				Required:    true,
-				Description: "Tool identifier to configure valves for.",
+				Required:            true,
+				Description:         "Identifier of the tool whose valves to configure. Forces replacement.",
+				MarkdownDescription: "Identifier of the tool whose valves to configure. Forces replacement.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"valves_json": schema.StringAttribute{
-				Optional:      true,
-				Computed:      true,
-				Description:   "JSON payload describing valve settings.",
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				Optional:            true,
+				Computed:            true,
+				Description:         "JSON object of valve values to apply. Keys must match the tool's Valves schema. e.g. `jsonencode({ max_pages = 5, timeout = 30 })`.",
+				MarkdownDescription: "JSON object of valve values to apply. Keys must match the tool's Valves schema. e.g. `jsonencode({ max_pages = 5, timeout = 30 })`.",
+				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"spec_json": schema.StringAttribute{
-				Computed:    true,
-				Description: "JSON schema describing the available valve settings.",
+				Computed:            true,
+				Description:         "JSON schema specification of the tool's Valves class. Read-only; returned by Open WebUI.",
+				MarkdownDescription: "JSON schema specification of the tool's Valves class. Read-only; returned by Open WebUI.",
 			},
 		},
 	}
