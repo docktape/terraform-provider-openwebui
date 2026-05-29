@@ -43,20 +43,21 @@ func (r *connectionsConfigResource) Metadata(_ context.Context, req resource.Met
 // Schema defines the connections config schema.
 func (r *connectionsConfigResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Manages connection settings for Open WebUI. This is a singleton resource that updates global connection configuration.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:      true,
-				Description:   "Singleton identifier for the connections config.",
+				Description:   "Singleton identifier. Set by Open WebUI.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"enable_direct_connections": schema.BoolAttribute{
 				Required:      true,
-				Description:   "Whether direct connections are enabled.",
+				Description:   "Whether direct model connections from the browser are allowed.",
 				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
 			},
 			"enable_base_models_cache": schema.BoolAttribute{
 				Required:      true,
-				Description:   "Whether base model caching is enabled.",
+				Description:   "Whether base model lists are cached for performance.",
 				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
 			},
 		},

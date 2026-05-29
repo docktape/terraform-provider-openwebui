@@ -51,24 +51,47 @@ func (r *toolServersConfigResource) Metadata(_ context.Context, req resource.Met
 // Schema defines the tool servers config schema.
 func (r *toolServersConfigResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Manages the list of external tool server registrations for Open WebUI.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:      true,
-				Description:   "Singleton identifier for the tool servers config.",
+				Description:   "Singleton identifier. Set by Open WebUI.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"connections": schema.ListNestedAttribute{
 				Required:    true,
-				Description: "Tool server connection entries.",
+				Description: "List of tool server connection entries.",
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
-						"url":          schema.StringAttribute{Required: true},
-						"path":         schema.StringAttribute{Required: true},
-						"type":         schema.StringAttribute{Optional: true},
-						"auth_type":    schema.StringAttribute{Optional: true},
-						"headers_json": schema.StringAttribute{Optional: true},
-						"key":          schema.StringAttribute{Optional: true, Sensitive: true},
-						"config_json":  schema.StringAttribute{Optional: true},
+						"url": schema.StringAttribute{
+							Required:    true,
+							Description: "Base URL of the tool server, e.g. `http://tools.internal:8080`.",
+						},
+						"path": schema.StringAttribute{
+							Required:    true,
+							Description: "Path to the tool server's OpenAPI spec, e.g. `/openapi.json`.",
+						},
+						"type": schema.StringAttribute{
+							Optional:    true,
+							Description: "Tool server type identifier.",
+						},
+						"auth_type": schema.StringAttribute{
+							Optional:    true,
+							Description: "Authentication type for the tool server, e.g. `bearer`.",
+						},
+						"headers_json": schema.StringAttribute{
+							Optional:    true,
+							Description: "JSON object of extra HTTP headers to send to the tool server. e.g. `jsonencode({ X-Api-Version = \"2\" })`.",
+						},
+						"key": schema.StringAttribute{
+							Optional:    true,
+							Sensitive:   true,
+							Description: "API key or bearer token for authenticating with the tool server. Sensitive.",
+						},
+						"config_json": schema.StringAttribute{
+							Optional:    true,
+							Description: "Additional JSON configuration sent to the tool server.",
+						},
 					},
 				},
 			},
