@@ -107,3 +107,21 @@ func TestExtractGroupIDsFromAccessControl_SliceString(t *testing.T) {
 		t.Fatalf("expected [g3], got %v", ids)
 	}
 }
+
+func TestExtractGroupIDsFromAccessControl_SectionNotMap(t *testing.T) {
+	access := map[string]any{"read": "unexpected-string"}
+	ids := extractGroupIDsFromAccessControl(access, "read")
+	if ids != nil {
+		t.Fatalf("expected nil for non-map section, got %v", ids)
+	}
+}
+
+func TestExtractGroupIDsFromAccessControl_MissingGroupIDs(t *testing.T) {
+	access := map[string]any{
+		"read": map[string]any{"user_ids": []any{"u1"}},
+	}
+	ids := extractGroupIDsFromAccessControl(access, "read")
+	if ids != nil {
+		t.Fatalf("expected nil for missing group_ids, got %v", ids)
+	}
+}
