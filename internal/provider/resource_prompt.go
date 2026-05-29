@@ -50,50 +50,51 @@ func (r *promptResource) Metadata(_ context.Context, req resource.MetadataReques
 // Schema defines the prompt resource schema.
 func (r *promptResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Manages a reusable prompt command in Open WebUI. The `command` is the slash-command users type to invoke the prompt.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:      true,
-				Description:   "Server-assigned prompt identifier (UUID).",
+				Description:   "Server-assigned UUID for the prompt.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"command": schema.StringAttribute{
 				Required:    true,
-				Description: "Unique command string used to invoke the prompt.",
+				Description: "Slash-command identifier, e.g. `summarize`. The leading `/` is normalised automatically.",
 			},
 			"name": schema.StringAttribute{
 				Required:    true,
-				Description: "Prompt name displayed in Open WebUI.",
+				Description: "Display name of the prompt.",
 			},
 			"content": schema.StringAttribute{
 				Required:    true,
-				Description: "Prompt content text.",
+				Description: "Prompt template text. Use `{{variable}}` for user-fillable placeholders.",
 			},
 			"read_groups": schema.ListAttribute{
 				ElementType:   types.StringType,
 				Optional:      true,
 				Computed:      true,
-				Description:   "Group names or IDs granted read access to the prompt.",
+				Description:   "List of group names or IDs granted read access. Leave unset or empty for public access.",
 				PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()},
 			},
 			"write_groups": schema.ListAttribute{
 				ElementType:   types.StringType,
 				Optional:      true,
 				Computed:      true,
-				Description:   "Group names or IDs granted write access to the prompt (also receive read access).",
+				Description:   "List of group names or IDs granted write access.",
 				PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()},
 			},
 			"created_at": schema.StringAttribute{
 				Computed:      true,
-				Description:   "Prompt creation date formatted as YYYY-MM-DD.",
+				Description:   "Creation date in `YYYY-MM-DD` format. Set by Open WebUI.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"updated_at": schema.StringAttribute{
 				Computed:    true,
-				Description: "Prompt last-update date formatted as YYYY-MM-DD.",
+				Description: "Last-updated date in `YYYY-MM-DD` format. Set by Open WebUI.",
 			},
 			"user_id": schema.StringAttribute{
 				Computed:    true,
-				Description: "Identifier of the user who owns the prompt.",
+				Description: "Owner user identifier. Set by Open WebUI.",
 			},
 		},
 	}

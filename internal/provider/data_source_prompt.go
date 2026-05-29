@@ -35,44 +35,45 @@ func (d *promptDataSource) Metadata(_ context.Context, req datasource.MetadataRe
 // Schema describes the prompt data source schema.
 func (d *promptDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Looks up an existing prompt by its slash-command.",
 		Attributes: map[string]schema.Attribute{
 			"command": schema.StringAttribute{
 				Required:    true,
-				Description: "Command string that uniquely identifies the prompt.",
+				Description: "Slash-command to look up, e.g. `summarize` or `/summarize`.",
 			},
 			"id": schema.StringAttribute{
 				Computed:    true,
-				Description: "Server-assigned prompt identifier (UUID).",
+				Description: "Server-assigned UUID for the prompt.",
 			},
 			"name": schema.StringAttribute{
 				Computed:    true,
-				Description: "Prompt name displayed in Open WebUI.",
+				Description: "Display name of the prompt.",
 			},
 			"content": schema.StringAttribute{
 				Computed:    true,
-				Description: "Prompt content text.",
+				Description: "Prompt template text.",
 			},
 			"read_groups": schema.ListAttribute{
 				ElementType: types.StringType,
 				Computed:    true,
-				Description: "Group names granted read access.",
+				Description: "Read-access group names currently applied to this prompt.",
 			},
 			"write_groups": schema.ListAttribute{
 				ElementType: types.StringType,
 				Computed:    true,
-				Description: "Group names granted write access.",
+				Description: "Write-access group names currently applied to this prompt.",
 			},
 			"created_at": schema.StringAttribute{
 				Computed:    true,
-				Description: "Prompt creation date formatted as YYYY-MM-DD.",
+				Description: "Creation date in `YYYY-MM-DD` format.",
 			},
 			"updated_at": schema.StringAttribute{
 				Computed:    true,
-				Description: "Prompt last-update date formatted as YYYY-MM-DD.",
+				Description: "Last-updated date in `YYYY-MM-DD` format.",
 			},
 			"user_id": schema.StringAttribute{
 				Computed:    true,
-				Description: "Identifier of the user who owns the prompt.",
+				Description: "Owner user identifier.",
 			},
 		},
 	}
