@@ -41,27 +41,33 @@ func (d *pipelineDataSource) Metadata(_ context.Context, req datasource.Metadata
 // Schema defines the pipeline data source schema.
 func (d *pipelineDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Looks up an existing pipeline by its `pipeline_id` or `url`.",
 		Attributes: map[string]schema.Attribute{
 			"pipeline_id": schema.StringAttribute{
-				Optional:    true,
-				Description: "Pipeline identifier to look up.",
+				Optional:            true,
+				Description:         "Pipeline identifier to look up. If omitted, `url` must be provided.",
+				MarkdownDescription: "Pipeline identifier to look up. If omitted, `url` must be provided.",
 			},
 			"url": schema.StringAttribute{
-				Optional:    true,
-				Description: "Pipeline URL to look up when pipeline_id is not supplied.",
+				Optional:            true,
+				Description:         "Base URL of the pipeline server. If omitted, `pipeline_id` must be provided.",
+				MarkdownDescription: "Base URL of the pipeline server. If omitted, `pipeline_id` must be provided.",
 			},
 			"url_idx": schema.Int64Attribute{
-				Optional:    true,
-				Computed:    true,
-				Description: "Pipeline URL index (defaults to 0).",
+				Optional:            true,
+				Computed:            true,
+				Description:         "URL index of the pipeline. Defaults to 0.",
+				MarkdownDescription: "URL index of the pipeline. Defaults to 0.",
 			},
 			"id": schema.StringAttribute{
-				Computed:    true,
-				Description: "Unique identifier assigned by Open WebUI.",
+				Computed:            true,
+				Description:         "Composite identifier in the form `pipeline_id:url_idx`.",
+				MarkdownDescription: "Composite identifier in the form `pipeline_id:url_idx`.",
 			},
 			"details_json": schema.StringAttribute{
-				Computed:    true,
-				Description: "Raw JSON describing the pipeline returned by the API.",
+				Computed:            true,
+				Description:         "JSON metadata about the pipeline as returned by Open WebUI.",
+				MarkdownDescription: "JSON metadata about the pipeline as returned by Open WebUI.",
 			},
 		},
 	}

@@ -50,35 +50,42 @@ func (r *pipelineResource) Metadata(_ context.Context, req resource.MetadataRequ
 // Schema defines the pipeline resource schema.
 func (r *pipelineResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Registers a pipeline with Open WebUI. Pipelines run on a separate server; provide either `url` to load from a running server or `source_path` to upload a pipeline file.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				Computed:      true,
-				Description:   "Unique identifier assigned by Open WebUI.",
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				Computed:            true,
+				Description:         "Composite identifier in the form `pipeline_id:url_idx`.",
+				MarkdownDescription: "Composite identifier in the form `pipeline_id:url_idx`.",
+				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"pipeline_id": schema.StringAttribute{
-				Computed:    true,
-				Description: "Pipeline identifier reported by the API.",
+				Computed:            true,
+				Description:         "Pipeline identifier assigned by the pipeline server. Set by Open WebUI.",
+				MarkdownDescription: "Pipeline identifier assigned by the pipeline server. Set by Open WebUI.",
 			},
 			"url": schema.StringAttribute{
-				Optional:      true,
-				Description:   "Remote pipeline URL to register.",
-				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Optional:            true,
+				Description:         "Base URL of the pipeline server to register, e.g. `http://pipelines.internal:9099`.",
+				MarkdownDescription: "Base URL of the pipeline server to register, e.g. `http://pipelines.internal:9099`.",
+				PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
 			},
 			"source_path": schema.StringAttribute{
-				Optional:      true,
-				Description:   "Local pipeline bundle to upload.",
-				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Optional:            true,
+				Description:         "Local path to a pipeline `.py` file to upload.",
+				MarkdownDescription: "Local path to a pipeline `.py` file to upload.",
+				PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
 			},
 			"url_idx": schema.Int64Attribute{
-				Optional:      true,
-				Computed:      true,
-				Description:   "Pipeline URL index (defaults to 0).",
-				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
+				Optional:            true,
+				Computed:            true,
+				Description:         "Index of the pipeline server URL as stored by Open WebUI. Defaults to 0.",
+				MarkdownDescription: "Index of the pipeline server URL as stored by Open WebUI. Defaults to 0.",
+				PlanModifiers:       []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
 			},
 			"details_json": schema.StringAttribute{
-				Computed:    true,
-				Description: "Raw JSON describing the pipeline returned by the API.",
+				Computed:            true,
+				Description:         "JSON metadata about the pipeline as returned by Open WebUI.",
+				MarkdownDescription: "JSON metadata about the pipeline as returned by Open WebUI.",
 			},
 		},
 	}
