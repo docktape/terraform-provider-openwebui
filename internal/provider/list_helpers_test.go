@@ -44,6 +44,16 @@ func TestFlattenStringSlice_Values(t *testing.T) {
 	if len(elems) != 2 {
 		t.Fatalf("expected 2 elements, got %d", len(elems))
 	}
+	expected := []string{"alpha", "beta"}
+	for i, el := range elems {
+		sv, ok := el.(types.String)
+		if !ok {
+			t.Fatalf("element %d is not types.String", i)
+		}
+		if sv.ValueString() != expected[i] {
+			t.Fatalf("element %d: got %q, want %q", i, sv.ValueString(), expected[i])
+		}
+	}
 }
 
 func TestExpandStringList_Null(t *testing.T) {
