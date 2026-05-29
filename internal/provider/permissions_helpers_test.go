@@ -205,4 +205,74 @@ func TestExpandFlattenPermissionsRoundTrip(t *testing.T) {
 	if !wsBools["models"] {
 		t.Fatalf("round-trip: expected models=true, got %v", wsBools)
 	}
+
+	var chatBools map[string]bool
+	if err := flattened.Chat.ElementsAs(ctx, &chatBools, false); err != nil {
+		t.Fatalf("chat ElementsAs: %v", err)
+	}
+	if !chatBools["file_upload"] || chatBools["delete"] {
+		t.Fatalf("round-trip: unexpected chat values: %v", chatBools)
+	}
+}
+
+func TestFilterPermissionKeys_SharingKey(t *testing.T) {
+	var diags diag.Diagnostics
+	result := filterPermissionKeys(
+		"sharing",
+		map[string]bool{"public_models": true},
+		path.Root("permissions").AtName("sharing"),
+		&diags,
+	)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %s", diags)
+	}
+	if result["public_models"] != true {
+		t.Fatalf("expected public_models=true, got %v", result["public_models"])
+	}
+}
+
+func TestFilterPermissionKeys_FeaturesKey(t *testing.T) {
+	var diags diag.Diagnostics
+	result := filterPermissionKeys(
+		"features",
+		map[string]bool{"web_search": true},
+		path.Root("permissions").AtName("features"),
+		&diags,
+	)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %s", diags)
+	}
+	if result["web_search"] != true {
+		t.Fatalf("expected web_search=true, got %v", result["web_search"])
+	}
+}
+
+func TestExpandPermissions_InvalidKey(t *testing.T) {
+	ctx := context.Background()
+	badMap, mapDiags := types.MapValueFrom(ctx, types.BoolType, map[string]bool{"bad_key": true})
+	if mapDiags.HasError() {
+		t.Fatalf("setup: %s", mapDiags)
+	}
+	model := groupPermissionsModel{
+		Workspace: badMap,
+		Sharing:   types.MapNull(types.BoolType),
+		Chat:      types.MapNull(types.BoolType),
+		Features:  types.MapNull(types.BoolType),
+	}
+	var diags diag.Diagnostics
+	expandPermissions(ctx, model, &diags)
+	if !diags.HasError() {
+		t.Fatal("expected error diagnostic for unsupported key")
+	}
+}
+
+func TestFlattenPermissions_EmptyMap(t *testing.T) {
+	ctx := context.Background()
+	model, diags := flattenPermissions(ctx, map[string]any{})
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %s", diags)
+	}
+	if !model.Workspace.IsNull() || !model.Sharing.IsNull() || !model.Chat.IsNull() || !model.Features.IsNull() {
+		t.Fatal("expected all null for empty map input")
+	}
 }
