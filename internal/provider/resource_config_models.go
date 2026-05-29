@@ -44,30 +44,35 @@ func (r *modelsConfigResource) Metadata(_ context.Context, req resource.Metadata
 // Schema defines the models config schema.
 func (r *modelsConfigResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Manages default model ordering and pinning settings for Open WebUI.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				Computed:      true,
-				Description:   "Singleton identifier for the models config.",
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				Computed:            true,
+				Description:         "Singleton identifier. Set by Open WebUI.",
+				MarkdownDescription: "Singleton identifier. Set by Open WebUI.",
+				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"default_models": schema.StringAttribute{
-				Optional:      true,
-				Computed:      true,
-				Description:   "Default model IDs.",
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				Optional:            true,
+				Computed:            true,
+				Description:         "Comma-separated list of model IDs shown by default.",
+				MarkdownDescription: "Comma-separated list of model IDs shown by default.",
+				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"default_pinned_models": schema.StringAttribute{
-				Optional:      true,
-				Computed:      true,
-				Description:   "Default pinned model IDs.",
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				Optional:            true,
+				Computed:            true,
+				Description:         "Comma-separated list of model IDs pinned at the top of the model list.",
+				MarkdownDescription: "Comma-separated list of model IDs pinned at the top of the model list.",
+				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"model_order_list": schema.ListAttribute{
-				ElementType:   types.StringType,
-				Optional:      true,
-				Computed:      true,
-				Description:   "Ordered list of model IDs.",
-				PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()},
+				ElementType:         types.StringType,
+				Optional:            true,
+				Computed:            true,
+				Description:         "Ordered list of model IDs controlling display order.",
+				MarkdownDescription: "Ordered list of model IDs controlling display order.",
+				PlanModifiers:       []planmodifier.List{listplanmodifier.UseStateForUnknown()},
 			},
 		},
 	}
