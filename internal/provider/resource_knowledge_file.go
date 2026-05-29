@@ -47,15 +47,16 @@ func (r *knowledgeFileResource) Metadata(_ context.Context, req resource.Metadat
 // Schema defines the knowledge file resource schema.
 func (r *knowledgeFileResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Attaches an uploaded file to a knowledge base. Destroying this resource detaches the file; set `delete_file = true` to also delete the underlying file.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:      true,
-				Description:   "Composite identifier in the form knowledge_id:file_id.",
+				Description:   "Composite identifier in the form `knowledge_id:file_id`.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"knowledge_id": schema.StringAttribute{
 				Required:    true,
-				Description: "Knowledge base identifier to attach the file to.",
+				Description: "UUID of the knowledge base to attach the file to. Forces replacement.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 					stringplanmodifier.RequiresReplace(),
@@ -63,7 +64,7 @@ func (r *knowledgeFileResource) Schema(_ context.Context, _ resource.SchemaReque
 			},
 			"file_id": schema.StringAttribute{
 				Required:    true,
-				Description: "File identifier to attach.",
+				Description: "UUID of the file to attach (from `openwebui_file.id`). Forces replacement.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 					stringplanmodifier.RequiresReplace(),
@@ -72,12 +73,12 @@ func (r *knowledgeFileResource) Schema(_ context.Context, _ resource.SchemaReque
 			"delete_file": schema.BoolAttribute{
 				Optional:      true,
 				Computed:      true,
-				Description:   "Whether to delete the file when detaching from the knowledge base.",
+				Description:   "When `true`, the underlying file is deleted when this resource is destroyed. Defaults to `false`.",
 				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
 			},
 			"file_json": schema.StringAttribute{
 				Computed:    true,
-				Description: "Raw JSON describing the attached file.",
+				Description: "JSON representation of the attached file entry as returned by Open WebUI.",
 			},
 		},
 	}
