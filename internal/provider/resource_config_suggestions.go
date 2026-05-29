@@ -46,19 +46,31 @@ func (r *suggestionsConfigResource) Metadata(_ context.Context, req resource.Met
 // Schema defines the suggestions config schema.
 func (r *suggestionsConfigResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Manages default prompt suggestions shown in Open WebUI.\n\n~> **Note:** The suggestions API does not expose a read endpoint. Terraform preserves state from the last apply and cannot detect out-of-band changes.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				Computed:      true,
-				Description:   "Singleton identifier for the suggestions config.",
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				Computed:            true,
+				Description:         "Singleton identifier. Set by Open WebUI.",
+				MarkdownDescription: "Singleton identifier. Set by Open WebUI.",
+				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"suggestions": schema.ListNestedAttribute{
-				Required:    true,
-				Description: "Default prompt suggestions.",
+				Required:            true,
+				Description:         "List of default prompt suggestions.",
+				MarkdownDescription: "List of default prompt suggestions.",
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
-						"title":   schema.ListAttribute{ElementType: types.StringType, Required: true},
-						"content": schema.StringAttribute{Required: true},
+						"title": schema.ListAttribute{
+							ElementType:         types.StringType,
+							Required:            true,
+							Description:         "Display title lines for the suggestion (list of strings).",
+							MarkdownDescription: "Display title lines for the suggestion (list of strings).",
+						},
+						"content": schema.StringAttribute{
+							Required:            true,
+							Description:         "Full prompt text sent when the user selects this suggestion.",
+							MarkdownDescription: "Full prompt text sent when the user selects this suggestion.",
+						},
 					},
 				},
 			},

@@ -52,23 +52,52 @@ func (r *bannersConfigResource) Metadata(_ context.Context, req resource.Metadat
 // Schema defines the banners config schema.
 func (r *bannersConfigResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Manages UI announcement banners displayed to all Open WebUI users.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				Computed:      true,
-				Description:   "Singleton identifier for the banners config.",
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				Computed:            true,
+				Description:         "Singleton identifier. Set by Open WebUI.",
+				MarkdownDescription: "Singleton identifier. Set by Open WebUI.",
+				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"banners": schema.ListNestedAttribute{
-				Required:    true,
-				Description: "Banners displayed in Open WebUI.",
+				Required:            true,
+				Description:         "List of banners to display.",
+				MarkdownDescription: "List of banners to display.",
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
-						"id":          schema.StringAttribute{Required: true},
-						"type":        schema.StringAttribute{Required: true},
-						"title":       schema.StringAttribute{Optional: true},
-						"content":     schema.StringAttribute{Required: true},
-						"dismissible": schema.BoolAttribute{Required: true, PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
-						"timestamp":   schema.Int64Attribute{Required: true, PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
+						"id": schema.StringAttribute{
+							Required:            true,
+							Description:         "Unique identifier for this banner.",
+							MarkdownDescription: "Unique identifier for this banner.",
+						},
+						"type": schema.StringAttribute{
+							Required:            true,
+							Description:         "Visual style of the banner: `info`, `warning`, or `error`.",
+							MarkdownDescription: "Visual style of the banner: `info`, `warning`, or `error`.",
+						},
+						"title": schema.StringAttribute{
+							Optional:            true,
+							Description:         "Short headline shown in the banner.",
+							MarkdownDescription: "Short headline shown in the banner.",
+						},
+						"content": schema.StringAttribute{
+							Required:            true,
+							Description:         "Full body text of the banner.",
+							MarkdownDescription: "Full body text of the banner.",
+						},
+						"dismissible": schema.BoolAttribute{
+							Required:            true,
+							Description:         "Whether users can dismiss the banner.",
+							MarkdownDescription: "Whether users can dismiss the banner.",
+							PlanModifiers:       []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+						},
+						"timestamp": schema.Int64Attribute{
+							Required:            true,
+							Description:         "Unix timestamp used for ordering banners.",
+							MarkdownDescription: "Unix timestamp used for ordering banners.",
+							PlanModifiers:       []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
+						},
 					},
 				},
 			},
