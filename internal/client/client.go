@@ -62,9 +62,9 @@ func NewClient(endpoint, token string, insecure bool) (*Client, error) {
 	}
 
 	if insecure {
-		hc.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
-		}
+		dt := http.DefaultTransport.(*http.Transport).Clone()
+		dt.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec
+		hc.Transport = dt
 	}
 
 	return &Client{
