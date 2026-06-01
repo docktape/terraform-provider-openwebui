@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -29,9 +30,11 @@ func expandStringList(ctx context.Context, value types.List, attribute path.Path
 }
 
 // flattenStringSlice converts a slice of strings into a Terraform List value.
+// An empty or nil slice produces an empty list (not null) so that round-trips
+// through the API remain consistent when a config explicitly sets list = [].
 func flattenStringSlice(ctx context.Context, values []string) (types.List, diag.Diagnostics) {
 	if len(values) == 0 {
-		return types.ListNull(types.StringType), nil
+		return types.ListValueMust(types.StringType, []attr.Value{}), nil
 	}
 
 	list, diags := types.ListValueFrom(ctx, types.StringType, values)
