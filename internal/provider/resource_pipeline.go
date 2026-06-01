@@ -2,7 +2,7 @@ package provider
 
 import (
 	"context"
-	"path/filepath"
+	urlpath "path"
 	"strconv"
 	"strings"
 
@@ -33,6 +33,7 @@ type pipelineResourceModel struct {
 	PipelineID  types.String `tfsdk:"pipeline_id"`
 	URL         types.String `tfsdk:"url"`
 	SourcePath  types.String `tfsdk:"source_path"`
+	Key         types.String `tfsdk:"key"`
 	URLIdx      types.Int64  `tfsdk:"url_idx"`
 	DetailsJSON types.String `tfsdk:"details_json"`
 }
@@ -73,6 +74,13 @@ func (r *pipelineResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 				Optional:            true,
 				Description:         "Local path to a pipeline `.py` file to upload.",
 				MarkdownDescription: "Local path to a pipeline `.py` file to upload.",
+				PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
+			},
+			"key": schema.StringAttribute{
+				Optional:            true,
+				Sensitive:           true,
+				Description:         "API key for the pipeline server.",
+				MarkdownDescription: "API key for the pipeline server.",
 				PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
 			},
 			"url_idx": schema.Int64Attribute{
@@ -131,12 +139,14 @@ func (r *pipelineResource) Create(ctx context.Context, req resource.CreateReques
 		urlIdx = 0
 	}
 
+	keyValue := plan.Key.ValueString()
+
 	var response map[string]any
 	var err error
 	if sourcePath != "" {
 		response, err = r.client.UploadPipeline(ctx, sourcePath, urlIdx)
 	} else {
-		response, err = r.client.AddPipeline(ctx, urlValue, urlIdx)
+		response, err = r.client.AddPipeline(ctx, urlValue, urlIdx, keyValue)
 	}
 	if err != nil {
 		resp.Diagnostics.AddError("Create pipeline failed", err.Error())
@@ -156,6 +166,7 @@ func (r *pipelineResource) Create(ctx context.Context, req resource.CreateReques
 
 	state.URL = plan.URL
 	state.SourcePath = plan.SourcePath
+	state.Key = plan.Key
 	state.URLIdx = types.Int64Value(int64(urlIdx))
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
@@ -257,15 +268,29 @@ func (r *pipelineResource) ImportState(ctx context.Context, req resource.ImportS
 func pipelineStateFromResponse(ctx context.Context, apiClient *client.Client, response map[string]any, urlValue string, urlIdx int) (pipelineResourceModel, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	item := response
-	id := pipelineString(item, "id", "pipeline_id", "pipelineId", "name")
+	// Derive a candidate ID from the create response (may be a success message, not real details).
+	createItem := response
+	id := pipelineString(createItem, "id", "pipeline_id", "pipelineId", "name")
 	if id == "" {
-		id = derivePipelineID(urlValue, item)
+		id = derivePipelineID(urlValue, createItem)
 	}
 
-	detailsJSON, err := encodeOptionalJSONValue(item)
+	// Always fetch the real pipeline entry from the list so details_json is stable
+	// and matches what Read returns — avoids phantom diffs on subsequent plans.
+	realItem, detailsJSON, err := findPipeline(ctx, apiClient, id, urlValue, urlIdx)
 	if err != nil {
-		diags.AddError("Serialize pipeline", err.Error())
+		diags.AddError("Locate pipeline failed", err.Error())
+		return pipelineResourceModel{}, diags
+	}
+	if realItem != nil {
+		resolvedID := pipelineString(realItem, "id", "pipeline_id", "pipelineId", "name")
+		if resolvedID != "" {
+			id = resolvedID
+		}
+	}
+
+	if id == "" {
+		diags.AddError("Pipeline id missing", "Open WebUI did not return a pipeline id in the create response.")
 	}
 
 	state := pipelineResourceModel{
@@ -274,24 +299,6 @@ func pipelineStateFromResponse(ctx context.Context, apiClient *client.Client, re
 		URL:         types.StringValue(urlValue),
 		URLIdx:      types.Int64Value(int64(urlIdx)),
 		DetailsJSON: detailsJSON,
-	}
-
-	if id == "" {
-		item, details, err := findPipeline(ctx, apiClient, id, urlValue, urlIdx)
-		if err != nil {
-			diags.AddError("Locate pipeline failed", err.Error())
-			return state, diags
-		}
-		if item != nil {
-			resolvedID := pipelineString(item, "id", "pipeline_id", "pipelineId", "name")
-			state.ID = types.StringValue(resolvedID)
-			state.PipelineID = state.ID
-			state.DetailsJSON = details
-		}
-	}
-
-	if id == "" {
-		diags.AddError("Pipeline id missing", "Open WebUI did not return a pipeline id in the create response.")
 	}
 
 	return state, diags
@@ -332,8 +339,9 @@ func pipelineString(values map[string]any, keys ...string) string {
 
 func derivePipelineID(urlValue string, values map[string]any) string {
 	if urlValue != "" {
-		base := filepath.Base(urlValue)
-		if base != "." && base != "/" {
+		base := urlpath.Base(urlValue)           // urlpath (stdlib path) splits on / correctly for URLs
+		base = strings.TrimSuffix(base, ".py")  // strip extension; server assigns ID without it
+		if base != "." && base != "/" && base != "" {
 			return base
 		}
 	}
