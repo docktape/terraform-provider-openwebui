@@ -31,15 +31,17 @@ type groupResource struct {
 }
 
 // groupResourceModel maps Terraform state.
+// Permissions is types.Object (not groupPermissionsModel directly) so the framework
+// can represent it as unknown during plan when the attribute is Optional+Computed.
 type groupResourceModel struct {
-	ID          types.String          `tfsdk:"id"`
-	Name        types.String          `tfsdk:"name"`
-	Description types.String          `tfsdk:"description"`
-	Users       types.List            `tfsdk:"users"`
-	Permissions groupPermissionsModel `tfsdk:"permissions"`
-	UserID      types.String          `tfsdk:"user_id"`
-	CreatedAt   types.String          `tfsdk:"created_at"`
-	UpdatedAt   types.String          `tfsdk:"updated_at"`
+	ID          types.String `tfsdk:"id"`
+	Name        types.String `tfsdk:"name"`
+	Description types.String `tfsdk:"description"`
+	Users       types.List   `tfsdk:"users"`
+	Permissions types.Object `tfsdk:"permissions"`
+	UserID      types.String `tfsdk:"user_id"`
+	CreatedAt   types.String `tfsdk:"created_at"`
+	UpdatedAt   types.String `tfsdk:"updated_at"`
 }
 
 type groupPermissionsModel struct {
@@ -187,7 +189,7 @@ func (r *groupResource) Create(ctx context.Context, req resource.CreateRequest, 
 	}
 
 	providedUsers := !plan.Users.IsNull() && !plan.Users.IsUnknown()
-	providedPermissions := permissionsSpecified(plan.Permissions)
+	providedPermissions := permissionsObjectSpecified(ctx, plan.Permissions, &resp.Diagnostics)
 	providedMeta := false
 	providedData := false
 
@@ -205,7 +207,8 @@ func (r *groupResource) Create(ctx context.Context, req resource.CreateRequest, 
 		}
 	}
 
-	updateForm.Permissions = expandPermissions(ctx, plan.Permissions, &resp.Diagnostics)
+	planPermsModel := objectToPermissionsModel(ctx, plan.Permissions, &resp.Diagnostics)
+	updateForm.Permissions = expandPermissions(ctx, planPermsModel, &resp.Diagnostics)
 	updateForm.Meta = nil
 	updateForm.Data = nil
 
@@ -293,7 +296,8 @@ func (r *groupResource) Update(ctx context.Context, req resource.UpdateRequest, 
 
 	usernames := expandStringList(ctx, plan.Users, path.Root("users"), &resp.Diagnostics)
 	desiredIDs := uniqueStrings(resolveUsernamesToIDs(ctx, r.client, usernames, path.Root("users"), &resp.Diagnostics))
-	form.Permissions = expandPermissions(ctx, plan.Permissions, &resp.Diagnostics)
+	planPermsModel := objectToPermissionsModel(ctx, plan.Permissions, &resp.Diagnostics)
+	form.Permissions = expandPermissions(ctx, planPermsModel, &resp.Diagnostics)
 	form.Meta = nil
 	form.Data = nil
 
@@ -365,8 +369,11 @@ func (r *groupResource) ImportState(ctx context.Context, req resource.ImportStat
 func groupResponseToModel(ctx context.Context, apiClient *client.Client, resp *client.GroupResponse) (groupResourceModel, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	permissions, permDiags := flattenPermissions(ctx, resp.Permissions)
+	permsStruct, permDiags := flattenPermissions(ctx, resp.Permissions)
 	diags.Append(permDiags...)
+
+	permissionsObj, objDiags := permissionsModelToObject(ctx, permsStruct)
+	diags.Append(objDiags...)
 
 	usernames, nameDiags := fetchUsernamesForIDs(ctx, apiClient, resp.UserIDs)
 	diags.Append(nameDiags...)
@@ -379,7 +386,7 @@ func groupResponseToModel(ctx context.Context, apiClient *client.Client, resp *c
 		Name:        types.StringValue(resp.Name),
 		Description: types.StringValue(resp.Description),
 		Users:       usersList,
-		Permissions: permissions,
+		Permissions: permissionsObj,
 		UserID:      types.StringValue(resp.UserID),
 		CreatedAt:   formatDateValue(resp.CreatedAt),
 		UpdatedAt:   formatDateValue(resp.UpdatedAt),

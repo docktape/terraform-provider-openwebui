@@ -21,9 +21,12 @@ type groupDataSource struct {
 	client *client.Client
 }
 
-// groupDataSourceModel embeds the resource representation and adds the lookup identifier.
+// groupDataSourceModel embeds the resource representation and adds the lookup identifier
+// and extra read-only fields exposed only in the data source.
 type groupDataSourceModel struct {
-	GroupID types.String `tfsdk:"group_id"`
+	GroupID  types.String `tfsdk:"group_id"`
+	MetaJSON types.String `tfsdk:"meta_json"`
+	DataJSON types.String `tfsdk:"data_json"`
 	groupResourceModel
 }
 
@@ -212,8 +215,22 @@ func (d *groupDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		return
 	}
 
+	metaJSON, err := encodeOptionalJSON(current.Meta)
+	if err != nil {
+		resp.Diagnostics.AddError("Encode meta_json failed", err.Error())
+		return
+	}
+
+	dataJSON, err := encodeOptionalJSON(current.Data)
+	if err != nil {
+		resp.Diagnostics.AddError("Encode data_json failed", err.Error())
+		return
+	}
+
 	state := groupDataSourceModel{
 		GroupID:            types.StringValue(current.ID),
+		MetaJSON:           metaJSON,
+		DataJSON:           dataJSON,
 		groupResourceModel: model,
 	}
 
