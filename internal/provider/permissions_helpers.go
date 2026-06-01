@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
 
 var (
@@ -23,6 +25,54 @@ var (
 		"features":  sliceToSet(groupPermissionsFeaturesKeys),
 	}
 )
+
+// permissionsAttrTypes returns the framework attribute types for the permissions object.
+// Used to construct a types.Object that the framework can hold as unknown/null.
+func permissionsAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"workspace": types.MapType{ElemType: types.BoolType},
+		"sharing":   types.MapType{ElemType: types.BoolType},
+		"chat":      types.MapType{ElemType: types.BoolType},
+		"features":  types.MapType{ElemType: types.BoolType},
+	}
+}
+
+// permissionsObjectNull returns a null types.Object with the correct attr types.
+func permissionsObjectNull() types.Object {
+	return types.ObjectNull(permissionsAttrTypes())
+}
+
+// permissionsModelToObject converts a groupPermissionsModel struct to a types.Object.
+func permissionsModelToObject(ctx context.Context, model groupPermissionsModel) (types.Object, diag.Diagnostics) {
+	return types.ObjectValueFrom(ctx, permissionsAttrTypes(), model)
+}
+
+// objectToPermissionsModel converts a types.Object to a groupPermissionsModel struct.
+// Returns a null-filled model if the object is null or unknown.
+func objectToPermissionsModel(ctx context.Context, obj types.Object, diags *diag.Diagnostics) groupPermissionsModel {
+	null := groupPermissionsModel{
+		Workspace: types.MapNull(types.BoolType),
+		Sharing:   types.MapNull(types.BoolType),
+		Chat:      types.MapNull(types.BoolType),
+		Features:  types.MapNull(types.BoolType),
+	}
+	if obj.IsNull() || obj.IsUnknown() {
+		return null
+	}
+	var model groupPermissionsModel
+	diags.Append(obj.As(ctx, &model, basetypes.ObjectAsOptions{})...)
+	return model
+}
+
+// permissionsObjectSpecified returns true when the object is not null/unknown
+// and at least one map within it is populated.
+func permissionsObjectSpecified(ctx context.Context, obj types.Object, diags *diag.Diagnostics) bool {
+	if obj.IsNull() || obj.IsUnknown() {
+		return false
+	}
+	model := objectToPermissionsModel(ctx, obj, diags)
+	return permissionsSpecified(model)
+}
 
 func permissionsSpecified(perms groupPermissionsModel) bool {
 	return mapProvided(perms.Workspace) || mapProvided(perms.Sharing) || mapProvided(perms.Chat) || mapProvided(perms.Features)
