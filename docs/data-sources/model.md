@@ -30,13 +30,19 @@ data "openwebui_model" "llama" {
 - `base_model_id` (String) Identifier of the underlying base model.
 - `capabilities` (Attributes) Feature capability flags returned by Open WebUI. (see [below for nested schema](#nestedatt--capabilities))
 - `created_at` (Number) Unix timestamp of when the model was created.
+- `default_feature_ids` (List of String) List of feature IDs enabled by default.
+- `description` (String) Short description shown alongside the model name.
 - `id` (String) Composite identifier mirroring `model_id`.
 - `is_active` (Boolean) Whether the model is visible and available to users.
 - `meta_additional_json` (String) Additional metadata JSON as returned by Open WebUI.
 - `name` (String) Display name of the model.
 - `params` (Attributes) Model parameter values returned by Open WebUI. (see [below for nested schema](#nestedatt--params))
 - `params_additional_json` (String) Additional parameters JSON as returned by Open WebUI.
+- `profile_image_url` (String) URL of the model's profile image.
 - `read_groups` (List of String) Read-access group names.
+- `suggestion_prompts` (List of String) List of suggested starter prompts shown when the model is selected.
+- `tags` (List of String) List of tags for categorising the model.
+- `tool_ids` (List of String) List of tool IDs attached to the model by default.
 - `updated_at` (Number) Unix timestamp of when the model was last updated.
 - `user_id` (String) Owner user identifier.
 - `write_groups` (List of String) Write-access group names.

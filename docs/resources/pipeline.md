@@ -23,6 +23,7 @@ resource "openwebui_pipeline" "example" {
 
 ### Optional
 
+- `key` (String, Sensitive) API key for the pipeline server.
 - `source_path` (String) Local path to a pipeline `.py` file to upload.
 - `url` (String) Base URL of the pipeline server to register, e.g. `http://pipelines.internal:9099`.
 - `url_idx` (Number) Index of the pipeline server URL as stored by Open WebUI. Defaults to 0.
