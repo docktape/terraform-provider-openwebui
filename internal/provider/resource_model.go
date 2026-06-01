@@ -1045,6 +1045,17 @@ func flattenModelParams(ctx context.Context, data map[string]any) (*modelParamsM
 func flattenModelMeta(ctx context.Context, data map[string]any) (modelMetaState, types.String, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
+	emptyCapabilities := &modelCapabilitiesModel{
+		Vision:          types.BoolNull(),
+		FileUpload:      types.BoolNull(),
+		WebSearch:       types.BoolNull(),
+		ImageGeneration: types.BoolNull(),
+		CodeInterpreter: types.BoolNull(),
+		Citations:       types.BoolNull(),
+		StatusUpdates:   types.BoolNull(),
+		Usage:           types.BoolNull(),
+	}
+
 	state := modelMetaState{
 		ProfileImageURL:   types.StringNull(),
 		Description:       types.StringNull(),
@@ -1052,7 +1063,7 @@ func flattenModelMeta(ctx context.Context, data map[string]any) (modelMetaState,
 		Tags:              types.ListNull(types.StringType),
 		ToolIDs:           types.ListNull(types.StringType),
 		DefaultFeatureIDs: types.ListNull(types.StringType),
-		Capabilities:      nil,
+		Capabilities:      emptyCapabilities,
 	}
 
 	if data == nil {
@@ -1075,6 +1086,7 @@ func flattenModelMeta(ctx context.Context, data map[string]any) (modelMetaState,
 			state.Capabilities = flattenModelCapabilities(v)
 			delete(additional, "capabilities")
 		case nil:
+			// Capabilities absent in API response; leave state.Capabilities as empty object.
 			delete(additional, "capabilities")
 		default:
 			diags.AddError("Unexpected meta value", fmt.Sprintf("Expected meta.capabilities to be an object, received %T", raw))
