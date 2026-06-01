@@ -15,8 +15,11 @@ func TestFlattenStringSlice_Nil(t *testing.T) {
 	if diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %s", diags)
 	}
-	if !result.IsNull() {
-		t.Fatalf("expected null list for nil input, got %+v", result)
+	if result.IsNull() {
+		t.Fatalf("expected non-null empty list for nil input, got null")
+	}
+	if len(result.Elements()) != 0 {
+		t.Fatalf("expected empty list, got %d elements", len(result.Elements()))
 	}
 }
 
@@ -26,8 +29,11 @@ func TestFlattenStringSlice_Empty(t *testing.T) {
 	if diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %s", diags)
 	}
-	if !result.IsNull() {
-		t.Fatalf("expected null list for empty slice, got %+v", result)
+	if result.IsNull() {
+		t.Fatalf("expected non-null empty list for empty slice, got null")
+	}
+	if len(result.Elements()) != 0 {
+		t.Fatalf("expected empty list, got %d elements", len(result.Elements()))
 	}
 }
 
