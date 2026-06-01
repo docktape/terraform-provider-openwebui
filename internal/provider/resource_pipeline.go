@@ -339,8 +339,8 @@ func pipelineString(values map[string]any, keys ...string) string {
 
 func derivePipelineID(urlValue string, values map[string]any) string {
 	if urlValue != "" {
-		base := urlpath.Base(urlValue)           // urlpath (stdlib path) splits on / correctly for URLs
-		base = strings.TrimSuffix(base, ".py")  // strip extension; server assigns ID without it
+		base := urlpath.Base(urlValue)         // urlpath (stdlib path) splits on / correctly for URLs
+		base = strings.TrimSuffix(base, ".py") // strip extension; server assigns ID without it
 		if base != "." && base != "/" && base != "" {
 			return base
 		}
