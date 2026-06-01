@@ -13,7 +13,7 @@ func newModelTestClient(t *testing.T, handler http.HandlerFunc) *Client {
 	t.Helper()
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
-	c, err := NewClient(server.URL, "test-token")
+	c, err := NewClient(server.URL, "test-token", false)
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
 	}

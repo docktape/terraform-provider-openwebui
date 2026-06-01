@@ -32,7 +32,7 @@ func TestListFilesPaginatesAndAggregates(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	c, err := NewClient(server.URL, "test-token")
+	c, err := NewClient(server.URL, "test-token", false)
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
 	}
@@ -63,7 +63,7 @@ func TestListFilesPassesContentParam(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	c, err := NewClient(server.URL, "test-token")
+	c, err := NewClient(server.URL, "test-token", false)
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
 	}
