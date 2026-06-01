@@ -259,14 +259,10 @@ func (r *toolResource) Update(ctx context.Context, req resource.UpdateRequest, r
 		return
 	}
 
-	access := &client.ToolAccessResponse{
-		ID:            updated.ID,
-		UserID:        updated.UserID,
-		Name:          updated.Name,
-		Meta:          updated.Meta,
-		AccessControl: updated.AccessControl,
-		UpdatedAt:     updated.UpdatedAt,
-		CreatedAt:     updated.CreatedAt,
+	access, err := r.client.GetTool(ctx, updated.ID)
+	if err != nil {
+		resp.Diagnostics.AddError("Read tool after update failed", err.Error())
+		return
 	}
 
 	state, stateDiags := toolResponseToModel(ctx, r.client, access, updated.Content, updated.Specs, plan.Content)
