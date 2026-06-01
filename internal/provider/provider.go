@@ -26,8 +26,9 @@ type openWebUIProvider struct {
 
 // providerModel maps provider schema data to Go type.
 type providerModel struct {
-	Endpoint types.String `tfsdk:"endpoint"`
-	Token    types.String `tfsdk:"token"`
+	Endpoint           types.String `tfsdk:"endpoint"`
+	Token              types.String `tfsdk:"token"`
+	InsecureSkipVerify types.Bool   `tfsdk:"insecure_skip_verify"`
 }
 
 // New instantiates a new provider.
@@ -80,6 +81,10 @@ func (p *openWebUIProvider) Schema(_ context.Context, _ provider.SchemaRequest, 
 				Sensitive:   true,
 				Description: "Bearer token used to authenticate requests to the Open WebUI API. Can also be set via the `OPENWEBUI_TOKEN` environment variable.",
 			},
+			"insecure_skip_verify": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Disable TLS certificate verification. **Not recommended for production use.** Can also be set via the `OPENWEBUI_INSECURE` environment variable.",
+			},
 		},
 	}
 }
@@ -108,6 +113,13 @@ func (p *openWebUIProvider) Configure(ctx context.Context, req provider.Configur
 		token = envToken
 	}
 
+	insecure := false
+	if !data.InsecureSkipVerify.IsNull() && !data.InsecureSkipVerify.IsUnknown() {
+		insecure = data.InsecureSkipVerify.ValueBool()
+	} else if os.Getenv("OPENWEBUI_INSECURE") != "" {
+		insecure = true
+	}
+
 	if token == "" {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("token"),
@@ -117,7 +129,7 @@ func (p *openWebUIProvider) Configure(ctx context.Context, req provider.Configur
 		return
 	}
 
-	apiClient, err := client.NewClient(endpoint, token)
+	apiClient, err := client.NewClient(endpoint, token, insecure)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to create Open WebUI API client",
