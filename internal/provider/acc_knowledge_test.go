@@ -25,10 +25,9 @@ func TestAccKnowledgeResource(t *testing.T) {
 				),
 			},
 			{
-				ResourceName:            "openwebui_knowledge.test",
-				ImportState:             true,
-				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"read_groups", "write_groups"},
+				ResourceName:      "openwebui_knowledge.test",
+				ImportState:       true,
+				ImportStateVerify: true,
 			},
 			{
 				Config: testAccKnowledgeResourceConfig(name, "Updated description"),
