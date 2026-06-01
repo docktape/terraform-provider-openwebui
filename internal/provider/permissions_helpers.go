@@ -37,11 +37,6 @@ func permissionsAttrTypes() map[string]attr.Type {
 	}
 }
 
-// permissionsObjectNull returns a null types.Object with the correct attr types.
-func permissionsObjectNull() types.Object {
-	return types.ObjectNull(permissionsAttrTypes())
-}
-
 // permissionsModelToObject converts a groupPermissionsModel struct to a types.Object.
 func permissionsModelToObject(ctx context.Context, model groupPermissionsModel) (types.Object, diag.Diagnostics) {
 	return types.ObjectValueFrom(ctx, permissionsAttrTypes(), model)
