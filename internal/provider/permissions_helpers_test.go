@@ -276,3 +276,100 @@ func TestFlattenPermissions_EmptyMap(t *testing.T) {
 		t.Fatal("expected all null for empty map input")
 	}
 }
+
+func TestObjectToPermissionsModel_NullObject(t *testing.T) {
+	ctx := context.Background()
+	var diags diag.Diagnostics
+	obj := types.ObjectNull(permissionsAttrTypes())
+	model := objectToPermissionsModel(ctx, obj, &diags)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %s", diags)
+	}
+	if !model.Workspace.IsNull() || !model.Sharing.IsNull() || !model.Chat.IsNull() || !model.Features.IsNull() {
+		t.Fatal("expected null-filled model for null object")
+	}
+}
+
+func TestObjectToPermissionsModel_UnknownObject(t *testing.T) {
+	ctx := context.Background()
+	var diags diag.Diagnostics
+	obj := types.ObjectUnknown(permissionsAttrTypes())
+	model := objectToPermissionsModel(ctx, obj, &diags)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %s", diags)
+	}
+	if !model.Workspace.IsNull() || !model.Sharing.IsNull() || !model.Chat.IsNull() || !model.Features.IsNull() {
+		t.Fatal("expected null-filled model for unknown object")
+	}
+}
+
+func TestPermissionsModelToObjectRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	wsMap, _ := types.MapValueFrom(ctx, types.BoolType, map[string]bool{"models": true, "tools": false})
+	chatMap, _ := types.MapValueFrom(ctx, types.BoolType, map[string]bool{"file_upload": true})
+	original := groupPermissionsModel{
+		Workspace: wsMap,
+		Sharing:   types.MapNull(types.BoolType),
+		Chat:      chatMap,
+		Features:  types.MapNull(types.BoolType),
+	}
+
+	obj, objDiags := permissionsModelToObject(ctx, original)
+	if objDiags.HasError() {
+		t.Fatalf("permissionsModelToObject: %s", objDiags)
+	}
+
+	var roundDiags diag.Diagnostics
+	result := objectToPermissionsModel(ctx, obj, &roundDiags)
+	if roundDiags.HasError() {
+		t.Fatalf("objectToPermissionsModel: %s", roundDiags)
+	}
+
+	if !result.Workspace.Equal(original.Workspace) {
+		t.Fatalf("workspace mismatch: got %v, want %v", result.Workspace, original.Workspace)
+	}
+	if !result.Sharing.Equal(original.Sharing) {
+		t.Fatalf("sharing mismatch: got %v, want %v", result.Sharing, original.Sharing)
+	}
+	if !result.Chat.Equal(original.Chat) {
+		t.Fatalf("chat mismatch: got %v, want %v", result.Chat, original.Chat)
+	}
+	if !result.Features.Equal(original.Features) {
+		t.Fatalf("features mismatch: got %v, want %v", result.Features, original.Features)
+	}
+}
+
+func TestPermissionsObjectSpecified_NullObject(t *testing.T) {
+	ctx := context.Background()
+	var diags diag.Diagnostics
+	obj := types.ObjectNull(permissionsAttrTypes())
+	if permissionsObjectSpecified(ctx, obj, &diags) {
+		t.Fatal("expected false for null object")
+	}
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %s", diags)
+	}
+}
+
+func TestPermissionsObjectSpecified_PopulatedObject(t *testing.T) {
+	ctx := context.Background()
+	wsMap, _ := types.MapValueFrom(ctx, types.BoolType, map[string]bool{"models": true})
+	model := groupPermissionsModel{
+		Workspace: wsMap,
+		Sharing:   types.MapNull(types.BoolType),
+		Chat:      types.MapNull(types.BoolType),
+		Features:  types.MapNull(types.BoolType),
+	}
+	obj, objDiags := permissionsModelToObject(ctx, model)
+	if objDiags.HasError() {
+		t.Fatalf("setup: %s", objDiags)
+	}
+
+	var diags diag.Diagnostics
+	if !permissionsObjectSpecified(ctx, obj, &diags) {
+		t.Fatal("expected true for populated object")
+	}
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %s", diags)
+	}
+}
