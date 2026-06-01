@@ -3,6 +3,7 @@ package client
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -41,7 +42,7 @@ type Client struct {
 }
 
 // NewClient constructs a new API client instance.
-func NewClient(endpoint, token string) (*Client, error) {
+func NewClient(endpoint, token string, insecure bool) (*Client, error) {
 	if endpoint == "" {
 		return nil, fmt.Errorf("endpoint must be provided")
 	}
@@ -56,12 +57,20 @@ func NewClient(endpoint, token string) (*Client, error) {
 
 	base := strings.TrimRight(parsed.String(), "/")
 
+	hc := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	if insecure {
+		hc.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
+		}
+	}
+
 	return &Client{
-		baseURL: base,
-		token:   token,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		baseURL:    base,
+		token:      token,
+		httpClient: hc,
 	}, nil
 }
 
