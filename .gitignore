@@ -46,3 +46,5 @@ examples_legacy/
 # MemPalace per-project files
 mempalace.yaml
 entities.json
+
+CLAUDE.md
