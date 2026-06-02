@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -80,9 +81,11 @@ func (r *groupResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				Description: "Human-readable description of the group's purpose.",
 			},
 			"users": schema.ListAttribute{
-				ElementType: types.StringType,
-				Optional:    true,
-				Description: "List of user email addresses or UUIDs who are members of this group.",
+				ElementType:   types.StringType,
+				Optional:      true,
+				Computed:      true,
+				Description:   "List of user email addresses or UUIDs who are members of this group.",
+				PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()},
 			},
 			"permissions": schema.SingleNestedAttribute{
 				Optional:            true,
@@ -378,7 +381,7 @@ func groupResponseToModel(ctx context.Context, apiClient *client.Client, resp *c
 	usernames, nameDiags := fetchUsernamesForIDs(ctx, apiClient, resp.UserIDs)
 	diags.Append(nameDiags...)
 
-	usersList, usersDiags := types.ListValueFrom(ctx, types.StringType, usernames)
+	usersList, usersDiags := flattenStringSlice(ctx, usernames)
 	diags.Append(usersDiags...)
 
 	model := groupResourceModel{
@@ -458,10 +461,8 @@ func lookupUserID(ctx context.Context, apiClient *client.Client, identifier stri
 }
 
 func fetchUsernamesForIDs(ctx context.Context, apiClient *client.Client, ids []string) ([]string, diag.Diagnostics) {
-	var (
-		names []string
-		diags diag.Diagnostics
-	)
+	names := make([]string, 0, len(ids))
+	var diags diag.Diagnostics
 
 	for _, id := range ids {
 		user, err := apiClient.GetUser(ctx, id)

@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/acctest"
@@ -27,9 +28,8 @@ func TestAccGroupResource(t *testing.T) {
 				ResourceName:      "openwebui_group.test",
 				ImportState:       true,
 				ImportStateVerify: true,
-				// users is optional in config but always populated as empty list on Read;
 				// permissions sub-maps are computed and may have server defaults not in config.
-				ImportStateVerifyIgnore: []string{"users", "permissions"},
+				ImportStateVerifyIgnore: []string{"permissions"},
 			},
 			{
 				Config: testAccGroupResourceConfig(name, "Updated description"),
@@ -68,6 +68,80 @@ resource "openwebui_group" "test" {
   description = %q
 }
 `, testAccProviderConfig(), name, description)
+}
+
+// TestAccGroupResource_EmptyUsers verifies that setting users = [] (an explicit
+// empty list) does not trigger "provider produced inconsistent result after
+// apply".  This was broken before the users attribute became Optional+Computed
+// because fetchUsernamesForIDs returned a nil slice, which types.ListValueFrom
+// mapped to a null list — inconsistent with the planned empty list.
+func TestAccGroupResource_EmptyUsers(t *testing.T) {
+	name := acctest.RandomWithPrefix("tf-acc-group-empty-users")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`%s
+resource "openwebui_group" "test" {
+  name        = %q
+  description = "empty users test"
+  users       = []
+}
+`, testAccProviderConfig(), name),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("openwebui_group.test", "name", name),
+					resource.TestCheckResourceAttr("openwebui_group.test", "users.#", "0"),
+				),
+			},
+		},
+	})
+}
+
+// TestAccGroupResource_WithUser verifies that a named user can be added to a
+// group and that the state round-trips correctly.  Skipped when
+// OPENWEBUI_TEST_USER_EMAIL is not set.
+func TestAccGroupResource_WithUser(t *testing.T) {
+	email := os.Getenv("OPENWEBUI_TEST_USER_EMAIL")
+	if email == "" {
+		t.Skip("OPENWEBUI_TEST_USER_EMAIL not set")
+	}
+	name := acctest.RandomWithPrefix("tf-acc-group-with-user")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			// Create with user.
+			{
+				Config: fmt.Sprintf(`%s
+resource "openwebui_group" "test" {
+  name        = %q
+  description = "with user test"
+  users       = [%q]
+}
+`, testAccProviderConfig(), name, email),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("openwebui_group.test", "users.#", "1"),
+					resource.TestCheckResourceAttr("openwebui_group.test", "users.0", email),
+				),
+			},
+			// Remove user — should not error and users should become empty.
+			{
+				Config: fmt.Sprintf(`%s
+resource "openwebui_group" "test" {
+  name        = %q
+  description = "with user test"
+  users       = []
+}
+`, testAccProviderConfig(), name),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("openwebui_group.test", "users.#", "0"),
+				),
+			},
+		},
+	})
 }
 
 func testAccGroupDataSourceConfig(name string) string {
