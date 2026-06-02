@@ -32,7 +32,7 @@ type openAIConnectionItemModel struct {
 	ModelIDs       types.List   `tfsdk:"model_ids"`
 	Tags           types.List   `tfsdk:"tags"`
 	HeadersJSON    types.String `tfsdk:"headers_json"`
-	Provider       types.String `tfsdk:"provider"`
+	APIProvider    types.String `tfsdk:"api_provider"`
 	APIVersion     types.String `tfsdk:"api_version"`
 	APIType        types.String `tfsdk:"api_type"`
 }
@@ -116,7 +116,7 @@ func (r *openAIConnectionsResource) Schema(_ context.Context, _ resource.SchemaR
 							Sensitive:   true,
 							Description: "JSON object of custom HTTP headers sent to the endpoint, e.g. `jsonencode({ X-Org = \"acme\" })`.",
 						},
-						"provider": schema.StringAttribute{
+						"api_provider": schema.StringAttribute{
 							Optional:    true,
 							Computed:    true,
 							Description: "Provider hint. Set to `\"azure\"` to enable Azure OpenAI mode.",
@@ -124,7 +124,7 @@ func (r *openAIConnectionsResource) Schema(_ context.Context, _ resource.SchemaR
 						"api_version": schema.StringAttribute{
 							Optional:    true,
 							Computed:    true,
-							Description: "Azure API version string, e.g. `2024-02-01`. Required when `provider = \"azure\"`.",
+							Description: "Azure API version string, e.g. `2024-02-01`. Required when `api_provider = \"azure\"`.",
 						},
 						"api_type": schema.StringAttribute{
 							Optional:    true,
@@ -305,7 +305,7 @@ func expandOpenAIConnections(ctx context.Context, items []openAIConnectionItemMo
 				ConnectionType: item.ConnectionType.ValueString(),
 				AuthType:       item.AuthType.ValueString(),
 				Headers:        headers,
-				Provider:       item.Provider.ValueString(),
+				Provider:       item.APIProvider.ValueString(),
 				APIVersion:     item.APIVersion.ValueString(),
 				APIType:        item.APIType.ValueString(),
 			},
@@ -352,7 +352,7 @@ func flattenOpenAIConnections(ctx context.Context, entries []client.OpenAIConnec
 			ModelIDs:       modelIDs,
 			Tags:           tags,
 			HeadersJSON:    headersJSON,
-			Provider:       types.StringValue(entry.Config.Provider),
+			APIProvider:    types.StringValue(entry.Config.Provider),
 			APIVersion:     types.StringValue(entry.Config.APIVersion),
 			APIType:        types.StringValue(entry.Config.APIType),
 		})
