@@ -10,12 +10,39 @@ import (
 // TestAccOpenAIConnectionsResource tests the openwebui_openai_connections singleton resource.
 // Requires OPENWEBUI_TEST_OPENAI_URL and OPENWEBUI_TEST_OPENAI_KEY env vars.
 // The test mutates the target Open WebUI instance's OpenAI connections.
+//
+// If OPENWEBUI_PIPELINE_SERVER_URL / OPENWEBUI_PIPELINE_SERVER_KEY are set the cleanup
+// step restores that connection so pipeline acceptance tests that run afterwards still work.
 func TestAccOpenAIConnectionsResource(t *testing.T) {
 	url := testAccRequireEnv(t, "OPENWEBUI_TEST_OPENAI_URL")
 	key := testAccRequireEnv(t, "OPENWEBUI_TEST_OPENAI_KEY")
 
 	_ = os.Setenv("TF_VAR_openai_url", url)
 	_ = os.Setenv("TF_VAR_openai_key", key)
+
+	// Optional: baseline connection to restore in cleanup (e.g. the pipeline server).
+	restoreURL := testAccOptionalEnv(t, "OPENWEBUI_PIPELINE_SERVER_URL")
+	restoreKey := testAccOptionalEnv(t, "OPENWEBUI_PIPELINE_SERVER_KEY")
+
+	var cleanupConfig string
+	if restoreURL != "" {
+		cleanupConfig = testAccProviderConfig() + `
+resource "openwebui_openai_connections" "test" {
+  enabled = true
+  connections = [
+    {
+      url = "` + restoreURL + `"
+      key = "` + restoreKey + `"
+    }
+  ]
+}`
+	} else {
+		cleanupConfig = testAccProviderConfig() + `
+resource "openwebui_openai_connections" "test" {
+  enabled     = true
+  connections = []
+}`
+	}
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
@@ -84,16 +111,9 @@ resource "openwebui_openai_connections" "test" {
 				ImportStateVerify:       true,
 				ImportStateVerifyIgnore: []string{"connections.0.key"}, // key is write-only
 			},
-			// Step 5: Clear — reset to empty list so we don't leave test data.
+			// Step 5: Restore baseline connections (or clear if no baseline is configured).
 			{
-				Config: testAccProviderConfig() + `
-resource "openwebui_openai_connections" "test" {
-  enabled     = true
-  connections = []
-}`,
-				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("openwebui_openai_connections.test", "connections.#", "0"),
-				),
+				Config: cleanupConfig,
 			},
 		},
 	})
