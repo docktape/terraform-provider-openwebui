@@ -237,3 +237,64 @@ func TestSetOpenAIConnections(t *testing.T) {
 		t.Errorf("sent body: %+v", gotBody)
 	}
 }
+
+func TestGetOllamaConnections(t *testing.T) {
+	c := newConnectionsTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/ollama/config" || r.Method != http.MethodGet {
+			t.Errorf("unexpected: %s %s", r.Method, r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"ENABLE_OLLAMA_API": true,
+			"OLLAMA_BASE_URLS": ["http://localhost:11434"],
+			"OLLAMA_API_CONFIGS": {
+				"0": {"enable": true, "tags": [], "prefix_id": "", "model_ids": [], "connection_type": "local", "key": ""}
+			}
+		}`))
+	})
+
+	enabled, entries, err := c.GetOllamaConnections(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !enabled || len(entries) != 1 {
+		t.Fatalf("unexpected: enabled=%v len=%d", enabled, len(entries))
+	}
+	if entries[0].URL != "http://localhost:11434" {
+		t.Errorf("URL = %q", entries[0].URL)
+	}
+	if entries[0].Config.ConnectionType != "local" {
+		t.Errorf("ConnectionType = %q", entries[0].Config.ConnectionType)
+	}
+}
+
+func TestSetOllamaConnections(t *testing.T) {
+	var gotBody ollamaConnectionsWire
+	c := newConnectionsTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/ollama/config/update" || r.Method != http.MethodPost {
+			t.Errorf("unexpected: %s %s", r.Method, r.URL.Path)
+		}
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"ENABLE_OLLAMA_API": false,
+			"OLLAMA_BASE_URLS": ["http://localhost:11434"],
+			"OLLAMA_API_CONFIGS": {"0": {"enable": true, "tags": [], "prefix_id": "", "model_ids": [], "connection_type": "local"}}
+		}`))
+	})
+
+	entries := []OllamaConnectionEntry{{URL: "http://localhost:11434", Config: OllamaConnectionConfig{Enable: true, ConnectionType: "local", Tags: []string{}, ModelIDs: []string{}}}}
+	enabled, result, err := c.SetOllamaConnections(context.Background(), false, entries)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if enabled {
+		t.Error("enabled should be false (from response)")
+	}
+	if len(result) != 1 {
+		t.Errorf("len(result) = %d", len(result))
+	}
+	if gotBody.BaseURLs[0] != "http://localhost:11434" {
+		t.Errorf("sent body BaseURLs: %v", gotBody.BaseURLs)
+	}
+}
