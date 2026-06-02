@@ -105,6 +105,67 @@ resource "openwebui_model" "test" {
 `, testAccProviderConfig(), modelID, name, active)
 }
 
+// TestAccModelResourceNullDescriptionUpdate is a regression test for the bug
+// where setting description on a model that previously had no description
+// (API returns null) would cause a "planned/actual state mismatch" provider
+// error. The fix ensures null meta fields are never leaked into
+// meta_additional_json during flattenModelMeta.
+func TestAccModelResourceNullDescriptionUpdate(t *testing.T) {
+	modelID := acctest.RandomWithPrefix("tf-acc-model-desc")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				// Step 1: create without description — API will return null for it.
+				Config: testAccModelResourceConfigNoDescription(modelID),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("openwebui_model.test", "model_id", modelID),
+					resource.TestCheckNoResourceAttr("openwebui_model.test", "description"),
+				),
+			},
+			{
+				// Step 2: add description — must apply cleanly with no state mismatch.
+				Config: testAccModelResourceConfigWithDescription(modelID, "hello from terraform"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("openwebui_model.test", "description", "hello from terraform"),
+				),
+			},
+			{
+				ResourceName:      "openwebui_model.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+func testAccModelResourceConfigNoDescription(modelID string) string {
+	return fmt.Sprintf(`%s
+resource "openwebui_model" "test" {
+  model_id      = %q
+  name          = "Desc Test Model"
+  base_model_id = "llama3.2"
+
+  params = {}
+}
+`, testAccProviderConfig(), modelID)
+}
+
+func testAccModelResourceConfigWithDescription(modelID, description string) string {
+	return fmt.Sprintf(`%s
+resource "openwebui_model" "test" {
+  model_id      = %q
+  name          = "Desc Test Model"
+  base_model_id = "llama3.2"
+  description   = %q
+
+  params = {}
+}
+`, testAccProviderConfig(), modelID, description)
+}
+
 func testAccModelDataSourceConfig(modelID string) string {
 	return fmt.Sprintf(`%s
 resource "openwebui_model" "seed" {

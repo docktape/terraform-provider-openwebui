@@ -1078,13 +1078,16 @@ func flattenModelMeta(ctx context.Context, data map[string]any) (modelMetaState,
 
 	additional := copyStringAnyMap(data)
 
+	// Always remove these from additional — even when nil — so null API values
+	// don't leak into meta_additional_json and appear twice in state.
+	delete(additional, "profile_image_url")
+	delete(additional, "description")
+
 	if value, ok := toStringValue(data["profile_image_url"]); ok {
 		state.ProfileImageURL = types.StringValue(value)
-		delete(additional, "profile_image_url")
 	}
 	if value, ok := toStringValue(data["description"]); ok {
 		state.Description = types.StringValue(value)
-		delete(additional, "description")
 	}
 	if raw, ok := data["capabilities"]; ok {
 		switch v := raw.(type) {
@@ -1263,19 +1266,13 @@ func mergeStringAnyMaps(primary, secondary map[string]any) map[string]any {
 		return nil
 	}
 
-	if primary == nil {
-		result := make(map[string]any, len(secondary))
-		for k, v := range secondary {
-			result[k] = v
-		}
-		return result
-	}
-
+	// Write secondary first, then primary overwrites — so explicit Terraform
+	// attributes always win over anything in the "additional" JSON blob.
 	result := make(map[string]any, len(primary)+len(secondary))
-	for k, v := range primary {
+	for k, v := range secondary {
 		result[k] = v
 	}
-	for k, v := range secondary {
+	for k, v := range primary {
 		result[k] = v
 	}
 
