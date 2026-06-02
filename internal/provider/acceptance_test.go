@@ -21,11 +21,11 @@ func testAccPreCheck(t *testing.T) {
 	}
 
 	if os.Getenv("OPENWEBUI_TOKEN") == "" {
-		t.Fatal("OPENWEBUI_TOKEN must be set for acceptance tests")
+		t.Skip("OPENWEBUI_TOKEN must be set to run acceptance tests")
 	}
 
 	if os.Getenv("OPENWEBUI_ENDPOINT") == "" {
-		t.Fatal("OPENWEBUI_ENDPOINT must be set for acceptance tests")
+		t.Skip("OPENWEBUI_ENDPOINT must be set to run acceptance tests")
 	}
 }
 

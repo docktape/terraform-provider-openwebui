@@ -1,9 +1,12 @@
 .PHONY: build test testacc tidy fmt clean docs
 
+-include .env
+export
+
 ifeq ($(OS),Windows_NT)
-    SET_TF_ACC := set TF_ACC=1&&
+    RM_BIN = if exist "$(subst /,\,$(BIN_DIR))" rmdir /s /q "$(subst /,\,$(BIN_DIR))"
 else
-    SET_TF_ACC := TF_ACC=1
+    RM_BIN = rm -rf $(BIN_DIR)
 endif
 
 BIN      ?= terraform-provider-openwebui
@@ -19,7 +22,7 @@ test:
 	$(GO) test ./...
 
 testacc:
-	$(SET_TF_ACC) $(GO) test ./internal/provider/... -v -count=1 -timeout 30m
+	$(GO) test ./internal/provider/... -v -count=1 -timeout 30m
 
 tidy:
 	$(GO) mod tidy
@@ -28,7 +31,7 @@ fmt:
 	$(GO) fmt ./...
 
 clean:
-	rm -rf $(BIN_DIR)
+	$(RM_BIN)
 
 docs:
 	$(GO) generate ./...
