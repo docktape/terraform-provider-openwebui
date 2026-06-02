@@ -298,3 +298,53 @@ func TestSetOllamaConnections(t *testing.T) {
 		t.Errorf("sent body BaseURLs: %v", gotBody.BaseURLs)
 	}
 }
+
+func TestVerifyOpenAIConnection(t *testing.T) {
+	var gotBody openAIVerifyForm
+	c := newConnectionsTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/openai/verify" || r.Method != http.MethodPost {
+			t.Errorf("unexpected: %s %s", r.Method, r.URL.Path)
+		}
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		w.WriteHeader(http.StatusOK)
+	})
+
+	cfg := &OpenAIConnectionConfig{AuthType: "bearer", Provider: ""}
+	if err := c.VerifyOpenAIConnection(context.Background(), "https://api.openai.com/v1", "sk-test", cfg); err != nil {
+		t.Fatal(err)
+	}
+	if gotBody.URL != "https://api.openai.com/v1" || gotBody.Key != "sk-test" {
+		t.Errorf("body: %+v", gotBody)
+	}
+}
+
+func TestVerifyOpenAIConnection_error(t *testing.T) {
+	c := newConnectionsTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"detail":"Invalid API key"}`))
+	})
+
+	err := c.VerifyOpenAIConnection(context.Background(), "https://api.openai.com/v1", "bad-key", nil)
+	if err == nil {
+		t.Fatal("expected error for 401")
+	}
+}
+
+func TestVerifyOllamaConnection(t *testing.T) {
+	var gotBody ollamaVerifyForm
+	c := newConnectionsTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/ollama/verify" || r.Method != http.MethodPost {
+			t.Errorf("unexpected: %s %s", r.Method, r.URL.Path)
+		}
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"version":"0.5.0"}`))
+	})
+
+	if err := c.VerifyOllamaConnection(context.Background(), "http://localhost:11434", nil); err != nil {
+		t.Fatal(err)
+	}
+	if gotBody.URL != "http://localhost:11434" {
+		t.Errorf("body.URL = %q", gotBody.URL)
+	}
+}
