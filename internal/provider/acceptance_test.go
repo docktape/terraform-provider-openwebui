@@ -34,6 +34,11 @@ func testAccRequireEnv(t *testing.T, key string) string {
 	return value
 }
 
+// testAccOptionalEnv returns the env var value or "" without skipping.
+func testAccOptionalEnv(_ *testing.T, key string) string {
+	return os.Getenv(key)
+}
+
 func testAccProviderConfig() string {
 	endpoint := os.Getenv("OPENWEBUI_ENDPOINT")
 	if endpoint == "" {
