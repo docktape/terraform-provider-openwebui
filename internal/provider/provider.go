@@ -169,6 +169,8 @@ func (p *openWebUIProvider) Resources(_ context.Context) []func() resource.Resou
 		NewOAuthClientResource,
 		NewFunctionResource,
 		NewFunctionValvesResource,
+		NewOpenAIConnectionsResource,
+		NewOllamaConnectionsResource,
 	}
 }
 
@@ -186,5 +188,7 @@ func (p *openWebUIProvider) DataSources(_ context.Context) []func() datasource.D
 		NewConfigExportDataSource,
 		NewUserDataSource,
 		NewToolServerVerifyDataSource,
+		NewOpenAIConnectionVerifyDataSource,
+		NewOllamaConnectionVerifyDataSource,
 	}
 }
