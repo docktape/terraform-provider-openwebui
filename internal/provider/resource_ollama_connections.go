@@ -140,6 +140,13 @@ func (r *ollamaConnectionsResource) Read(ctx context.Context, req resource.ReadR
 		resp.Diagnostics.AddError("Unconfigured API client", "Expected provider to configure the Open WebUI client before managing Ollama connections.")
 		return
 	}
+
+	var priorState ollamaConnectionsModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &priorState)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	enabled, entries, err := r.client.GetOllamaConnections(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Read Ollama connections failed", err.Error())
@@ -150,6 +157,17 @@ func (r *ollamaConnectionsResource) Read(ctx context.Context, req resource.ReadR
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	// Preserve keys from prior state: the API may mask or omit keys on GET.
+	for i := range connections {
+		if !connections[i].Key.IsNull() {
+			continue // API returned a key; use it
+		}
+		if i < len(priorState.Connections) && !priorState.Connections[i].Key.IsNull() {
+			connections[i].Key = priorState.Connections[i].Key
+		}
+	}
+
 	state := ollamaConnectionsModel{
 		ID:          types.StringValue("ollama"),
 		Enabled:     types.BoolValue(enabled),
