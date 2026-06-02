@@ -83,6 +83,9 @@ func encodeOpenAIConnections(enabled bool, entries []OpenAIConnectionEntry) open
 		b, _ := json.Marshal(e.Config)
 		var m map[string]any
 		_ = json.Unmarshal(b, &m)
+		if m == nil {
+			m = map[string]any{}
+		}
 		configs[strconv.Itoa(i)] = m
 	}
 	return openAIConnectionsWire{
@@ -133,6 +136,9 @@ func encodeOllamaConnections(enabled bool, entries []OllamaConnectionEntry) olla
 		b, _ := json.Marshal(e.Config)
 		var m map[string]any
 		_ = json.Unmarshal(b, &m)
+		if m == nil {
+			m = map[string]any{}
+		}
 		configs[strconv.Itoa(i)] = m
 	}
 	return ollamaConnectionsWire{
