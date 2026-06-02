@@ -38,8 +38,8 @@ type openAIConnectionItemModel struct {
 }
 
 type openAIConnectionsModel struct {
-	ID          types.String               `tfsdk:"id"`
-	Enabled     types.Bool                 `tfsdk:"enabled"`
+	ID          types.String                `tfsdk:"id"`
+	Enabled     types.Bool                  `tfsdk:"enabled"`
 	Connections []openAIConnectionItemModel `tfsdk:"connections"`
 }
 
