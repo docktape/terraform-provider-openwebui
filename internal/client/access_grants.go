@@ -59,7 +59,8 @@ func grantsToAccessControl(grants []accessGrant) map[string]any {
 		default:
 			continue
 		}
-		section[key] = append(section[key].([]string), g.PrincipalID)
+		cur, _ := section[key].([]string)
+		section[key] = append(cur, g.PrincipalID)
 		found = true
 	}
 	if !found {

@@ -57,8 +57,14 @@ func TestGetToolParsesAccessGrants(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetTool: %v", err)
 	}
-	read := out.AccessControl["read"].(map[string]any)
-	ids := read["group_ids"].([]string)
+	read, ok := out.AccessControl["read"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected read to be map[string]any, got %T", out.AccessControl["read"])
+	}
+	ids, ok := read["group_ids"].([]string)
+	if !ok {
+		t.Fatalf("expected group_ids to be []string, got %T", read["group_ids"])
+	}
 	if len(ids) != 1 || ids[0] != "g7" {
 		t.Fatalf("expected read.group_ids=[g7], got %+v", out.AccessControl)
 	}

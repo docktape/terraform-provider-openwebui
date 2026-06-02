@@ -39,8 +39,14 @@ func TestGrantsToAccessControl(t *testing.T) {
 		{PrincipalType: "user", PrincipalID: "*", Permission: "read"}, // wildcard, skipped
 	}
 	ac := grantsToAccessControl(grants)
-	read := ac["read"].(map[string]any)
-	write := ac["write"].(map[string]any)
+	read, ok := ac["read"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected read to be map[string]any, got %T", ac["read"])
+	}
+	write, ok := ac["write"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected write to be map[string]any, got %T", ac["write"])
+	}
 	if !reflect.DeepEqual(read["group_ids"], []string{"g1"}) {
 		t.Fatalf("read.group_ids = %+v", read["group_ids"])
 	}

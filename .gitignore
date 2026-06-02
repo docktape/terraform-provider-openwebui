@@ -36,8 +36,6 @@ Thumbs.db
 tmp/
 
 # Not yet tracked (add back as the provider matures)
-README.md
-CHANGELOG.md
 openapi.json
 
 docs_legacy/

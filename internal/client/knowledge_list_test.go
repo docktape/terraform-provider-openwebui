@@ -48,8 +48,14 @@ func TestListKnowledgePaginatesAndAggregates(t *testing.T) {
 		}
 	}
 	last := items[len(items)-1]
-	read := last.AccessControl["read"].(map[string]any)
-	ids := read["group_ids"].([]string)
+	read, ok := last.AccessControl["read"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected read to be map[string]any, got %T", last.AccessControl["read"])
+	}
+	ids, ok := read["group_ids"].([]string)
+	if !ok {
+		t.Fatalf("expected group_ids to be []string, got %T", read["group_ids"])
+	}
 	if len(ids) != 1 || ids[0] != "g1" {
 		t.Fatalf("expected last item read.group_ids=[g1], got %+v", last.AccessControl)
 	}

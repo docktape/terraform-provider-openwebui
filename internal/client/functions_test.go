@@ -150,7 +150,11 @@ func TestGetFunctionValves(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetFunctionValves: %v", err)
 	}
-	if out["priority"].(float64) != 5 {
+	priority, ok := out["priority"].(float64)
+	if !ok {
+		t.Fatalf("expected priority to be float64, got %T", out["priority"])
+	}
+	if priority != 5 {
 		t.Fatalf("unexpected valves: %+v", out)
 	}
 }
@@ -185,7 +189,15 @@ func TestUpdateFunctionValves(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UpdateFunctionValves: %v", err)
 	}
-	if gotBody["priority"].(float64) != 9 || out["priority"].(float64) != 9 {
+	gotPriority, ok := gotBody["priority"].(float64)
+	if !ok {
+		t.Fatalf("expected gotBody priority to be float64, got %T", gotBody["priority"])
+	}
+	outPriority, ok := out["priority"].(float64)
+	if !ok {
+		t.Fatalf("expected out priority to be float64, got %T", out["priority"])
+	}
+	if gotPriority != 9 || outPriority != 9 {
 		t.Fatalf("unexpected valves: sent %+v got %+v", gotBody, out)
 	}
 }

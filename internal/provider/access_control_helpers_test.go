@@ -39,8 +39,14 @@ func TestBuildAccessControl_ReadAndWrite(t *testing.T) {
 	}
 
 	// Read should contain both g1 (read-only) and g2 (write implies read)
-	read := result["read"].(map[string]any)
-	readIDs := read["group_ids"].([]string)
+	read, ok := result["read"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected read section, got %T", result["read"])
+	}
+	readIDs, ok := read["group_ids"].([]string)
+	if !ok {
+		t.Fatalf("expected []string group_ids, got %T", read["group_ids"])
+	}
 	readSet := make(map[string]bool, len(readIDs))
 	for _, id := range readIDs {
 		readSet[id] = true
@@ -50,8 +56,14 @@ func TestBuildAccessControl_ReadAndWrite(t *testing.T) {
 	}
 
 	// Write should contain only g2
-	write := result["write"].(map[string]any)
-	writeIDs := write["group_ids"].([]string)
+	write, ok := result["write"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected write section, got %T", result["write"])
+	}
+	writeIDs, ok := write["group_ids"].([]string)
+	if !ok {
+		t.Fatalf("expected []string group_ids, got %T", write["group_ids"])
+	}
 	if len(writeIDs) != 1 || writeIDs[0] != "g2" {
 		t.Fatalf("expected write group_ids=[g2], got %v", writeIDs)
 	}
@@ -60,8 +72,14 @@ func TestBuildAccessControl_ReadAndWrite(t *testing.T) {
 func TestBuildAccessControl_WriteOnlyDeduplicatesRead(t *testing.T) {
 	// g1 appears in both read and write — the merged read slice must not duplicate it
 	result := buildAccessControl([]string{"g1"}, []string{"g1"})
-	read := result["read"].(map[string]any)
-	readIDs := read["group_ids"].([]string)
+	read, ok := result["read"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected read section, got %T", result["read"])
+	}
+	readIDs, ok := read["group_ids"].([]string)
+	if !ok {
+		t.Fatalf("expected []string group_ids, got %T", read["group_ids"])
+	}
 	if len(readIDs) != 1 {
 		t.Fatalf("expected exactly 1 read group (deduplicated), got %v", readIDs)
 	}

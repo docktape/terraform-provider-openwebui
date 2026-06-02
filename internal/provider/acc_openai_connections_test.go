@@ -1,7 +1,6 @@
 package provider
 
 import (
-	"os"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -17,8 +16,8 @@ func TestAccOpenAIConnectionsResource(t *testing.T) {
 	url := testAccRequireEnv(t, "OPENWEBUI_TEST_OPENAI_URL")
 	key := testAccRequireEnv(t, "OPENWEBUI_TEST_OPENAI_KEY")
 
-	_ = os.Setenv("TF_VAR_openai_url", url)
-	_ = os.Setenv("TF_VAR_openai_key", key)
+	t.Setenv("TF_VAR_openai_url", url)
+	t.Setenv("TF_VAR_openai_key", key)
 
 	// Optional: baseline connection to restore in cleanup (e.g. the pipeline server).
 	restoreURL := testAccOptionalEnv(t, "OPENWEBUI_PIPELINE_SERVER_URL")

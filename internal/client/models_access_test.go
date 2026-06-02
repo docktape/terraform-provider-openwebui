@@ -51,8 +51,14 @@ func TestCreateModelSendsAccessGrants(t *testing.T) {
 		t.Fatalf("expected 1 access_grant, got %+v", sent["access_grants"])
 	}
 
-	read := out.AccessControl["read"].(map[string]any)
-	ids := read["group_ids"].([]string)
+	read, ok := out.AccessControl["read"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected read to be map[string]any, got %T", out.AccessControl["read"])
+	}
+	ids, ok := read["group_ids"].([]string)
+	if !ok {
+		t.Fatalf("expected group_ids to be []string, got %T", read["group_ids"])
+	}
 	if len(ids) != 1 || ids[0] != "g1" {
 		t.Fatalf("expected read.group_ids=[g1], got %+v", out.AccessControl)
 	}
@@ -66,8 +72,14 @@ func TestGetModelParsesAccessGrants(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetModel: %v", err)
 	}
-	write := out.AccessControl["write"].(map[string]any)
-	ids := write["group_ids"].([]string)
+	write, ok := out.AccessControl["write"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected write to be map[string]any, got %T", out.AccessControl["write"])
+	}
+	ids, ok := write["group_ids"].([]string)
+	if !ok {
+		t.Fatalf("expected group_ids to be []string, got %T", write["group_ids"])
+	}
 	if len(ids) != 1 || ids[0] != "g9" {
 		t.Fatalf("expected write.group_ids=[g9], got %+v", out.AccessControl)
 	}
