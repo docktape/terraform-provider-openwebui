@@ -58,6 +58,38 @@ func TestAccModelDataSource(t *testing.T) {
 	})
 }
 
+// TestAccModelResourceNoCapabilities verifies that omitting the capabilities
+// block entirely does not produce an "unknown value" conversion error.
+func TestAccModelResourceNoCapabilities(t *testing.T) {
+	modelID := acctest.RandomWithPrefix("tf-acc-model-nocaps")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccModelResourceConfigNoCaps(modelID),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("openwebui_model.test", "model_id", modelID),
+					resource.TestCheckResourceAttrSet("openwebui_model.test", "id"),
+				),
+			},
+		},
+	})
+}
+
+func testAccModelResourceConfigNoCaps(modelID string) string {
+	return fmt.Sprintf(`%s
+resource "openwebui_model" "test" {
+  model_id      = %q
+  name          = "No Caps Model"
+  base_model_id = "llama3.2"
+
+  params = {}
+}
+`, testAccProviderConfig(), modelID)
+}
+
 func testAccModelResourceConfig(modelID, name string, active bool) string {
 	return fmt.Sprintf(`%s
 resource "openwebui_model" "test" {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -11,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -230,6 +232,10 @@ func (r *modelResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				Optional:            true,
 				Computed:            true,
 				MarkdownDescription: "Feature capability toggles for this model.",
+				PlanModifiers: []planmodifier.Object{
+					objectplanmodifier.UseStateForUnknown(),
+					capabilitiesEmptyDefaultModifier{},
+				},
 				Attributes: map[string]schema.Attribute{
 					"vision": schema.BoolAttribute{
 						Optional:      true,
@@ -1156,6 +1162,56 @@ func flattenModelMeta(ctx context.Context, data map[string]any) (modelMetaState,
 	}
 
 	return state, encoded, diags
+}
+
+// modelCapabilitiesAttrTypes mirrors the schema attribute types for the
+// capabilities block. Used by capabilitiesEmptyDefaultModifier to build a
+// known empty object without having to inspect an unknown plan value.
+var modelCapabilitiesAttrTypes = map[string]attr.Type{
+	"vision":           types.BoolType,
+	"file_upload":      types.BoolType,
+	"web_search":       types.BoolType,
+	"image_generation": types.BoolType,
+	"code_interpreter": types.BoolType,
+	"citations":        types.BoolType,
+	"status_updates":   types.BoolType,
+	"usage":            types.BoolType,
+}
+
+// capabilitiesEmptyDefaultModifier converts an unknown capabilities plan value
+// to a known empty object (all bool attributes null) when the user did not
+// specify the block and there is no prior state for UseStateForUnknown to carry
+// forward. Without this the framework tries to decode an unknown object into
+// *modelCapabilitiesModel, which can only hold known or null values.
+//
+// The empty object matches what flattenModelMeta returns when the API has no
+// capabilities data, so plan and post-apply state stay consistent.
+type capabilitiesEmptyDefaultModifier struct{}
+
+func (capabilitiesEmptyDefaultModifier) Description(_ context.Context) string {
+	return "Defaults capabilities to an empty object when not specified and no prior state exists."
+}
+
+func (capabilitiesEmptyDefaultModifier) MarkdownDescription(_ context.Context) string {
+	return "Defaults capabilities to an empty object when not specified and no prior state exists."
+}
+
+func (capabilitiesEmptyDefaultModifier) PlanModifyObject(ctx context.Context, req planmodifier.ObjectRequest, resp *planmodifier.ObjectResponse) {
+	// Only act when config is null (user omitted the block) and the plan value
+	// is still unknown (UseStateForUnknown found no prior state to use).
+	if !req.ConfigValue.IsNull() || !resp.PlanValue.IsUnknown() {
+		return
+	}
+
+	attrVals := make(map[string]attr.Value, len(modelCapabilitiesAttrTypes))
+	for k := range modelCapabilitiesAttrTypes {
+		attrVals[k] = types.BoolNull()
+	}
+	emptyObj, diags := types.ObjectValue(modelCapabilitiesAttrTypes, attrVals)
+	resp.Diagnostics.Append(diags...)
+	if !diags.HasError() {
+		resp.PlanValue = emptyObj
+	}
 }
 
 func flattenModelCapabilities(data map[string]any) *modelCapabilitiesModel {
