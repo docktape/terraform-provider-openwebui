@@ -37,6 +37,7 @@ func (e *APIError) Error() string {
 // Client wraps HTTP access to the Open WebUI API.
 type Client struct {
 	baseURL    string
+	rootURL    string // scheme://host[:port], no path — used for /openai and /ollama endpoints
 	token      string
 	httpClient *http.Client
 }
@@ -57,6 +58,12 @@ func NewClient(endpoint, token string, insecure bool) (*Client, error) {
 
 	base := strings.TrimRight(parsed.String(), "/")
 
+	parsedRoot := &url.URL{
+		Scheme: parsed.Scheme,
+		Host:   parsed.Host,
+	}
+	root := strings.TrimRight(parsedRoot.String(), "/")
+
 	hc := &http.Client{
 		Timeout: 30 * time.Second,
 	}
@@ -69,6 +76,7 @@ func NewClient(endpoint, token string, insecure bool) (*Client, error) {
 
 	return &Client{
 		baseURL:    base,
+		rootURL:    root,
 		token:      token,
 		httpClient: hc,
 	}, nil
@@ -210,6 +218,72 @@ func (c *Client) doMultipart(ctx context.Context, method, path string, query url
 
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", writer.FormDataContentType())
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("perform request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		io.Copy(io.Discard, resp.Body)
+		return ErrNotFound
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return &APIError{Status: resp.StatusCode, Body: strings.TrimSpace(string(respBody))}
+	}
+
+	if out == nil {
+		io.Copy(io.Discard, resp.Body)
+		return nil
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("read response body: %w", err)
+	}
+
+	trimmed := strings.TrimSpace(string(data))
+	if trimmed == "" || trimmed == "null" {
+		return nil
+	}
+
+	if err := json.Unmarshal(data, out); err != nil {
+		return fmt.Errorf("decode response body: %w", err)
+	}
+
+	return nil
+}
+
+// doRaw performs an HTTP request using a pre-built full URL instead of a relative path.
+func (c *Client) doRaw(ctx context.Context, method, fullURL string, payload any, out any) error {
+	var body io.Reader
+
+	if payload != nil {
+		buf := &bytes.Buffer{}
+		enc := json.NewEncoder(buf)
+		enc.SetEscapeHTML(false)
+		if err := enc.Encode(payload); err != nil {
+			return fmt.Errorf("encode request body: %w", err)
+		}
+		body = buf
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, fullURL, body)
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+
+	req.Header.Set("Accept", "application/json")
+	if payload != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
 	if c.token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.token)
 	}
