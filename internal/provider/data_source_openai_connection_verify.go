@@ -22,7 +22,7 @@ type openAIConnectionVerifyModel struct {
 	URL         types.String `tfsdk:"url"`
 	Key         types.String `tfsdk:"key"`
 	AuthType    types.String `tfsdk:"auth_type"`
-	Provider    types.String `tfsdk:"provider"`
+	APIProvider types.String `tfsdk:"api_provider"`
 	APIVersion  types.String `tfsdk:"api_version"`
 	HeadersJSON types.String `tfsdk:"headers_json"`
 	Verified    types.Bool   `tfsdk:"verified"`
@@ -54,13 +54,13 @@ func (d *openAIConnectionVerifyDataSource) Schema(_ context.Context, _ datasourc
 				Optional:    true,
 				Description: "Authentication method, e.g. `bearer`. Passed to Open WebUI's verification logic.",
 			},
-			"provider": schema.StringAttribute{
+			"api_provider": schema.StringAttribute{
 				Optional:    true,
 				Description: "Provider hint, e.g. `azure`. Passed to Open WebUI's verification logic.",
 			},
 			"api_version": schema.StringAttribute{
 				Optional:    true,
-				Description: "Azure API version, e.g. `2024-02-01`. Used when `provider = \"azure\"`.",
+				Description: "Azure API version, e.g. `2024-02-01`. Used when `api_provider = \"azure\"`.",
 			},
 			"headers_json": schema.StringAttribute{
 				Optional:    true,
@@ -108,7 +108,7 @@ func (d *openAIConnectionVerifyDataSource) Read(ctx context.Context, req datasou
 
 	cfg := &client.OpenAIConnectionConfig{
 		AuthType:   config.AuthType.ValueString(),
-		Provider:   config.Provider.ValueString(),
+		Provider:   config.APIProvider.ValueString(),
 		APIVersion: config.APIVersion.ValueString(),
 		Headers:    headers,
 	}
