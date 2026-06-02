@@ -2,6 +2,7 @@ package client
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -42,6 +43,7 @@ func TestNewClientRootURL(t *testing.T) {
 		{"https://openwebui.example.com", "https://openwebui.example.com", "https://openwebui.example.com/api/v1"},
 		{"http://localhost:3000", "http://localhost:3000", "http://localhost:3000/api/v1"},
 		{"http://10.0.0.1:9000", "http://10.0.0.1:9000", "http://10.0.0.1:9000/api/v1"},
+		{"http://localhost:8080/", "http://localhost:8080", "http://localhost:8080/api/v1"}, // trailing slash
 	}
 	for _, tc := range tests {
 		c, err := NewClient(tc.endpoint, "tok", false)
@@ -53,6 +55,24 @@ func TestNewClientRootURL(t *testing.T) {
 		}
 		if c.baseURL != tc.wantBaseURL {
 			t.Errorf("endpoint=%q: baseURL=%q, want %q", tc.endpoint, c.baseURL, tc.wantBaseURL)
+		}
+	}
+}
+
+func TestNewClient_RejectsApiV1Suffix(t *testing.T) {
+	bad := []string{
+		"http://localhost:8080/api/v1",
+		"https://openwebui.example.com/api/v1",
+		"http://localhost:8080/api/v1/",
+	}
+	for _, endpoint := range bad {
+		_, err := NewClient(endpoint, "tok", false)
+		if err == nil {
+			t.Errorf("NewClient(%q): expected error for /api/v1 suffix, got nil", endpoint)
+			continue
+		}
+		if !strings.Contains(err.Error(), "bare base URL") {
+			t.Errorf("NewClient(%q): error %q does not mention 'bare base URL'", endpoint, err.Error())
 		}
 	}
 }

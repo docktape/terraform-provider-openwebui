@@ -56,6 +56,10 @@ func NewClient(endpoint, token string, insecure bool) (*Client, error) {
 	parsed.RawQuery = ""
 	parsed.Fragment = ""
 
+	if strings.HasSuffix(strings.TrimRight(parsed.Path, "/"), "/api/v1") {
+		return nil, fmt.Errorf("endpoint must be a bare base URL without /api/v1 suffix (got %q)", endpoint)
+	}
+
 	base := strings.TrimRight(parsed.String(), "/") + "/api/v1"
 
 	parsedRoot := &url.URL{
