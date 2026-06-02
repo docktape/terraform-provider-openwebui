@@ -17,8 +17,6 @@ import (
 
 var _ provider.Provider = &openWebUIProvider{}
 
-const defaultEndpoint = "http://localhost:3000/api/v1"
-
 // openWebUIProvider defines the provider implementation.
 type openWebUIProvider struct {
 	version string
@@ -74,7 +72,7 @@ func (p *openWebUIProvider) Schema(_ context.Context, _ provider.SchemaRequest, 
 		Attributes: map[string]schema.Attribute{
 			"endpoint": schema.StringAttribute{
 				Optional:    true,
-				Description: "Base URL for the Open WebUI API, e.g. `https://openwebui.example.com/api/v1`. Defaults to `http://localhost:3000/api/v1`. Can also be set via the `OPENWEBUI_ENDPOINT` environment variable.",
+				Description: "Base URL for the Open WebUI API, e.g. `https://openwebui.example.com/api/v1`. Can also be set via the `OPENWEBUI_ENDPOINT` environment variable.",
 			},
 			"token": schema.StringAttribute{
 				Optional:    true,
@@ -99,11 +97,19 @@ func (p *openWebUIProvider) Configure(ctx context.Context, req provider.Configur
 		return
 	}
 
-	endpoint := defaultEndpoint
+	endpoint := ""
 	if !data.Endpoint.IsNull() && !data.Endpoint.IsUnknown() {
 		endpoint = data.Endpoint.ValueString()
 	} else if envEndpoint := os.Getenv("OPENWEBUI_ENDPOINT"); envEndpoint != "" {
 		endpoint = envEndpoint
+	}
+
+	if endpoint == "" {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("endpoint"),
+			"Missing Open WebUI API endpoint",
+			"An endpoint must be supplied via the provider configuration or the OPENWEBUI_ENDPOINT environment variable.",
+		)
 	}
 
 	token := ""
@@ -126,6 +132,9 @@ func (p *openWebUIProvider) Configure(ctx context.Context, req provider.Configur
 			"Missing Open WebUI API token",
 			"A valid API token must be supplied via the provider configuration or the OPENWEBUI_TOKEN environment variable.",
 		)
+	}
+
+	if resp.Diagnostics.HasError() {
 		return
 	}
 

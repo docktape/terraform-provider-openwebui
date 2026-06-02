@@ -23,6 +23,10 @@ func testAccPreCheck(t *testing.T) {
 	if os.Getenv("OPENWEBUI_TOKEN") == "" {
 		t.Fatal("OPENWEBUI_TOKEN must be set for acceptance tests")
 	}
+
+	if os.Getenv("OPENWEBUI_ENDPOINT") == "" {
+		t.Fatal("OPENWEBUI_ENDPOINT must be set for acceptance tests")
+	}
 }
 
 func testAccRequireEnv(t *testing.T, key string) string {
@@ -40,14 +44,9 @@ func testAccOptionalEnv(_ *testing.T, key string) string {
 }
 
 func testAccProviderConfig() string {
-	endpoint := os.Getenv("OPENWEBUI_ENDPOINT")
-	if endpoint == "" {
-		endpoint = "http://localhost:3000/api/v1"
-	}
-
 	return fmt.Sprintf(`
 provider "openwebui" {
   endpoint = %q
 }
-`, endpoint)
+`, os.Getenv("OPENWEBUI_ENDPOINT"))
 }
