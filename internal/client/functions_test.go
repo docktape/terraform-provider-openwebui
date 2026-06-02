@@ -39,7 +39,7 @@ func TestCreateFunction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateFunction: %v", err)
 	}
-	if gotMethod != http.MethodPost || gotPath != "/functions/create" {
+	if gotMethod != http.MethodPost || gotPath != "/api/v1/functions/create" {
 		t.Fatalf("unexpected request: %s %s", gotMethod, gotPath)
 	}
 	if gotAuth != "Bearer test-token" {
@@ -55,7 +55,7 @@ func TestCreateFunction(t *testing.T) {
 
 func TestGetFunction(t *testing.T) {
 	c := newFunctionsTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet || r.URL.Path != "/functions/id/my_filter" {
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/functions/id/my_filter" {
 			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
 		_, _ = w.Write([]byte(`{"id":"my_filter","user_id":"u1","type":"filter","name":"My Filter","content":"class Filter:\n    pass\n","meta":{"description":"demo","manifest":{"title":"My Filter"}},"is_active":true,"is_global":false,"created_at":1,"updated_at":2}`))
@@ -81,7 +81,7 @@ func TestGetFunctionNotFound(t *testing.T) {
 
 func TestDeleteFunction(t *testing.T) {
 	c := newFunctionsTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodDelete || r.URL.Path != "/functions/id/my_filter/delete" {
+		if r.Method != http.MethodDelete || r.URL.Path != "/api/v1/functions/id/my_filter/delete" {
 			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
 		_, _ = w.Write([]byte(`true`))
@@ -93,7 +93,7 @@ func TestDeleteFunction(t *testing.T) {
 
 func TestUpdateFunction(t *testing.T) {
 	c := newFunctionsTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost || r.URL.Path != "/functions/id/my_filter/update" {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/functions/id/my_filter/update" {
 			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
 		_, _ = w.Write([]byte(`{"id":"my_filter","user_id":"u1","type":"filter","name":"Renamed","content":"class Filter:\n    pass\n","is_active":true,"is_global":false,"created_at":1,"updated_at":3}`))
@@ -109,7 +109,7 @@ func TestUpdateFunction(t *testing.T) {
 
 func TestToggleFunction(t *testing.T) {
 	c := newFunctionsTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost || r.URL.Path != "/functions/id/my_filter/toggle" {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/functions/id/my_filter/toggle" {
 			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
 		_, _ = w.Write([]byte(`{"id":"my_filter","user_id":"u1","type":"filter","is_active":true,"is_global":false,"created_at":1,"updated_at":4}`))
@@ -125,7 +125,7 @@ func TestToggleFunction(t *testing.T) {
 
 func TestToggleFunctionGlobal(t *testing.T) {
 	c := newFunctionsTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost || r.URL.Path != "/functions/id/my_filter/toggle/global" {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/functions/id/my_filter/toggle/global" {
 			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
 		_, _ = w.Write([]byte(`{"id":"my_filter","user_id":"u1","type":"filter","is_active":true,"is_global":true,"created_at":1,"updated_at":5}`))
@@ -141,7 +141,7 @@ func TestToggleFunctionGlobal(t *testing.T) {
 
 func TestGetFunctionValves(t *testing.T) {
 	c := newFunctionsTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet || r.URL.Path != "/functions/id/my_filter/valves" {
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/functions/id/my_filter/valves" {
 			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
 		_, _ = w.Write([]byte(`{"priority":5}`))
@@ -161,7 +161,7 @@ func TestGetFunctionValves(t *testing.T) {
 
 func TestGetFunctionValvesSpec(t *testing.T) {
 	c := newFunctionsTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet || r.URL.Path != "/functions/id/my_filter/valves/spec" {
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/functions/id/my_filter/valves/spec" {
 			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
 		_, _ = w.Write([]byte(`{"type":"object","properties":{"priority":{"type":"integer"}}}`))
@@ -178,7 +178,7 @@ func TestGetFunctionValvesSpec(t *testing.T) {
 func TestUpdateFunctionValves(t *testing.T) {
 	var gotBody map[string]any
 	c := newFunctionsTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost || r.URL.Path != "/functions/id/my_filter/valves/update" {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/functions/id/my_filter/valves/update" {
 			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
 		body, _ := io.ReadAll(r.Body)

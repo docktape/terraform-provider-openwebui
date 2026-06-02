@@ -41,8 +41,8 @@ func TestCreatePromptSendsNameAndGrants(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreatePrompt: %v", err)
 	}
-	if gotPath != "/prompts/create" {
-		t.Fatalf("expected /prompts/create, got %q", gotPath)
+	if gotPath != "/api/v1/prompts/create" {
+		t.Fatalf("expected /api/v1/prompts/create, got %q", gotPath)
 	}
 	if _, ok := sent["access_control"]; ok {
 		t.Fatalf("access_control must not be sent: %+v", sent)
@@ -82,8 +82,8 @@ func TestGetPromptUsesIDRoute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetPrompt: %v", err)
 	}
-	if gotPath != "/prompts/id/p1" {
-		t.Fatalf("expected /prompts/id/p1, got %q", gotPath)
+	if gotPath != "/api/v1/prompts/id/p1" {
+		t.Fatalf("expected /api/v1/prompts/id/p1, got %q", gotPath)
 	}
 	if out.Name != "Greet" || out.UpdatedAt != 20 {
 		t.Fatalf("unexpected prompt: %+v", out)
@@ -101,8 +101,8 @@ func TestUpdatePromptUsesIDRoute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UpdatePrompt: %v", err)
 	}
-	if gotPath != "/prompts/id/p1/update" || gotMethod != http.MethodPost {
-		t.Fatalf("expected POST /prompts/id/p1/update, got %s %q", gotMethod, gotPath)
+	if gotPath != "/api/v1/prompts/id/p1/update" || gotMethod != http.MethodPost {
+		t.Fatalf("expected POST /api/v1/prompts/id/p1/update, got %s %q", gotMethod, gotPath)
 	}
 	if out.Name != "Greet2" {
 		t.Fatalf("expected name=Greet2, got %q", out.Name)
@@ -119,8 +119,8 @@ func TestDeletePromptUsesIDRoute(t *testing.T) {
 	if err := c.DeletePrompt(context.Background(), "p1"); err != nil {
 		t.Fatalf("DeletePrompt: %v", err)
 	}
-	if gotPath != "/prompts/id/p1/delete" || gotMethod != http.MethodDelete {
-		t.Fatalf("expected DELETE /prompts/id/p1/delete, got %s %q", gotMethod, gotPath)
+	if gotPath != "/api/v1/prompts/id/p1/delete" || gotMethod != http.MethodDelete {
+		t.Fatalf("expected DELETE /api/v1/prompts/id/p1/delete, got %s %q", gotMethod, gotPath)
 	}
 }
 
@@ -134,8 +134,8 @@ func TestListPromptsHitsRoot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListPrompts: %v", err)
 	}
-	if gotPath != "/prompts/" {
-		t.Fatalf("expected /prompts/, got %q", gotPath)
+	if gotPath != "/api/v1/prompts/" {
+		t.Fatalf("expected /api/v1/prompts/, got %q", gotPath)
 	}
 	if len(prompts) != 1 || prompts[0].Command != "/greet" {
 		t.Fatalf("unexpected prompts: %+v", prompts)

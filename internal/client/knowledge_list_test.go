@@ -43,8 +43,8 @@ func TestListKnowledgePaginatesAndAggregates(t *testing.T) {
 		t.Fatalf("expected %d items, got %d", knowledgeListPageSize+1, len(items))
 	}
 	for _, p := range paths {
-		if p != "/knowledge/" {
-			t.Fatalf("expected /knowledge/, got %q", p)
+		if p != "/api/v1/knowledge/" {
+			t.Fatalf("expected /api/v1/knowledge/, got %q", p)
 		}
 	}
 	last := items[len(items)-1]

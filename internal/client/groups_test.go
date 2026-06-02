@@ -29,7 +29,7 @@ func TestGetGroupUsesExportAndReadsUserIDs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetGroup: %v", err)
 	}
-	if gotPath != "/groups/id/grp1/export" {
+	if gotPath != "/api/v1/groups/id/grp1/export" {
 		t.Fatalf("expected export path, got %q", gotPath)
 	}
 	if len(out.UserIDs) != 2 || out.UserIDs[0] != "u1" || out.UserIDs[1] != "u2" {

@@ -11,8 +11,8 @@ import (
 func TestListFilesPaginatesAndAggregates(t *testing.T) {
 	var gotContents []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/files/" {
-			t.Fatalf("expected /files/, got %q", r.URL.Path)
+		if r.URL.Path != "/api/v1/files/" {
+			t.Fatalf("expected /api/v1/files/, got %q", r.URL.Path)
 		}
 		gotContents = append(gotContents, r.URL.Query().Get("content"))
 		page := r.URL.Query().Get("page")
