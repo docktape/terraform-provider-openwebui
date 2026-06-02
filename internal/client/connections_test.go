@@ -1,6 +1,10 @@
 package client
 
 import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"testing"
 )
@@ -151,5 +155,85 @@ func TestEncodeDecodeOllamaConnections_roundtrip(t *testing.T) {
 	}
 	if decoded[0].Config.PrefixID != "llm" {
 		t.Errorf("PrefixID = %q", decoded[0].Config.PrefixID)
+	}
+}
+
+func newConnectionsTestClient(t *testing.T, handler http.HandlerFunc) *Client {
+	t.Helper()
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+	c, err := NewClient(server.URL, "test-token", false)
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	return c
+}
+
+func TestGetOpenAIConnections(t *testing.T) {
+	c := newConnectionsTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/openai/config" || r.Method != http.MethodGet {
+			t.Errorf("unexpected: %s %s", r.Method, r.URL.Path)
+		}
+		if r.Header.Get("Authorization") != "Bearer test-token" {
+			t.Errorf("missing auth: %q", r.Header.Get("Authorization"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"ENABLE_OPENAI_API": true,
+			"OPENAI_API_BASE_URLS": ["https://api.openai.com/v1"],
+			"OPENAI_API_KEYS": ["sk-abc"],
+			"OPENAI_API_CONFIGS": {
+				"0": {"enable": true, "tags": ["prod"], "prefix_id": "openai", "model_ids": [], "connection_type": "external", "auth_type": "bearer", "provider": "", "api_version": "", "api_type": ""}
+			}
+		}`))
+	})
+
+	enabled, entries, err := c.GetOpenAIConnections(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !enabled {
+		t.Error("enabled should be true")
+	}
+	if len(entries) != 1 {
+		t.Fatalf("want 1 entry, got %d", len(entries))
+	}
+	if entries[0].URL != "https://api.openai.com/v1" || entries[0].Key != "sk-abc" {
+		t.Errorf("unexpected entry: %+v", entries[0])
+	}
+	if entries[0].Config.PrefixID != "openai" {
+		t.Errorf("PrefixID = %q", entries[0].Config.PrefixID)
+	}
+	if len(entries[0].Config.Tags) != 1 || entries[0].Config.Tags[0] != "prod" {
+		t.Errorf("Tags = %v", entries[0].Config.Tags)
+	}
+}
+
+func TestSetOpenAIConnections(t *testing.T) {
+	var gotBody openAIConnectionsWire
+	c := newConnectionsTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/openai/config/update" || r.Method != http.MethodPost {
+			t.Errorf("unexpected: %s %s", r.Method, r.URL.Path)
+		}
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"ENABLE_OPENAI_API": true,
+			"OPENAI_API_BASE_URLS": ["https://api.openai.com/v1"],
+			"OPENAI_API_KEYS": ["sk-abc"],
+			"OPENAI_API_CONFIGS": {"0": {"enable": true, "tags": [], "prefix_id": "", "model_ids": [], "connection_type": "external", "auth_type": "bearer", "provider": "", "api_version": "", "api_type": ""}}
+		}`))
+	})
+
+	entries := []OpenAIConnectionEntry{{URL: "https://api.openai.com/v1", Key: "sk-abc", Config: OpenAIConnectionConfig{Enable: true, ConnectionType: "external", AuthType: "bearer", Tags: []string{}, ModelIDs: []string{}}}}
+	enabled, result, err := c.SetOpenAIConnections(context.Background(), true, entries)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !enabled || len(result) != 1 {
+		t.Errorf("unexpected: enabled=%v len=%d", enabled, len(result))
+	}
+	if gotBody.BaseURLs[0] != "https://api.openai.com/v1" || gotBody.Keys[0] != "sk-abc" {
+		t.Errorf("sent body: %+v", gotBody)
 	}
 }
