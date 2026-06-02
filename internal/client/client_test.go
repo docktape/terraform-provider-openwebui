@@ -31,3 +31,24 @@ func TestNewClient_InsecureTrue_SkipsVerify(t *testing.T) {
 		t.Error("expected InsecureSkipVerify=true")
 	}
 }
+
+func TestNewClientRootURL(t *testing.T) {
+	tests := []struct {
+		endpoint string
+		want     string
+	}{
+		{"http://localhost:8080/api/v1", "http://localhost:8080"},
+		{"https://openwebui.example.com/api/v1", "https://openwebui.example.com"},
+		{"http://localhost:3000", "http://localhost:3000"},
+		{"http://10.0.0.1:9000/api/v1", "http://10.0.0.1:9000"},
+	}
+	for _, tc := range tests {
+		c, err := NewClient(tc.endpoint, "tok", false)
+		if err != nil {
+			t.Fatalf("NewClient(%q): %v", tc.endpoint, err)
+		}
+		if c.rootURL != tc.want {
+			t.Errorf("endpoint=%q: rootURL=%q, want %q", tc.endpoint, c.rootURL, tc.want)
+		}
+	}
+}
