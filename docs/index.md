@@ -53,7 +53,7 @@ terraform {
 }
 
 provider "openwebui" {
-  endpoint = "https://openwebui.example.com/api/v1"
+  endpoint = "https://openwebui.example.com"
   token    = var.openwebui_token
 }
 
@@ -69,6 +69,6 @@ variable "openwebui_token" {
 
 ### Optional
 
-- `endpoint` (String) Base URL for the Open WebUI API, e.g. `https://openwebui.example.com/api/v1`. Can also be set via the `OPENWEBUI_ENDPOINT` environment variable.
+- `endpoint` (String) Base URL of the Open WebUI instance, e.g. `https://openwebui.example.com`. Can also be set via the `OPENWEBUI_ENDPOINT` environment variable.
 - `insecure_skip_verify` (Boolean) Disable TLS certificate verification. **Not recommended for production use.** Can also be set via the `OPENWEBUI_INSECURE` environment variable.
 - `token` (String, Sensitive) Bearer token used to authenticate requests to the Open WebUI API. Can also be set via the `OPENWEBUI_TOKEN` environment variable.

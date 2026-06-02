@@ -56,7 +56,7 @@ func NewClient(endpoint, token string, insecure bool) (*Client, error) {
 	parsed.RawQuery = ""
 	parsed.Fragment = ""
 
-	base := strings.TrimRight(parsed.String(), "/")
+	base := strings.TrimRight(parsed.String(), "/") + "/api/v1"
 
 	parsedRoot := &url.URL{
 		Scheme: parsed.Scheme,
@@ -69,7 +69,11 @@ func NewClient(endpoint, token string, insecure bool) (*Client, error) {
 	}
 
 	if insecure {
-		dt := http.DefaultTransport.(*http.Transport).Clone()
+		t, ok := http.DefaultTransport.(*http.Transport)
+		if !ok {
+			return nil, fmt.Errorf("unexpected default transport type %T", http.DefaultTransport)
+		}
+		dt := t.Clone()
 		dt.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec
 		hc.Transport = dt
 	}
@@ -130,7 +134,7 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		io.Copy(io.Discard, resp.Body)
+		_, _ = io.Copy(io.Discard, resp.Body)
 		return ErrNotFound
 	}
 
@@ -140,7 +144,7 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 	}
 
 	if out == nil {
-		io.Copy(io.Discard, resp.Body)
+		_, _ = io.Copy(io.Discard, resp.Body)
 		return nil
 	}
 
@@ -229,7 +233,7 @@ func (c *Client) doMultipart(ctx context.Context, method, path string, query url
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		io.Copy(io.Discard, resp.Body)
+		_, _ = io.Copy(io.Discard, resp.Body)
 		return ErrNotFound
 	}
 
@@ -239,7 +243,7 @@ func (c *Client) doMultipart(ctx context.Context, method, path string, query url
 	}
 
 	if out == nil {
-		io.Copy(io.Discard, resp.Body)
+		_, _ = io.Copy(io.Discard, resp.Body)
 		return nil
 	}
 
@@ -295,7 +299,7 @@ func (c *Client) doRaw(ctx context.Context, method, fullURL string, payload any,
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		io.Copy(io.Discard, resp.Body)
+		_, _ = io.Copy(io.Discard, resp.Body)
 		return ErrNotFound
 	}
 
@@ -305,7 +309,7 @@ func (c *Client) doRaw(ctx context.Context, method, fullURL string, payload any,
 	}
 
 	if out == nil {
-		io.Copy(io.Discard, resp.Body)
+		_, _ = io.Copy(io.Discard, resp.Body)
 		return nil
 	}
 

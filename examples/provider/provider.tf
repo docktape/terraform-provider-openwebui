@@ -8,7 +8,7 @@ terraform {
 }
 
 provider "openwebui" {
-  endpoint = "https://openwebui.example.com/api/v1"
+  endpoint = "https://openwebui.example.com"
   token    = var.openwebui_token
 }
 

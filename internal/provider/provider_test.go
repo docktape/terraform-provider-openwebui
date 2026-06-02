@@ -33,14 +33,14 @@ func TestProvider_Configure_MissingEndpoint(t *testing.T) {
 }
 
 func TestProvider_Configure_MissingToken(t *testing.T) {
-	t.Setenv("OPENWEBUI_ENDPOINT", "http://fake.example.com/api/v1")
+	t.Setenv("OPENWEBUI_ENDPOINT", "http://fake.example.com")
 	t.Setenv("OPENWEBUI_TOKEN", "")
 
 	resource.UnitTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
 		Steps: []resource.TestStep{
 			{
-				Config:      minimalConfig(`provider "openwebui" { endpoint = "http://fake.example.com/api/v1" }`),
+				Config:      minimalConfig(`provider "openwebui" { endpoint = "http://fake.example.com" }`),
 				ExpectError: regexp.MustCompile(`Missing Open WebUI API token`),
 			},
 		},

@@ -72,7 +72,7 @@ func (p *openWebUIProvider) Schema(_ context.Context, _ provider.SchemaRequest, 
 		Attributes: map[string]schema.Attribute{
 			"endpoint": schema.StringAttribute{
 				Optional:    true,
-				Description: "Base URL for the Open WebUI API, e.g. `https://openwebui.example.com/api/v1`. Can also be set via the `OPENWEBUI_ENDPOINT` environment variable.",
+				Description: "Base URL of the Open WebUI instance, e.g. `https://openwebui.example.com`. Can also be set via the `OPENWEBUI_ENDPOINT` environment variable.",
 			},
 			"token": schema.StringAttribute{
 				Optional:    true,
