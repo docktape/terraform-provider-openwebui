@@ -170,6 +170,13 @@ func (r *openAIConnectionsResource) Read(ctx context.Context, req resource.ReadR
 		resp.Diagnostics.AddError("Unconfigured API client", "Expected provider to configure the Open WebUI client before managing OpenAI connections.")
 		return
 	}
+
+	var priorState openAIConnectionsModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &priorState)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	enabled, entries, err := r.client.GetOpenAIConnections(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Read OpenAI connections failed", err.Error())
@@ -180,6 +187,18 @@ func (r *openAIConnectionsResource) Read(ctx context.Context, req resource.ReadR
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	// Preserve keys from prior state: the API may mask or omit keys on GET.
+	// If we had a key in state and the API returned empty, keep the prior value.
+	for i := range connections {
+		if !connections[i].Key.IsNull() {
+			continue // API returned a key; use it
+		}
+		if i < len(priorState.Connections) && !priorState.Connections[i].Key.IsNull() {
+			connections[i].Key = priorState.Connections[i].Key
+		}
+	}
+
 	state := openAIConnectionsModel{
 		ID:          types.StringValue("openai"),
 		Enabled:     types.BoolValue(enabled),
@@ -307,7 +326,16 @@ func flattenOpenAIConnections(ctx context.Context, entries []client.OpenAIConnec
 		tags, d := types.ListValueFrom(ctx, types.StringType, entry.Config.Tags)
 		diags.Append(d...)
 
-		headersJSON, _ := encodeOptionalJSONValue(entry.Config.Headers)
+		var headersJSON types.String
+		if len(entry.Config.Headers) > 0 {
+			encoded, err := encodeOptionalJSONValue(entry.Config.Headers)
+			if err != nil {
+				diags.AddError("Failed to encode headers", err.Error())
+			}
+			headersJSON = encoded
+		} else {
+			headersJSON = types.StringNull()
+		}
 
 		key := types.StringNull()
 		if entry.Key != "" {
