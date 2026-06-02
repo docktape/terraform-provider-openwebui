@@ -33,8 +33,8 @@ type ollamaConnectionItemModel struct {
 }
 
 type ollamaConnectionsModel struct {
-	ID          types.String               `tfsdk:"id"`
-	Enabled     types.Bool                 `tfsdk:"enabled"`
+	ID          types.String                `tfsdk:"id"`
+	Enabled     types.Bool                  `tfsdk:"enabled"`
 	Connections []ollamaConnectionItemModel `tfsdk:"connections"`
 }
 
