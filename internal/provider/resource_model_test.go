@@ -85,8 +85,8 @@ func TestFlattenModelMeta_NullDescriptionNotLeakedToAdditional(t *testing.T) {
 	}
 }
 
-// Sanity check: a non-null description should not appear in additional either
-// — it belongs in the structured state field only.
+// Sanity check: a non-null description should route to the structured state
+// field only — not appear in additional at all.
 func TestFlattenModelMeta_NonNullDescriptionNotLeakedToAdditional(t *testing.T) {
 	ctx := context.Background()
 	data := map[string]any{
@@ -102,8 +102,32 @@ func TestFlattenModelMeta_NonNullDescriptionNotLeakedToAdditional(t *testing.T) 
 		t.Fatalf("expected Description=my model, got %q", state.Description.ValueString())
 	}
 
-	// additional should be null (no extra keys) or at least not contain description
-	if !additionalJSON.IsNull() && strings.Contains(additionalJSON.ValueString(), "description") {
-		t.Errorf("description leaked into meta_additional_json: %s", additionalJSON.ValueString())
+	// No extra keys in the input — additional must be null, not an object
+	// containing description. The && in the old guard was a bug: it would
+	// silently pass even if a regression put description back in additional.
+	if !additionalJSON.IsNull() {
+		t.Errorf("expected null additional JSON when no extra keys, got: %s", additionalJSON.ValueString())
+	}
+}
+
+// Symmetric test for profile_image_url — the fix applied to both fields and
+// both need regression coverage.
+func TestFlattenModelMeta_NonNullProfileImageURLNotLeakedToAdditional(t *testing.T) {
+	ctx := context.Background()
+	data := map[string]any{
+		"profile_image_url": "https://example.com/img.png",
+	}
+
+	state, additionalJSON, diags := flattenModelMeta(ctx, data)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+
+	if state.ProfileImageURL.ValueString() != "https://example.com/img.png" {
+		t.Fatalf("expected ProfileImageURL=https://example.com/img.png, got %q", state.ProfileImageURL.ValueString())
+	}
+
+	if !additionalJSON.IsNull() {
+		t.Errorf("expected null additional JSON when no extra keys, got: %s", additionalJSON.ValueString())
 	}
 }
