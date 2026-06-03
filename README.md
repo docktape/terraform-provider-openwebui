@@ -168,3 +168,7 @@ resource "openwebui_group" "example" {
 }
 ```
 
+## License
+
+This provider is distributed under the terms of the [Mozilla Public License 2.0](LICENSE) (MPL-2.0).
+
