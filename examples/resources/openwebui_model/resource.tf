@@ -8,12 +8,12 @@ resource "openwebui_model" "example" {
   read_groups  = ["Support"]
   write_groups = ["Support"]
 
-  params {
+  params = {
     temperature = 0.1
     num_ctx     = 4096
   }
 
-  capabilities {
+  capabilities = {
     vision     = false
     web_search = true
   }
