@@ -1,4 +1,29 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["local>docktape/renovate-private-config"]
+  "extends": [
+    "config:recommended"
+  ],
+  "minimumReleaseAge": "30 days",
+  "schedule": ["on monday"],
+  "updateNotScheduled": false,
+  "vulnerabilityAlerts": {
+    "minimumReleaseAge": "0 days",
+    "enabled": true,
+    "schedule": ["at any time"]
+  },
+  "lockFileMaintenance": {
+    "enabled": true
+  },
+  "packageRules": [
+    {
+      "description": "Group all Go module updates",
+      "matchManagers": ["gomod"],
+      "groupName": "go-modules"
+    },
+    {
+      "description": "Group all GitHub Actions updates",
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions"
+    }
+  ]
 }
