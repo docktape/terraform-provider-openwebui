@@ -24,12 +24,12 @@ filter_unconventional = true
 tag_pattern = "v[0-9].*"
 sort_commits = "oldest"
 commit_parsers = [
+  { message = "\\(tests?\\)", skip = true },
+  { message = "^test|^chore|^ci|^build|^style", skip = true },
   { message = "^feat", group = "Features" },
   { message = "^fix", group = "Bug Fixes" },
   { message = "^perf", group = "Performance" },
   { message = "^refactor", group = "Refactoring" },
   { message = "^revert", group = "Reverts" },
   { message = "^doc|^docs", group = "Documentation" },
-  { message = "^test|\\(tests?\\)", skip = true },
-  { message = "^chore|^ci|^build|^style", skip = true },
 ]
