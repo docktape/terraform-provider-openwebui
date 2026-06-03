@@ -53,8 +53,8 @@ release:
   extra_files:
     - glob: 'terraform-registry-manifest.json'
       name_template: '{{ .ProjectName }}_{{ .Version }}_manifest.json'
-  # Remove draft: true when ready to publish for real
-  draft: true
+  # Uncomment to create a draft release for inspection before going live:
+  # draft: true
 
 changelog:
   disable: true
