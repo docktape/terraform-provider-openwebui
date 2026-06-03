@@ -104,8 +104,9 @@ func (r *functionResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 				Description: "JSON manifest derived from the Python frontmatter. Read-only; set by Open WebUI.",
 			},
 			"user_id": schema.StringAttribute{
-				Computed:    true,
-				Description: "Owner user identifier. Set by Open WebUI.",
+				Computed:      true,
+				Description:   "Owner user identifier. Set by Open WebUI.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"created_at": schema.Int64Attribute{
 				Computed:      true,
