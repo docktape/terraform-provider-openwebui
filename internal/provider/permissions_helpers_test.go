@@ -437,7 +437,23 @@ func TestFilterPermissionKeys_NewFeaturesKeys(t *testing.T) {
 	if diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %s", diags)
 	}
-	if result["memories"] != true || result["api_keys"] != false {
+	if result["memories"] != true || result["api_keys"] != false || result["channels"] != true || result["folders"] != false {
 		t.Fatalf("unexpected result: %v", result)
+	}
+}
+
+func TestFilterPermissionKeys_NewChatKeys(t *testing.T) {
+	var diags diag.Diagnostics
+	result := filterPermissionKeys(
+		"chat",
+		map[string]bool{"web_upload": true},
+		path.Root("permissions").AtName("chat"),
+		&diags,
+	)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %s", diags)
+	}
+	if result["web_upload"] != true {
+		t.Fatalf("expected web_upload=true, got %v", result["web_upload"])
 	}
 }
