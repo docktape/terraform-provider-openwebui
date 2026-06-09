@@ -144,6 +144,43 @@ resource "openwebui_group" "test" {
 	})
 }
 
+func TestAccGroupResource_WithPermissions(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("TF_ACC must be set to run acceptance tests")
+	}
+	name := acctest.RandomWithPrefix("tf-acc-group-perms")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`%s
+resource "openwebui_group" "test" {
+  name        = %q
+  description = "permissions test"
+  permissions = {
+    access_grants = { allow_users = true }
+    settings      = { interface = true }
+  }
+}
+`, testAccProviderConfig(), name),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("openwebui_group.test", "name", name),
+					resource.TestCheckResourceAttr("openwebui_group.test", "permissions.access_grants.allow_users", "true"),
+					resource.TestCheckResourceAttr("openwebui_group.test", "permissions.settings.interface", "true"),
+				),
+			},
+			{
+				ResourceName:            "openwebui_group.test",
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"permissions"},
+			},
+		},
+	})
+}
+
 func testAccGroupDataSourceConfig(name string) string {
 	return fmt.Sprintf(`%s
 resource "openwebui_group" "seed" {

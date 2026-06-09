@@ -5,6 +5,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -162,5 +163,34 @@ func TestDiffStringSets_NilToNil(t *testing.T) {
 	add, remove := diffStringSets(nil, nil)
 	if len(add) != 0 || len(remove) != 0 {
 		t.Errorf("both nil: add=%v remove=%v", add, remove)
+	}
+}
+
+func TestPermissionsRoundTrip_AccessGrantsSettings(t *testing.T) {
+	ctx := context.Background()
+	agMap, _ := types.MapValueFrom(ctx, types.BoolType, map[string]bool{"allow_users": true})
+	stMap, _ := types.MapValueFrom(ctx, types.BoolType, map[string]bool{"interface": false})
+	original := groupPermissionsModel{
+		Workspace:    types.MapNull(types.BoolType),
+		Sharing:      types.MapNull(types.BoolType),
+		Chat:         types.MapNull(types.BoolType),
+		Features:     types.MapNull(types.BoolType),
+		AccessGrants: agMap,
+		Settings:     stMap,
+	}
+	obj, diags := permissionsModelToObject(ctx, original)
+	if diags.HasError() {
+		t.Fatalf("modelToObject: %s", diags)
+	}
+	var roundDiags diag.Diagnostics
+	result := objectToPermissionsModel(ctx, obj, &roundDiags)
+	if roundDiags.HasError() {
+		t.Fatalf("objectToModel: %s", roundDiags)
+	}
+	if !result.AccessGrants.Equal(original.AccessGrants) {
+		t.Fatalf("access_grants mismatch")
+	}
+	if !result.Settings.Equal(original.Settings) {
+		t.Fatalf("settings mismatch")
 	}
 }

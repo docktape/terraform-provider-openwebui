@@ -13,16 +13,20 @@ import (
 )
 
 var (
-	groupPermissionsWorkspaceKeys = []string{"models", "knowledge", "prompts", "tools", "skills", "models_import", "models_export", "prompts_import", "prompts_export", "tools_import", "tools_export"}
-	groupPermissionsSharingKeys   = []string{"public_models", "public_knowledge", "public_prompts", "public_tools", "models", "knowledge", "prompts", "tools", "skills", "public_skills", "notes", "public_notes", "public_chats", "public_calendars"}
-	groupPermissionsChatKeys      = []string{"controls", "valves", "system_prompt", "params", "file_upload", "delete", "delete_message", "continue_response", "regenerate_response", "rate_response", "edit", "share", "export", "stt", "tts", "call", "multiple_models", "temporary", "temporary_enforced", "web_upload"}
-	groupPermissionsFeaturesKeys  = []string{"direct_tool_servers", "web_search", "image_generation", "code_interpreter", "notes", "memories", "api_keys", "channels", "folders", "automations", "calendar"}
+	groupPermissionsWorkspaceKeys    = []string{"models", "knowledge", "prompts", "tools", "skills", "models_import", "models_export", "prompts_import", "prompts_export", "tools_import", "tools_export"}
+	groupPermissionsSharingKeys      = []string{"public_models", "public_knowledge", "public_prompts", "public_tools", "models", "knowledge", "prompts", "tools", "skills", "public_skills", "notes", "public_notes", "public_chats", "public_calendars"}
+	groupPermissionsChatKeys         = []string{"controls", "valves", "system_prompt", "params", "file_upload", "delete", "delete_message", "continue_response", "regenerate_response", "rate_response", "edit", "share", "export", "stt", "tts", "call", "multiple_models", "temporary", "temporary_enforced", "web_upload"}
+	groupPermissionsFeaturesKeys     = []string{"direct_tool_servers", "web_search", "image_generation", "code_interpreter", "notes", "memories", "api_keys", "channels", "folders", "automations", "calendar"}
+	groupPermissionsAccessGrantsKeys = []string{"allow_users"}
+	groupPermissionsSettingsKeys     = []string{"interface"}
 
 	groupPermissionsAllowedSets = map[string]map[string]struct{}{
-		"workspace": sliceToSet(groupPermissionsWorkspaceKeys),
-		"sharing":   sliceToSet(groupPermissionsSharingKeys),
-		"chat":      sliceToSet(groupPermissionsChatKeys),
-		"features":  sliceToSet(groupPermissionsFeaturesKeys),
+		"workspace":     sliceToSet(groupPermissionsWorkspaceKeys),
+		"sharing":       sliceToSet(groupPermissionsSharingKeys),
+		"chat":          sliceToSet(groupPermissionsChatKeys),
+		"features":      sliceToSet(groupPermissionsFeaturesKeys),
+		"access_grants": sliceToSet(groupPermissionsAccessGrantsKeys),
+		"settings":      sliceToSet(groupPermissionsSettingsKeys),
 	}
 )
 
@@ -30,10 +34,12 @@ var (
 // Used to construct a types.Object that the framework can hold as unknown/null.
 func permissionsAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"workspace": types.MapType{ElemType: types.BoolType},
-		"sharing":   types.MapType{ElemType: types.BoolType},
-		"chat":      types.MapType{ElemType: types.BoolType},
-		"features":  types.MapType{ElemType: types.BoolType},
+		"workspace":     types.MapType{ElemType: types.BoolType},
+		"sharing":       types.MapType{ElemType: types.BoolType},
+		"chat":          types.MapType{ElemType: types.BoolType},
+		"features":      types.MapType{ElemType: types.BoolType},
+		"access_grants": types.MapType{ElemType: types.BoolType},
+		"settings":      types.MapType{ElemType: types.BoolType},
 	}
 }
 
@@ -46,10 +52,12 @@ func permissionsModelToObject(ctx context.Context, model groupPermissionsModel) 
 // Returns a null-filled model if the object is null or unknown.
 func objectToPermissionsModel(ctx context.Context, obj types.Object, diags *diag.Diagnostics) groupPermissionsModel {
 	null := groupPermissionsModel{
-		Workspace: types.MapNull(types.BoolType),
-		Sharing:   types.MapNull(types.BoolType),
-		Chat:      types.MapNull(types.BoolType),
-		Features:  types.MapNull(types.BoolType),
+		Workspace:    types.MapNull(types.BoolType),
+		Sharing:      types.MapNull(types.BoolType),
+		Chat:         types.MapNull(types.BoolType),
+		Features:     types.MapNull(types.BoolType),
+		AccessGrants: types.MapNull(types.BoolType),
+		Settings:     types.MapNull(types.BoolType),
 	}
 	if obj.IsNull() || obj.IsUnknown() {
 		return null
@@ -70,7 +78,9 @@ func permissionsObjectSpecified(ctx context.Context, obj types.Object, diags *di
 }
 
 func permissionsSpecified(perms groupPermissionsModel) bool {
-	return mapProvided(perms.Workspace) || mapProvided(perms.Sharing) || mapProvided(perms.Chat) || mapProvided(perms.Features)
+	return mapProvided(perms.Workspace) || mapProvided(perms.Sharing) ||
+		mapProvided(perms.Chat) || mapProvided(perms.Features) ||
+		mapProvided(perms.AccessGrants) || mapProvided(perms.Settings)
 }
 
 func mapProvided(value types.Map) bool {
@@ -121,6 +131,8 @@ func expandPermissions(ctx context.Context, perms groupPermissionsModel, diags *
 	add("sharing", perms.Sharing, path.Root("permissions").AtName("sharing"))
 	add("chat", perms.Chat, path.Root("permissions").AtName("chat"))
 	add("features", perms.Features, path.Root("permissions").AtName("features"))
+	add("access_grants", perms.AccessGrants, path.Root("permissions").AtName("access_grants"))
+	add("settings", perms.Settings, path.Root("permissions").AtName("settings"))
 
 	if len(result) == 0 {
 		return nil
@@ -131,10 +143,12 @@ func expandPermissions(ctx context.Context, perms groupPermissionsModel, diags *
 
 func flattenPermissions(ctx context.Context, perms map[string]any) (groupPermissionsModel, diag.Diagnostics) {
 	model := groupPermissionsModel{
-		Workspace: types.MapNull(types.BoolType),
-		Sharing:   types.MapNull(types.BoolType),
-		Chat:      types.MapNull(types.BoolType),
-		Features:  types.MapNull(types.BoolType),
+		Workspace:    types.MapNull(types.BoolType),
+		Sharing:      types.MapNull(types.BoolType),
+		Chat:         types.MapNull(types.BoolType),
+		Features:     types.MapNull(types.BoolType),
+		AccessGrants: types.MapNull(types.BoolType),
+		Settings:     types.MapNull(types.BoolType),
 	}
 
 	var diags diag.Diagnostics
@@ -168,6 +182,8 @@ func flattenPermissions(ctx context.Context, perms map[string]any) (groupPermiss
 	model.Sharing = convert("sharing")
 	model.Chat = convert("chat")
 	model.Features = convert("features")
+	model.AccessGrants = convert("access_grants")
+	model.Settings = convert("settings")
 
 	return model, diags
 }
@@ -244,6 +260,10 @@ func allowedKeysList(category string) string {
 		keys = groupPermissionsChatKeys
 	case "features":
 		keys = groupPermissionsFeaturesKeys
+	case "access_grants":
+		keys = groupPermissionsAccessGrantsKeys
+	case "settings":
+		keys = groupPermissionsSettingsKeys
 	default:
 		return ""
 	}

@@ -47,10 +47,12 @@ type groupResourceModel struct {
 }
 
 type groupPermissionsModel struct {
-	Workspace types.Map `tfsdk:"workspace"`
-	Sharing   types.Map `tfsdk:"sharing"`
-	Chat      types.Map `tfsdk:"chat"`
-	Features  types.Map `tfsdk:"features"`
+	Workspace    types.Map `tfsdk:"workspace"`
+	Sharing      types.Map `tfsdk:"sharing"`
+	Chat         types.Map `tfsdk:"chat"`
+	Features     types.Map `tfsdk:"features"`
+	AccessGrants types.Map `tfsdk:"access_grants"`
+	Settings     types.Map `tfsdk:"settings"`
 }
 
 // NewGroupResource constructs a new resource instance.
@@ -134,6 +136,26 @@ func (r *groupResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						PlanModifiers: []planmodifier.Map{mapplanmodifier.UseStateForUnknown()},
 						Validators: []validator.Map{
 							mapvalidator.KeysAre(stringvalidator.OneOf(groupPermissionsFeaturesKeys...)),
+						},
+					},
+					"access_grants": schema.MapAttribute{
+						ElementType:   types.BoolType,
+						Optional:      true,
+						Computed:      true,
+						Description:   "Access-grant permission flags. Supported key: `allow_users` — whether group members can grant resource access to other users.",
+						PlanModifiers: []planmodifier.Map{mapplanmodifier.UseStateForUnknown()},
+						Validators: []validator.Map{
+							mapvalidator.KeysAre(stringvalidator.OneOf(groupPermissionsAccessGrantsKeys...)),
+						},
+					},
+					"settings": schema.MapAttribute{
+						ElementType:   types.BoolType,
+						Optional:      true,
+						Computed:      true,
+						Description:   "Settings permission flags. Supported key: `interface` — whether group members can modify their interface settings.",
+						PlanModifiers: []planmodifier.Map{mapplanmodifier.UseStateForUnknown()},
+						Validators: []validator.Map{
+							mapvalidator.KeysAre(stringvalidator.OneOf(groupPermissionsSettingsKeys...)),
 						},
 					},
 				},
