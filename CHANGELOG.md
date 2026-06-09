@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1] - 2026-06-09
+
+### Bug Fixes
+
+- Forward-compat with new OpenWebUI permissions keys
+- Add missing sharing and features permission keys for v0.9.5+
+
 ## [1.0.0] - 2026-06-03
 
 ### Bug Fixes
