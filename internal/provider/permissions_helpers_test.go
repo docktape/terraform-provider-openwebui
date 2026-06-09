@@ -414,14 +414,14 @@ func TestFilterPermissionKeys_NewSharingKeys(t *testing.T) {
 	var diags diag.Diagnostics
 	result := filterPermissionKeys(
 		"sharing",
-		map[string]bool{"models": true, "skills": false, "public_skills": true, "notes": false},
+		map[string]bool{"models": true, "skills": false, "public_skills": true, "notes": false, "public_chats": true, "public_calendars": false},
 		path.Root("permissions").AtName("sharing"),
 		&diags,
 	)
 	if diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %s", diags)
 	}
-	if result["models"] != true || result["skills"] != false || result["public_skills"] != true {
+	if result["models"] != true || result["skills"] != false || result["public_skills"] != true || result["public_chats"] != true || result["public_calendars"] != false {
 		t.Fatalf("unexpected result: %v", result)
 	}
 }
@@ -430,14 +430,14 @@ func TestFilterPermissionKeys_NewFeaturesKeys(t *testing.T) {
 	var diags diag.Diagnostics
 	result := filterPermissionKeys(
 		"features",
-		map[string]bool{"memories": true, "api_keys": false, "channels": true, "folders": false},
+		map[string]bool{"memories": true, "api_keys": false, "channels": true, "folders": false, "automations": true, "calendar": false},
 		path.Root("permissions").AtName("features"),
 		&diags,
 	)
 	if diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %s", diags)
 	}
-	if result["memories"] != true || result["api_keys"] != false || result["channels"] != true || result["folders"] != false {
+	if result["memories"] != true || result["api_keys"] != false || result["channels"] != true || result["folders"] != false || result["automations"] != true || result["calendar"] != false {
 		t.Fatalf("unexpected result: %v", result)
 	}
 }

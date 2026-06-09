@@ -14,9 +14,9 @@ import (
 
 var (
 	groupPermissionsWorkspaceKeys = []string{"models", "knowledge", "prompts", "tools", "skills", "models_import", "models_export", "prompts_import", "prompts_export", "tools_import", "tools_export"}
-	groupPermissionsSharingKeys   = []string{"public_models", "public_knowledge", "public_prompts", "public_tools", "models", "knowledge", "prompts", "tools", "skills", "public_skills", "notes", "public_notes"}
+	groupPermissionsSharingKeys   = []string{"public_models", "public_knowledge", "public_prompts", "public_tools", "models", "knowledge", "prompts", "tools", "skills", "public_skills", "notes", "public_notes", "public_chats", "public_calendars"}
 	groupPermissionsChatKeys      = []string{"controls", "valves", "system_prompt", "params", "file_upload", "delete", "delete_message", "continue_response", "regenerate_response", "rate_response", "edit", "share", "export", "stt", "tts", "call", "multiple_models", "temporary", "temporary_enforced", "web_upload"}
-	groupPermissionsFeaturesKeys  = []string{"direct_tool_servers", "web_search", "image_generation", "code_interpreter", "notes", "memories", "api_keys", "channels", "folders"}
+	groupPermissionsFeaturesKeys  = []string{"direct_tool_servers", "web_search", "image_generation", "code_interpreter", "notes", "memories", "api_keys", "channels", "folders", "automations", "calendar"}
 
 	groupPermissionsAllowedSets = map[string]map[string]struct{}{
 		"workspace": sliceToSet(groupPermissionsWorkspaceKeys),
