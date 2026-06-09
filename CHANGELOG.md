@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.2] - 2026-06-09
+
+### Bug Fixes
+
+- **group:** Add UseStateForUnknown to permissions block
+
 ## [1.0.1] - 2026-06-09
 
 ### Bug Fixes
