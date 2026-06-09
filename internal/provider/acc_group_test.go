@@ -145,9 +145,6 @@ resource "openwebui_group" "test" {
 }
 
 func TestAccGroupResource_WithPermissions(t *testing.T) {
-	if os.Getenv("TF_ACC") == "" {
-		t.Skip("TF_ACC must be set to run acceptance tests")
-	}
 	name := acctest.RandomWithPrefix("tf-acc-group-perms")
 
 	resource.Test(t, resource.TestCase{
@@ -169,6 +166,22 @@ resource "openwebui_group" "test" {
 					resource.TestCheckResourceAttr("openwebui_group.test", "name", name),
 					resource.TestCheckResourceAttr("openwebui_group.test", "permissions.access_grants.allow_users", "true"),
 					resource.TestCheckResourceAttr("openwebui_group.test", "permissions.settings.interface", "true"),
+				),
+			},
+			{
+				Config: fmt.Sprintf(`%s
+resource "openwebui_group" "test" {
+  name        = %q
+  description = "permissions test"
+  permissions = {
+    access_grants = { allow_users = false }
+    settings      = { interface = false }
+  }
+}
+`, testAccProviderConfig(), name),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("openwebui_group.test", "permissions.access_grants.allow_users", "false"),
+					resource.TestCheckResourceAttr("openwebui_group.test", "permissions.settings.interface", "false"),
 				),
 			},
 			{
