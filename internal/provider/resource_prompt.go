@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -76,15 +77,17 @@ func (r *promptResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				Description: "Prompt template text. Use `{{variable}}` for user-fillable placeholders.",
 			},
 			"is_active": schema.BoolAttribute{
-				Optional:    true,
-				Computed:    true,
-				Description: "Whether the prompt is active and available to users. Defaults to `true`.",
+				Optional:      true,
+				Computed:      true,
+				Description:   "Whether the prompt is active and available to users. Defaults to `true`.",
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
 			},
 			"tags": schema.ListAttribute{
-				ElementType: types.StringType,
-				Optional:    true,
-				Computed:    true,
-				Description: "List of tags for categorising the prompt.",
+				ElementType:   types.StringType,
+				Optional:      true,
+				Computed:      true,
+				Description:   "List of tags for categorising the prompt.",
+				PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()},
 			},
 			"data_json": schema.StringAttribute{
 				Optional:    true,
@@ -166,7 +169,7 @@ func (r *promptResource) Create(ctx context.Context, req resource.CreateRequest,
 		resp.Diagnostics.Append(plan.Tags.ElementsAs(ctx, &tags, false)...)
 		form.Tags = tags
 	}
-	if !plan.DataJSON.IsNull() && !plan.DataJSON.IsUnknown() && plan.DataJSON.ValueString() != "" {
+	if !plan.DataJSON.IsNull() && !plan.DataJSON.IsUnknown() {
 		var data map[string]any
 		if err := json.Unmarshal([]byte(plan.DataJSON.ValueString()), &data); err != nil {
 			resp.Diagnostics.AddAttributeError(path.Root("data_json"), "Invalid JSON", err.Error())
@@ -174,7 +177,7 @@ func (r *promptResource) Create(ctx context.Context, req resource.CreateRequest,
 		}
 		form.Data = data
 	}
-	if !plan.MetaJSON.IsNull() && !plan.MetaJSON.IsUnknown() && plan.MetaJSON.ValueString() != "" {
+	if !plan.MetaJSON.IsNull() && !plan.MetaJSON.IsUnknown() {
 		var meta map[string]any
 		if err := json.Unmarshal([]byte(plan.MetaJSON.ValueString()), &meta); err != nil {
 			resp.Diagnostics.AddAttributeError(path.Root("meta_json"), "Invalid JSON", err.Error())
@@ -274,7 +277,7 @@ func (r *promptResource) Update(ctx context.Context, req resource.UpdateRequest,
 		resp.Diagnostics.Append(plan.Tags.ElementsAs(ctx, &tags, false)...)
 		form.Tags = tags
 	}
-	if !plan.DataJSON.IsNull() && !plan.DataJSON.IsUnknown() && plan.DataJSON.ValueString() != "" {
+	if !plan.DataJSON.IsNull() && !plan.DataJSON.IsUnknown() {
 		var data map[string]any
 		if err := json.Unmarshal([]byte(plan.DataJSON.ValueString()), &data); err != nil {
 			resp.Diagnostics.AddAttributeError(path.Root("data_json"), "Invalid JSON", err.Error())
@@ -282,7 +285,7 @@ func (r *promptResource) Update(ctx context.Context, req resource.UpdateRequest,
 		}
 		form.Data = data
 	}
-	if !plan.MetaJSON.IsNull() && !plan.MetaJSON.IsUnknown() && plan.MetaJSON.ValueString() != "" {
+	if !plan.MetaJSON.IsNull() && !plan.MetaJSON.IsUnknown() {
 		var meta map[string]any
 		if err := json.Unmarshal([]byte(plan.MetaJSON.ValueString()), &meta); err != nil {
 			resp.Diagnostics.AddAttributeError(path.Root("meta_json"), "Invalid JSON", err.Error())
@@ -386,31 +389,44 @@ func promptResponseToModel(ctx context.Context, apiClient *client.Client, resp *
 			return types.BoolValue(true) // API default
 		}(),
 		Tags: func() types.List {
-			if len(resp.Tags) > 0 {
-				l, _ := types.ListValueFrom(ctx, types.StringType, resp.Tags)
-				return l
+			if resp.Tags == nil {
+				return types.ListNull(types.StringType)
 			}
-			return types.ListValueMust(types.StringType, []attr.Value{})
-		}(),
-		DataJSON: func() types.String {
-			if resp.Data != nil {
-				b, _ := json.Marshal(resp.Data)
-				return types.StringValue(string(b))
+			if len(resp.Tags) == 0 {
+				return types.ListValueMust(types.StringType, []attr.Value{})
 			}
-			return types.StringNull()
-		}(),
-		MetaJSON: func() types.String {
-			if resp.Meta != nil {
-				b, _ := json.Marshal(resp.Meta)
-				return types.StringValue(string(b))
-			}
-			return types.StringNull()
+			l, _ := types.ListValueFrom(ctx, types.StringType, resp.Tags)
+			return l
 		}(),
 		ReadGroups:  readList,
 		WriteGroups: writeList,
 		CreatedAt:   formatDateValue(resp.CreatedAt),
 		UpdatedAt:   formatDateValue(resp.UpdatedAt),
 		UserID:      types.StringValue(resp.UserID),
+	}
+
+	// DataJSON
+	if resp.Data != nil {
+		b, err := json.Marshal(resp.Data)
+		if err != nil {
+			diags.AddError("Failed to marshal data_json", err.Error())
+		} else {
+			state.DataJSON = types.StringValue(string(b))
+		}
+	} else {
+		state.DataJSON = types.StringNull()
+	}
+
+	// MetaJSON
+	if resp.Meta != nil {
+		b, err := json.Marshal(resp.Meta)
+		if err != nil {
+			diags.AddError("Failed to marshal meta_json", err.Error())
+		} else {
+			state.MetaJSON = types.StringValue(string(b))
+		}
+	} else {
+		state.MetaJSON = types.StringNull()
 	}
 
 	return state, diags
