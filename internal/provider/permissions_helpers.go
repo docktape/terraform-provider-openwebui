@@ -13,10 +13,10 @@ import (
 )
 
 var (
-	groupPermissionsWorkspaceKeys = []string{"models", "knowledge", "prompts", "tools"}
-	groupPermissionsSharingKeys   = []string{"public_models", "public_knowledge", "public_prompts", "public_tools"}
-	groupPermissionsChatKeys      = []string{"controls", "valves", "system_prompt", "params", "file_upload", "delete", "delete_message", "continue_response", "regenerate_response", "rate_response", "edit", "share", "export", "stt", "tts", "call", "multiple_models", "temporary", "temporary_enforced"}
-	groupPermissionsFeaturesKeys  = []string{"direct_tool_servers", "web_search", "image_generation", "code_interpreter", "notes"}
+	groupPermissionsWorkspaceKeys = []string{"models", "knowledge", "prompts", "tools", "skills", "models_import", "models_export", "prompts_import", "prompts_export", "tools_import", "tools_export"}
+	groupPermissionsSharingKeys   = []string{"public_models", "public_knowledge", "public_prompts", "public_tools", "models", "knowledge", "prompts", "tools", "skills", "public_skills", "notes", "public_notes"}
+	groupPermissionsChatKeys      = []string{"controls", "valves", "system_prompt", "params", "file_upload", "delete", "delete_message", "continue_response", "regenerate_response", "rate_response", "edit", "share", "export", "stt", "tts", "call", "multiple_models", "temporary", "temporary_enforced", "web_upload"}
+	groupPermissionsFeaturesKeys  = []string{"direct_tool_servers", "web_search", "image_generation", "code_interpreter", "notes", "memories", "api_keys", "channels", "folders"}
 
 	groupPermissionsAllowedSets = map[string]map[string]struct{}{
 		"workspace": sliceToSet(groupPermissionsWorkspaceKeys),
@@ -211,8 +211,6 @@ func filterPermissionResponse(category string, nested map[string]any, diags *dia
 		return nil
 	}
 
-	allowedList := allowedKeysList(category)
-
 	filtered := make(map[string]bool, len(nested))
 	for key, raw := range nested {
 		boolVal, ok := raw.(bool)
@@ -225,10 +223,6 @@ func filterPermissionResponse(category string, nested map[string]any, diags *dia
 		}
 
 		if _, exists := allowed[key]; !exists {
-			diags.AddError(
-				"Unexpected permissions response",
-				fmt.Sprintf("Encountered unsupported %s permission %q from API. Supported keys: %s.", category, key, allowedList),
-			)
 			continue
 		}
 
