@@ -92,6 +92,16 @@ func (d *groupDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, 
 						Computed:    true,
 						Description: "Feature access permissions. Valid keys: `direct_tool_servers`, `web_search`, `image_generation`, `code_interpreter`, `notes`.",
 					},
+					"access_grants": schema.MapAttribute{
+						ElementType: types.BoolType,
+						Computed:    true,
+						Description: "Access-grant permission flags. Supported key: `allow_users`.",
+					},
+					"settings": schema.MapAttribute{
+						ElementType: types.BoolType,
+						Computed:    true,
+						Description: "Settings permission flags. Supported key: `interface`.",
+					},
 				},
 			},
 			"meta_json": schema.StringAttribute{
