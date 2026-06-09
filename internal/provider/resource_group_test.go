@@ -5,6 +5,8 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	datasourceSchema "github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
@@ -192,5 +194,31 @@ func TestPermissionsRoundTrip_AccessGrantsSettings(t *testing.T) {
 	}
 	if !result.Settings.Equal(original.Settings) {
 		t.Fatalf("settings mismatch")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Group data source schema completeness
+// ---------------------------------------------------------------------------
+
+func TestGroupDataSourceSchema_HasAllPermissionSubMaps(t *testing.T) {
+	ctx := context.Background()
+	ds := NewGroupDataSource().(*groupDataSource)
+	var resp datasource.SchemaResponse
+	ds.Schema(ctx, datasource.SchemaRequest{}, &resp)
+
+	permsRaw, ok := resp.Schema.Attributes["permissions"]
+	if !ok {
+		t.Fatal("permissions attribute missing from group data source schema")
+	}
+	perms, ok := permsRaw.(datasourceSchema.SingleNestedAttribute)
+	if !ok {
+		t.Fatal("permissions is not a SingleNestedAttribute in group data source schema")
+	}
+	required := []string{"workspace", "sharing", "chat", "features", "access_grants", "settings"}
+	for _, key := range required {
+		if _, exists := perms.Attributes[key]; !exists {
+			t.Errorf("permissions.%s is missing from the group data source schema", key)
+		}
 	}
 }
