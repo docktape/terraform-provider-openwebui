@@ -47,7 +47,7 @@ terraform {
   required_providers {
     openwebui = {
       source  = "docktape/openwebui"
-      version = "~> 0.1"
+      version = "~> 1.0"
     }
   }
 }
