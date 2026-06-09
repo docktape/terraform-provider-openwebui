@@ -2,7 +2,9 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -30,6 +32,10 @@ type promptResourceModel struct {
 	Command     types.String `tfsdk:"command"`
 	Name        types.String `tfsdk:"name"`
 	Content     types.String `tfsdk:"content"`
+	IsActive    types.Bool   `tfsdk:"is_active"`
+	Tags        types.List   `tfsdk:"tags"`
+	DataJSON    types.String `tfsdk:"data_json"`
+	MetaJSON    types.String `tfsdk:"meta_json"`
 	ReadGroups  types.List   `tfsdk:"read_groups"`
 	WriteGroups types.List   `tfsdk:"write_groups"`
 	CreatedAt   types.String `tfsdk:"created_at"`
@@ -68,6 +74,27 @@ func (r *promptResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 			"content": schema.StringAttribute{
 				Required:    true,
 				Description: "Prompt template text. Use `{{variable}}` for user-fillable placeholders.",
+			},
+			"is_active": schema.BoolAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "Whether the prompt is active and available to users. Defaults to `true`.",
+			},
+			"tags": schema.ListAttribute{
+				ElementType: types.StringType,
+				Optional:    true,
+				Computed:    true,
+				Description: "List of tags for categorising the prompt.",
+			},
+			"data_json": schema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "Arbitrary JSON metadata object for the prompt. Use `jsonencode({})` to set an empty object.",
+			},
+			"meta_json": schema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "Arbitrary JSON metadata object for the prompt. Use `jsonencode({})` to set an empty object.",
 			},
 			"read_groups": schema.ListAttribute{
 				ElementType:   types.StringType,
@@ -128,6 +155,32 @@ func (r *promptResource) Create(ctx context.Context, req resource.CreateRequest,
 		Command: plan.Command.ValueString(),
 		Name:    plan.Name.ValueString(),
 		Content: plan.Content.ValueString(),
+	}
+
+	if !plan.IsActive.IsNull() && !plan.IsActive.IsUnknown() {
+		v := plan.IsActive.ValueBool()
+		form.IsActive = &v
+	}
+	if !plan.Tags.IsNull() && !plan.Tags.IsUnknown() {
+		var tags []string
+		resp.Diagnostics.Append(plan.Tags.ElementsAs(ctx, &tags, false)...)
+		form.Tags = tags
+	}
+	if !plan.DataJSON.IsNull() && !plan.DataJSON.IsUnknown() && plan.DataJSON.ValueString() != "" {
+		var data map[string]any
+		if err := json.Unmarshal([]byte(plan.DataJSON.ValueString()), &data); err != nil {
+			resp.Diagnostics.AddAttributeError(path.Root("data_json"), "Invalid JSON", err.Error())
+			return
+		}
+		form.Data = data
+	}
+	if !plan.MetaJSON.IsNull() && !plan.MetaJSON.IsUnknown() && plan.MetaJSON.ValueString() != "" {
+		var meta map[string]any
+		if err := json.Unmarshal([]byte(plan.MetaJSON.ValueString()), &meta); err != nil {
+			resp.Diagnostics.AddAttributeError(path.Root("meta_json"), "Invalid JSON", err.Error())
+			return
+		}
+		form.Meta = meta
 	}
 
 	readNames := expandStringList(ctx, plan.ReadGroups, path.Root("read_groups"), &resp.Diagnostics)
@@ -210,6 +263,32 @@ func (r *promptResource) Update(ctx context.Context, req resource.UpdateRequest,
 		Command: plan.Command.ValueString(),
 		Name:    plan.Name.ValueString(),
 		Content: plan.Content.ValueString(),
+	}
+
+	if !plan.IsActive.IsNull() && !plan.IsActive.IsUnknown() {
+		v := plan.IsActive.ValueBool()
+		form.IsActive = &v
+	}
+	if !plan.Tags.IsNull() && !plan.Tags.IsUnknown() {
+		var tags []string
+		resp.Diagnostics.Append(plan.Tags.ElementsAs(ctx, &tags, false)...)
+		form.Tags = tags
+	}
+	if !plan.DataJSON.IsNull() && !plan.DataJSON.IsUnknown() && plan.DataJSON.ValueString() != "" {
+		var data map[string]any
+		if err := json.Unmarshal([]byte(plan.DataJSON.ValueString()), &data); err != nil {
+			resp.Diagnostics.AddAttributeError(path.Root("data_json"), "Invalid JSON", err.Error())
+			return
+		}
+		form.Data = data
+	}
+	if !plan.MetaJSON.IsNull() && !plan.MetaJSON.IsUnknown() && plan.MetaJSON.ValueString() != "" {
+		var meta map[string]any
+		if err := json.Unmarshal([]byte(plan.MetaJSON.ValueString()), &meta); err != nil {
+			resp.Diagnostics.AddAttributeError(path.Root("meta_json"), "Invalid JSON", err.Error())
+			return
+		}
+		form.Meta = meta
 	}
 
 	readNames := expandStringList(ctx, plan.ReadGroups, path.Root("read_groups"), &resp.Diagnostics)
@@ -296,10 +375,37 @@ func promptResponseToModel(ctx context.Context, apiClient *client.Client, resp *
 	}
 
 	state := promptResourceModel{
-		ID:          types.StringValue(resp.ID),
-		Command:     types.StringValue(resp.Command),
-		Name:        types.StringValue(resp.Name),
-		Content:     types.StringValue(resp.Content),
+		ID:      types.StringValue(resp.ID),
+		Command: types.StringValue(resp.Command),
+		Name:    types.StringValue(resp.Name),
+		Content: types.StringValue(resp.Content),
+		IsActive: func() types.Bool {
+			if resp.IsActive != nil {
+				return types.BoolValue(*resp.IsActive)
+			}
+			return types.BoolValue(true) // API default
+		}(),
+		Tags: func() types.List {
+			if len(resp.Tags) > 0 {
+				l, _ := types.ListValueFrom(ctx, types.StringType, resp.Tags)
+				return l
+			}
+			return types.ListValueMust(types.StringType, []attr.Value{})
+		}(),
+		DataJSON: func() types.String {
+			if resp.Data != nil {
+				b, _ := json.Marshal(resp.Data)
+				return types.StringValue(string(b))
+			}
+			return types.StringNull()
+		}(),
+		MetaJSON: func() types.String {
+			if resp.Meta != nil {
+				b, _ := json.Marshal(resp.Meta)
+				return types.StringValue(string(b))
+			}
+			return types.StringNull()
+		}(),
 		ReadGroups:  readList,
 		WriteGroups: writeList,
 		CreatedAt:   formatDateValue(resp.CreatedAt),

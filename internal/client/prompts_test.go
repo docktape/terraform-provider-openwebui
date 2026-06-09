@@ -141,3 +141,29 @@ func TestListPromptsHitsRoot(t *testing.T) {
 		t.Fatalf("unexpected prompts: %+v", prompts)
 	}
 }
+
+func TestPromptFormMarshal_WithNewFields(t *testing.T) {
+	active := true
+	form := PromptForm{
+		Command:  "/greet",
+		Name:     "Greet",
+		Content:  "Hello!",
+		IsActive: &active,
+		Tags:     []string{"util", "greeting"},
+	}
+	data, err := json.Marshal(form)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var out map[string]any
+	if err := json.Unmarshal(data, &out); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if out["is_active"] != true {
+		t.Fatalf("expected is_active=true, got %v", out["is_active"])
+	}
+	tags, ok := out["tags"].([]any)
+	if !ok || len(tags) != 2 {
+		t.Fatalf("expected 2 tags, got %v", out["tags"])
+	}
+}

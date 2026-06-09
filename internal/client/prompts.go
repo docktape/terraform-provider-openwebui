@@ -13,6 +13,10 @@ type PromptForm struct {
 	Command       string         `json:"command"`
 	Name          string         `json:"name"`
 	Content       string         `json:"content"`
+	IsActive      *bool          `json:"is_active,omitempty"`
+	Tags          []string       `json:"tags,omitempty"`
+	Data          map[string]any `json:"data,omitempty"`
+	Meta          map[string]any `json:"meta,omitempty"`
 	AccessControl map[string]any `json:"-"`
 }
 
@@ -35,6 +39,10 @@ type PromptModel struct {
 	Command       string         `json:"command"`
 	Name          string         `json:"name"`
 	Content       string         `json:"content"`
+	IsActive      *bool          `json:"is_active,omitempty"`
+	Tags          []string       `json:"tags,omitempty"`
+	Data          map[string]any `json:"data,omitempty"`
+	Meta          map[string]any `json:"meta,omitempty"`
 	UserID        string         `json:"user_id"`
 	CreatedAt     int64          `json:"created_at"`
 	UpdatedAt     int64          `json:"updated_at"`
