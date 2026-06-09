@@ -188,3 +188,75 @@ func TestExpandModelMeta_Hidden(t *testing.T) {
 		t.Fatalf("expected meta[hidden]=true, got %v", result["hidden"])
 	}
 }
+
+func TestFlattenModelMeta_HiddenFalse(t *testing.T) {
+	ctx := context.Background()
+	data := map[string]any{
+		"hidden": false,
+	}
+	state, _, diags := flattenModelMeta(ctx, data)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %s", diags)
+	}
+	if state.Hidden.IsNull() {
+		t.Fatal("expected non-null hidden")
+	}
+	if state.Hidden.ValueBool() {
+		t.Fatalf("expected hidden=false, got true")
+	}
+}
+
+func TestFlattenModelMeta_HiddenAbsent(t *testing.T) {
+	ctx := context.Background()
+	data := map[string]any{
+		"description": "no hidden key",
+	}
+	state, _, diags := flattenModelMeta(ctx, data)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %s", diags)
+	}
+	if !state.Hidden.IsNull() {
+		t.Fatalf("expected null hidden when key absent, got %v", state.Hidden)
+	}
+}
+
+func TestFlattenModelMeta_HiddenNull(t *testing.T) {
+	ctx := context.Background()
+	data := map[string]any{
+		"hidden": nil,
+	}
+	state, _, diags := flattenModelMeta(ctx, data)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %s", diags)
+	}
+	if !state.Hidden.IsNull() {
+		t.Fatalf("expected null hidden when API sends null, got %v", state.Hidden)
+	}
+}
+
+func TestExpandModelMeta_HiddenFalse(t *testing.T) {
+	ctx := context.Background()
+	plan := &modelResourceModel{
+		Hidden:             types.BoolValue(false),
+		SuggestionPrompts:  types.ListNull(types.StringType),
+		Tags:               types.ListNull(types.StringType),
+		ToolIDs:            types.ListNull(types.StringType),
+		DefaultFeatureIDs:  types.ListNull(types.StringType),
+		ProfileImageURL:    types.StringNull(),
+		Description:        types.StringNull(),
+		MetaAdditionalJSON: types.StringNull(),
+		IsActive:           types.BoolNull(),
+	}
+	var diags diag.Diagnostics
+	result := expandModelMeta(ctx, plan, &diags)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %s", diags)
+	}
+	val, ok := result["hidden"]
+	if !ok {
+		t.Fatal("expected hidden key in result")
+	}
+	if val != false {
+		t.Fatalf("expected hidden=false, got %v", val)
+	}
+}

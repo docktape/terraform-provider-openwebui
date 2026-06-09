@@ -1108,6 +1108,7 @@ func flattenModelMeta(ctx context.Context, data map[string]any) (modelMetaState,
 		if boolVal, ok := raw.(bool); ok {
 			state.Hidden = types.BoolValue(boolVal)
 		}
+		// raw is nil when the API sends "hidden": null — leave Hidden as BoolNull
 	}
 	if raw, ok := data["capabilities"]; ok {
 		switch v := raw.(type) {
