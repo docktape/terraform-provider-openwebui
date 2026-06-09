@@ -4,6 +4,9 @@ import (
 	"context"
 	"strings"
 	"testing"
+
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 // --- mergeStringAnyMaps ---
@@ -129,5 +132,59 @@ func TestFlattenModelMeta_NonNullProfileImageURLNotLeakedToAdditional(t *testing
 
 	if !additionalJSON.IsNull() {
 		t.Errorf("expected null additional JSON when no extra keys, got: %s", additionalJSON.ValueString())
+	}
+}
+
+func TestFlattenModelMeta_Hidden(t *testing.T) {
+	ctx := context.Background()
+	data := map[string]any{
+		"hidden": true,
+	}
+	state, _, diags := flattenModelMeta(ctx, data)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %s", diags)
+	}
+	if state.Hidden.IsNull() {
+		t.Fatal("expected non-null hidden")
+	}
+	if !state.Hidden.ValueBool() {
+		t.Fatalf("expected hidden=true, got false")
+	}
+}
+
+func TestFlattenModelMeta_HiddenNotLeakedToAdditional(t *testing.T) {
+	ctx := context.Background()
+	data := map[string]any{
+		"hidden": true,
+	}
+	_, additionalJSON, diags := flattenModelMeta(ctx, data)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %s", diags)
+	}
+	if !additionalJSON.IsNull() {
+		t.Errorf("hidden must not appear in meta_additional_json, got: %s", additionalJSON.ValueString())
+	}
+}
+
+func TestExpandModelMeta_Hidden(t *testing.T) {
+	ctx := context.Background()
+	plan := &modelResourceModel{
+		Hidden:             types.BoolValue(true),
+		SuggestionPrompts:  types.ListNull(types.StringType),
+		Tags:               types.ListNull(types.StringType),
+		ToolIDs:            types.ListNull(types.StringType),
+		DefaultFeatureIDs:  types.ListNull(types.StringType),
+		ProfileImageURL:    types.StringNull(),
+		Description:        types.StringNull(),
+		MetaAdditionalJSON: types.StringNull(),
+		IsActive:           types.BoolNull(),
+	}
+	var diags diag.Diagnostics
+	result := expandModelMeta(ctx, plan, &diags)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %s", diags)
+	}
+	if result["hidden"] != true {
+		t.Fatalf("expected meta[hidden]=true, got %v", result["hidden"])
 	}
 }

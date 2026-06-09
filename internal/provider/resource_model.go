@@ -36,6 +36,7 @@ type modelResourceModel struct {
 	Name                 types.String            `tfsdk:"name"`
 	BaseModelID          types.String            `tfsdk:"base_model_id"`
 	IsActive             types.Bool              `tfsdk:"is_active"`
+	Hidden               types.Bool              `tfsdk:"hidden"`
 	UserID               types.String            `tfsdk:"user_id"`
 	CreatedAt            types.Int64             `tfsdk:"created_at"`
 	UpdatedAt            types.Int64             `tfsdk:"updated_at"`
@@ -109,6 +110,7 @@ type modelMetaState struct {
 	ToolIDs           types.List
 	DefaultFeatureIDs types.List
 	Capabilities      *modelCapabilitiesModel
+	Hidden            types.Bool
 }
 
 // NewModelResource constructs a new instance.
@@ -147,6 +149,12 @@ func (r *modelResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				Optional:      true,
 				Computed:      true,
 				Description:   "Whether the model is visible and available to users. Defaults to `false`.",
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+			},
+			"hidden": schema.BoolAttribute{
+				Optional:      true,
+				Computed:      true,
+				Description:   "When `true`, the model is hidden from the model selector list in the UI but remains usable via the API. Distinct from `is_active` — a hidden model is still active.",
 				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
 			},
 			"user_id": schema.StringAttribute{
@@ -612,6 +620,7 @@ func modelResponseToModel(ctx context.Context, apiClient *client.Client, resp *c
 		ToolIDs:              metaState.ToolIDs,
 		DefaultFeatureIDs:    metaState.DefaultFeatureIDs,
 		Capabilities:         metaState.Capabilities,
+		Hidden:               metaState.Hidden,
 	}
 
 	if resp.BaseModelID != nil && *resp.BaseModelID != "" {
@@ -809,6 +818,10 @@ func expandModelMeta(ctx context.Context, plan *modelResourceModel, diags *diag.
 		} else {
 			meta["defaultFeatureIds"] = []any{}
 		}
+	}
+	if !plan.Hidden.IsNull() && !plan.Hidden.IsUnknown() {
+		ensureMap()
+		meta["hidden"] = plan.Hidden.ValueBool()
 	}
 
 	return meta
@@ -1070,6 +1083,7 @@ func flattenModelMeta(ctx context.Context, data map[string]any) (modelMetaState,
 		ToolIDs:           types.ListNull(types.StringType),
 		DefaultFeatureIDs: types.ListNull(types.StringType),
 		Capabilities:      emptyCapabilities,
+		Hidden:            types.BoolNull(),
 	}
 
 	if data == nil {
@@ -1082,12 +1096,18 @@ func flattenModelMeta(ctx context.Context, data map[string]any) (modelMetaState,
 	// don't leak into meta_additional_json and appear twice in state.
 	delete(additional, "profile_image_url")
 	delete(additional, "description")
+	delete(additional, "hidden")
 
 	if value, ok := toStringValue(data["profile_image_url"]); ok {
 		state.ProfileImageURL = types.StringValue(value)
 	}
 	if value, ok := toStringValue(data["description"]); ok {
 		state.Description = types.StringValue(value)
+	}
+	if raw, ok := data["hidden"]; ok {
+		if boolVal, ok := raw.(bool); ok {
+			state.Hidden = types.BoolValue(boolVal)
+		}
 	}
 	if raw, ok := data["capabilities"]; ok {
 		switch v := raw.(type) {
