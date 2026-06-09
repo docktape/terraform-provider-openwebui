@@ -43,7 +43,9 @@ data "openwebui_group" "support" {
 
 Read-Only:
 
+- `access_grants` (Map of Boolean) Access-grant permission flags. Supported key: `allow_users` — whether group members can grant resource access to other users.
 - `chat` (Map of Boolean) Chat-level permissions. Valid keys: `controls`, `valves`, `system_prompt`, `params`, `file_upload`, `delete`, `delete_message`, `continue_response`, `regenerate_response`, `rate_response`, `edit`, `share`, `export`, `stt`, `tts`, `call`, `multiple_models`, `temporary`, `temporary_enforced`.
 - `features` (Map of Boolean) Feature access permissions. Valid keys: `direct_tool_servers`, `web_search`, `image_generation`, `code_interpreter`, `notes`.
+- `settings` (Map of Boolean) Settings permission flags. Supported key: `interface` — whether group members can modify their interface settings.
 - `sharing` (Map of Boolean) Sharing permissions. Valid keys: `public_models`, `public_knowledge`, `public_prompts`, `public_tools`.
 - `workspace` (Map of Boolean) Workspace-level permissions. Valid keys: `models`, `knowledge`, `prompts`, `tools`.

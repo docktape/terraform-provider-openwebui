@@ -34,7 +34,11 @@ resource "openwebui_prompt" "example" {
 
 ### Optional
 
+- `data_json` (String) Arbitrary JSON metadata object for the prompt. Use `jsonencode({})` to set an empty object.
+- `is_active` (Boolean) Whether the prompt is active and available to users. Defaults to `true`.
+- `meta_json` (String) Arbitrary JSON metadata object for the prompt. Use `jsonencode({})` to set an empty object.
 - `read_groups` (List of String) List of group names or IDs granted read access. Leave unset or empty for public access.
+- `tags` (List of String) List of tags for categorising the prompt.
 - `write_groups` (List of String) List of group names or IDs granted write access.
 
 ### Read-Only

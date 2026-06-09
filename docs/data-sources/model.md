@@ -32,6 +32,7 @@ data "openwebui_model" "llama" {
 - `created_at` (Number) Unix timestamp of when the model was created.
 - `default_feature_ids` (List of String) List of feature IDs enabled by default.
 - `description` (String) Short description shown alongside the model name.
+- `hidden` (Boolean) Whether the model is hidden from the model selector list in the UI.
 - `id` (String) Composite identifier mirroring `model_id`.
 - `is_active` (Boolean) Whether the model is visible and available to users.
 - `meta_additional_json` (String) Additional metadata JSON as returned by Open WebUI.
