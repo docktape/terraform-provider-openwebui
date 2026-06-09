@@ -57,6 +57,10 @@ func (d *modelDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, 
 				Computed:    true,
 				Description: "Whether the model is visible and available to users.",
 			},
+			"hidden": schema.BoolAttribute{
+				Computed:    true,
+				Description: "Whether the model is hidden from the model selector list in the UI.",
+			},
 			"user_id": schema.StringAttribute{
 				Computed:    true,
 				Description: "Owner user identifier.",

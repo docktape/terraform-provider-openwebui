@@ -166,6 +166,45 @@ resource "openwebui_model" "test" {
 `, testAccProviderConfig(), modelID, description)
 }
 
+// TestAccModelResourceHidden verifies that the hidden field round-trips through
+// create and update operations correctly.
+func TestAccModelResourceHidden(t *testing.T) {
+	modelID := acctest.RandomWithPrefix("tf-acc-model-hidden")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccModelResourceConfigHidden(modelID, true),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("openwebui_model.test", "model_id", modelID),
+					resource.TestCheckResourceAttr("openwebui_model.test", "hidden", "true"),
+				),
+			},
+			{
+				Config: testAccModelResourceConfigHidden(modelID, false),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("openwebui_model.test", "hidden", "false"),
+				),
+			},
+		},
+	})
+}
+
+func testAccModelResourceConfigHidden(modelID string, hidden bool) string {
+	return fmt.Sprintf(`%s
+resource "openwebui_model" "test" {
+  model_id      = %q
+  name          = "Hidden Test Model"
+  base_model_id = "llama3.2"
+  hidden        = %t
+
+  params = {}
+}
+`, testAccProviderConfig(), modelID, hidden)
+}
+
 func testAccModelDataSourceConfig(modelID string) string {
 	return fmt.Sprintf(`%s
 resource "openwebui_model" "seed" {
