@@ -53,6 +53,23 @@ func (d *promptDataSource) Schema(_ context.Context, _ datasource.SchemaRequest,
 				Computed:    true,
 				Description: "Prompt template text.",
 			},
+			"is_active": schema.BoolAttribute{
+				Computed:    true,
+				Description: "Whether the prompt is active and available to users.",
+			},
+			"tags": schema.ListAttribute{
+				ElementType: types.StringType,
+				Computed:    true,
+				Description: "List of tags for categorising the prompt.",
+			},
+			"data_json": schema.StringAttribute{
+				Computed:    true,
+				Description: "Arbitrary JSON metadata object for the prompt.",
+			},
+			"meta_json": schema.StringAttribute{
+				Computed:    true,
+				Description: "Arbitrary JSON metadata object for the prompt.",
+			},
 			"read_groups": schema.ListAttribute{
 				ElementType: types.StringType,
 				Computed:    true,

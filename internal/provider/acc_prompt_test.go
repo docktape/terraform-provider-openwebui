@@ -59,6 +59,49 @@ func TestAccPromptDataSource(t *testing.T) {
 	})
 }
 
+func TestAccPromptResource_WithNewFields(t *testing.T) {
+	suffix := acctest.RandStringFromCharSet(6, acctest.CharSetAlphaNum)
+	command := "tfaccnf" + suffix
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`%s
+resource "openwebui_prompt" "test" {
+  command   = %q
+  name      = "New Fields Test"
+  content   = "Test content."
+  is_active = false
+  tags      = ["test", "acc"]
+}
+`, testAccProviderConfig(), command),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("openwebui_prompt.test", "is_active", "false"),
+					resource.TestCheckResourceAttr("openwebui_prompt.test", "tags.#", "2"),
+					resource.TestCheckResourceAttr("openwebui_prompt.test", "tags.0", "test"),
+				),
+			},
+			{
+				Config: fmt.Sprintf(`%s
+resource "openwebui_prompt" "test" {
+  command   = %q
+  name      = "New Fields Test"
+  content   = "Test content."
+  is_active = true
+  tags      = ["updated"]
+}
+`, testAccProviderConfig(), command),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("openwebui_prompt.test", "is_active", "true"),
+					resource.TestCheckResourceAttr("openwebui_prompt.test", "tags.#", "1"),
+				),
+			},
+		},
+	})
+}
+
 func testAccPromptResourceConfig(command, name, content string) string {
 	return fmt.Sprintf(`%s
 resource "openwebui_prompt" "test" {
