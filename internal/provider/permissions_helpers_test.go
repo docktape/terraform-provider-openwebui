@@ -86,11 +86,31 @@ func TestFilterPermissionResponse_NonBool(t *testing.T) {
 
 func TestFilterPermissionResponse_UnknownKey(t *testing.T) {
 	var diags diag.Diagnostics
-	filterPermissionResponse("workspace", map[string]any{
+	result := filterPermissionResponse("workspace", map[string]any{
 		"unknown_key": true,
 	}, &diags)
-	if !diags.HasError() {
-		t.Fatal("expected error for unknown key from API")
+	if diags.HasError() {
+		t.Fatal("expected unknown keys to be silently skipped, not an error")
+	}
+	if len(result) != 0 {
+		t.Fatalf("expected empty result for unknown key, got %v", result)
+	}
+}
+
+func TestFilterPermissionResponse_MixedKnownAndUnknown(t *testing.T) {
+	var diags diag.Diagnostics
+	result := filterPermissionResponse("workspace", map[string]any{
+		"models":     true,
+		"future_key": false, // unknown — should be silently dropped
+	}, &diags)
+	if diags.HasError() {
+		t.Fatal("unexpected diagnostics: unknown key should be silently skipped")
+	}
+	if !result["models"] {
+		t.Fatalf("expected models=true, got %v", result)
+	}
+	if _, ok := result["future_key"]; ok {
+		t.Fatal("expected future_key to be dropped, but it was kept")
 	}
 }
 
@@ -371,5 +391,53 @@ func TestPermissionsObjectSpecified_PopulatedObject(t *testing.T) {
 	}
 	if diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %s", diags)
+	}
+}
+
+func TestFilterPermissionKeys_NewWorkspaceKeys(t *testing.T) {
+	var diags diag.Diagnostics
+	result := filterPermissionKeys(
+		"workspace",
+		map[string]bool{"skills": true, "models_import": false, "tools_export": true},
+		path.Root("permissions").AtName("workspace"),
+		&diags,
+	)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %s", diags)
+	}
+	if result["skills"] != true || result["models_import"] != false || result["tools_export"] != true {
+		t.Fatalf("unexpected result: %v", result)
+	}
+}
+
+func TestFilterPermissionKeys_NewSharingKeys(t *testing.T) {
+	var diags diag.Diagnostics
+	result := filterPermissionKeys(
+		"sharing",
+		map[string]bool{"models": true, "skills": false, "public_skills": true, "notes": false},
+		path.Root("permissions").AtName("sharing"),
+		&diags,
+	)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %s", diags)
+	}
+	if result["models"] != true || result["skills"] != false || result["public_skills"] != true {
+		t.Fatalf("unexpected result: %v", result)
+	}
+}
+
+func TestFilterPermissionKeys_NewFeaturesKeys(t *testing.T) {
+	var diags diag.Diagnostics
+	result := filterPermissionKeys(
+		"features",
+		map[string]bool{"memories": true, "api_keys": false, "channels": true, "folders": false},
+		path.Root("permissions").AtName("features"),
+		&diags,
+	)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %s", diags)
+	}
+	if result["memories"] != true || result["api_keys"] != false {
+		t.Fatalf("unexpected result: %v", result)
 	}
 }
