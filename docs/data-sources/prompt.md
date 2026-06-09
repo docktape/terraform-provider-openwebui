@@ -29,9 +29,13 @@ data "openwebui_prompt" "summarize" {
 
 - `content` (String) Prompt template text.
 - `created_at` (String) Creation date in `YYYY-MM-DD` format.
+- `data_json` (String) Arbitrary JSON metadata object for the prompt.
 - `id` (String) Server-assigned UUID for the prompt.
+- `is_active` (Boolean) Whether the prompt is active and available to users.
+- `meta_json` (String) Arbitrary JSON metadata object for the prompt.
 - `name` (String) Display name of the prompt.
 - `read_groups` (List of String) Read-access group names currently applied to this prompt.
+- `tags` (List of String) List of tags for categorising the prompt.
 - `updated_at` (String) Last-updated date in `YYYY-MM-DD` format.
 - `user_id` (String) Owner user identifier.
 - `write_groups` (List of String) Write-access group names currently applied to this prompt.
