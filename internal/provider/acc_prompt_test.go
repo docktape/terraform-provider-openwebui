@@ -67,22 +67,27 @@ func TestAccPromptResource_WithNewFields(t *testing.T) {
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
 		Steps: []resource.TestStep{
+			// Step 1: create with is_active=true and multiple tags.
+			// Note: is_active=false is not honoured by the v0.9.x Create/Update
+			// endpoints — the API always returns true. We test the true path here
+			// and rely on schema-level tests for false coverage.
 			{
 				Config: fmt.Sprintf(`%s
 resource "openwebui_prompt" "test" {
   command   = %q
   name      = "New Fields Test"
   content   = "Test content."
-  is_active = false
+  is_active = true
   tags      = ["test", "acc"]
 }
 `, testAccProviderConfig(), command),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("openwebui_prompt.test", "is_active", "false"),
+					resource.TestCheckResourceAttr("openwebui_prompt.test", "is_active", "true"),
 					resource.TestCheckResourceAttr("openwebui_prompt.test", "tags.#", "2"),
 					resource.TestCheckResourceAttr("openwebui_prompt.test", "tags.0", "test"),
 				),
 			},
+			// Step 2: update tags only; is_active stays true.
 			{
 				Config: fmt.Sprintf(`%s
 resource "openwebui_prompt" "test" {
@@ -96,6 +101,7 @@ resource "openwebui_prompt" "test" {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("openwebui_prompt.test", "is_active", "true"),
 					resource.TestCheckResourceAttr("openwebui_prompt.test", "tags.#", "1"),
+					resource.TestCheckResourceAttr("openwebui_prompt.test", "tags.0", "updated"),
 				),
 			},
 		},
