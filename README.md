@@ -13,7 +13,7 @@ configuration in any Open WebUI deployment.
 | Component      | Requirement                                             |
 | -------------- | ------------------------------------------------------- |
 | Terraform      | 1.6 or newer                                            |
-| Open WebUI     | v0.9.0 – v0.9.5                                         |
+| Open WebUI     | v0.9.0 – v0.9.6                                         |
 | Go             | 1.25+ (only required to build the provider)             |
 
 Attributes backed by API endpoints that appeared in a later patch release are
@@ -120,6 +120,7 @@ resource "openwebui_model" "example" {
   name          = "Custom RAG Model"
   base_model_id = "llama3.2"
   is_active     = true
+  hidden        = false
   description   = "RAG-tuned model for the internal knowledge base"
 
   read_groups  = ["Support"]
@@ -164,7 +165,25 @@ resource "openwebui_group" "example" {
     features = {
       web_search = true
     }
+    access_grants = {
+      allow_users = true
+    }
+    settings = {
+      interface = true
+    }
   }
+}
+```
+
+### Prompt
+
+```hcl
+resource "openwebui_prompt" "example" {
+  command   = "summarize"
+  name      = "Summarise text"
+  content   = "Summarise the following in three bullet points:\n\n{{text}}"
+  is_active = true
+  tags      = ["productivity", "writing"]
 }
 ```
 
