@@ -203,7 +203,10 @@ func TestPermissionsRoundTrip_AccessGrantsSettings(t *testing.T) {
 
 func TestGroupDataSourceSchema_HasAllPermissionSubMaps(t *testing.T) {
 	ctx := context.Background()
-	ds := NewGroupDataSource().(*groupDataSource)
+	ds, ok := NewGroupDataSource().(*groupDataSource)
+	if !ok {
+		t.Fatal("NewGroupDataSource() did not return *groupDataSource")
+	}
 	var resp datasource.SchemaResponse
 	ds.Schema(ctx, datasource.SchemaRequest{}, &resp)
 
