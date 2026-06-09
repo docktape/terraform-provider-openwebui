@@ -121,10 +121,12 @@ func TestExpandPermissions_Workspace(t *testing.T) {
 		t.Fatalf("setup: %s", mapDiags)
 	}
 	model := groupPermissionsModel{
-		Workspace: wsMap,
-		Sharing:   types.MapNull(types.BoolType),
-		Chat:      types.MapNull(types.BoolType),
-		Features:  types.MapNull(types.BoolType),
+		Workspace:    wsMap,
+		Sharing:      types.MapNull(types.BoolType),
+		Chat:         types.MapNull(types.BoolType),
+		Features:     types.MapNull(types.BoolType),
+		AccessGrants: types.MapNull(types.BoolType),
+		Settings:     types.MapNull(types.BoolType),
 	}
 	var diags diag.Diagnostics
 	result := expandPermissions(ctx, model, &diags)
@@ -143,10 +145,12 @@ func TestExpandPermissions_Workspace(t *testing.T) {
 func TestExpandPermissions_AllNull(t *testing.T) {
 	ctx := context.Background()
 	model := groupPermissionsModel{
-		Workspace: types.MapNull(types.BoolType),
-		Sharing:   types.MapNull(types.BoolType),
-		Chat:      types.MapNull(types.BoolType),
-		Features:  types.MapNull(types.BoolType),
+		Workspace:    types.MapNull(types.BoolType),
+		Sharing:      types.MapNull(types.BoolType),
+		Chat:         types.MapNull(types.BoolType),
+		Features:     types.MapNull(types.BoolType),
+		AccessGrants: types.MapNull(types.BoolType),
+		Settings:     types.MapNull(types.BoolType),
 	}
 	var diags diag.Diagnostics
 	result := expandPermissions(ctx, model, &diags)
@@ -164,7 +168,7 @@ func TestFlattenPermissions_Nil(t *testing.T) {
 	if diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %s", diags)
 	}
-	if !model.Workspace.IsNull() || !model.Sharing.IsNull() || !model.Chat.IsNull() || !model.Features.IsNull() {
+	if !model.Workspace.IsNull() || !model.Sharing.IsNull() || !model.Chat.IsNull() || !model.Features.IsNull() || !model.AccessGrants.IsNull() || !model.Settings.IsNull() {
 		t.Fatal("expected all null for nil input")
 	}
 }
@@ -201,10 +205,12 @@ func TestExpandFlattenPermissionsRoundTrip(t *testing.T) {
 	wsMap, _ := types.MapValueFrom(ctx, types.BoolType, map[string]bool{"models": true})
 	chatMap, _ := types.MapValueFrom(ctx, types.BoolType, map[string]bool{"file_upload": true, "delete": false})
 	original := groupPermissionsModel{
-		Workspace: wsMap,
-		Sharing:   types.MapNull(types.BoolType),
-		Chat:      chatMap,
-		Features:  types.MapNull(types.BoolType),
+		Workspace:    wsMap,
+		Sharing:      types.MapNull(types.BoolType),
+		Chat:         chatMap,
+		Features:     types.MapNull(types.BoolType),
+		AccessGrants: types.MapNull(types.BoolType),
+		Settings:     types.MapNull(types.BoolType),
 	}
 
 	var expandDiags diag.Diagnostics
@@ -274,10 +280,12 @@ func TestExpandPermissions_InvalidKey(t *testing.T) {
 		t.Fatalf("setup: %s", mapDiags)
 	}
 	model := groupPermissionsModel{
-		Workspace: badMap,
-		Sharing:   types.MapNull(types.BoolType),
-		Chat:      types.MapNull(types.BoolType),
-		Features:  types.MapNull(types.BoolType),
+		Workspace:    badMap,
+		Sharing:      types.MapNull(types.BoolType),
+		Chat:         types.MapNull(types.BoolType),
+		Features:     types.MapNull(types.BoolType),
+		AccessGrants: types.MapNull(types.BoolType),
+		Settings:     types.MapNull(types.BoolType),
 	}
 	var diags diag.Diagnostics
 	expandPermissions(ctx, model, &diags)
@@ -292,7 +300,7 @@ func TestFlattenPermissions_EmptyMap(t *testing.T) {
 	if diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %s", diags)
 	}
-	if !model.Workspace.IsNull() || !model.Sharing.IsNull() || !model.Chat.IsNull() || !model.Features.IsNull() {
+	if !model.Workspace.IsNull() || !model.Sharing.IsNull() || !model.Chat.IsNull() || !model.Features.IsNull() || !model.AccessGrants.IsNull() || !model.Settings.IsNull() {
 		t.Fatal("expected all null for empty map input")
 	}
 }
@@ -305,7 +313,7 @@ func TestObjectToPermissionsModel_NullObject(t *testing.T) {
 	if diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %s", diags)
 	}
-	if !model.Workspace.IsNull() || !model.Sharing.IsNull() || !model.Chat.IsNull() || !model.Features.IsNull() {
+	if !model.Workspace.IsNull() || !model.Sharing.IsNull() || !model.Chat.IsNull() || !model.Features.IsNull() || !model.AccessGrants.IsNull() || !model.Settings.IsNull() {
 		t.Fatal("expected null-filled model for null object")
 	}
 }
@@ -318,7 +326,7 @@ func TestObjectToPermissionsModel_UnknownObject(t *testing.T) {
 	if diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %s", diags)
 	}
-	if !model.Workspace.IsNull() || !model.Sharing.IsNull() || !model.Chat.IsNull() || !model.Features.IsNull() {
+	if !model.Workspace.IsNull() || !model.Sharing.IsNull() || !model.Chat.IsNull() || !model.Features.IsNull() || !model.AccessGrants.IsNull() || !model.Settings.IsNull() {
 		t.Fatal("expected null-filled model for unknown object")
 	}
 }
@@ -328,10 +336,12 @@ func TestPermissionsModelToObjectRoundTrip(t *testing.T) {
 	wsMap, _ := types.MapValueFrom(ctx, types.BoolType, map[string]bool{"models": true, "tools": false})
 	chatMap, _ := types.MapValueFrom(ctx, types.BoolType, map[string]bool{"file_upload": true})
 	original := groupPermissionsModel{
-		Workspace: wsMap,
-		Sharing:   types.MapNull(types.BoolType),
-		Chat:      chatMap,
-		Features:  types.MapNull(types.BoolType),
+		Workspace:    wsMap,
+		Sharing:      types.MapNull(types.BoolType),
+		Chat:         chatMap,
+		Features:     types.MapNull(types.BoolType),
+		AccessGrants: types.MapNull(types.BoolType),
+		Settings:     types.MapNull(types.BoolType),
 	}
 
 	obj, objDiags := permissionsModelToObject(ctx, original)
@@ -375,10 +385,12 @@ func TestPermissionsObjectSpecified_PopulatedObject(t *testing.T) {
 	ctx := context.Background()
 	wsMap, _ := types.MapValueFrom(ctx, types.BoolType, map[string]bool{"models": true})
 	model := groupPermissionsModel{
-		Workspace: wsMap,
-		Sharing:   types.MapNull(types.BoolType),
-		Chat:      types.MapNull(types.BoolType),
-		Features:  types.MapNull(types.BoolType),
+		Workspace:    wsMap,
+		Sharing:      types.MapNull(types.BoolType),
+		Chat:         types.MapNull(types.BoolType),
+		Features:     types.MapNull(types.BoolType),
+		AccessGrants: types.MapNull(types.BoolType),
+		Settings:     types.MapNull(types.BoolType),
 	}
 	obj, objDiags := permissionsModelToObject(ctx, model)
 	if objDiags.HasError() {
@@ -455,5 +467,62 @@ func TestFilterPermissionKeys_NewChatKeys(t *testing.T) {
 	}
 	if result["web_upload"] != true {
 		t.Fatalf("expected web_upload=true, got %v", result["web_upload"])
+	}
+}
+
+func TestFilterPermissionKeys_AccessGrantsKey(t *testing.T) {
+	var diags diag.Diagnostics
+	result := filterPermissionKeys(
+		"access_grants",
+		map[string]bool{"allow_users": true},
+		path.Root("permissions").AtName("access_grants"),
+		&diags,
+	)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %s", diags)
+	}
+	if result["allow_users"] != true {
+		t.Fatalf("expected allow_users=true, got %v", result["allow_users"])
+	}
+}
+
+func TestFilterPermissionKeys_SettingsKey(t *testing.T) {
+	var diags diag.Diagnostics
+	result := filterPermissionKeys(
+		"settings",
+		map[string]bool{"interface": true},
+		path.Root("permissions").AtName("settings"),
+		&diags,
+	)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %s", diags)
+	}
+	if result["interface"] != true {
+		t.Fatalf("expected interface=true, got %v", result["interface"])
+	}
+}
+
+func TestFlattenPermissions_WithAccessGrantsAndSettings(t *testing.T) {
+	ctx := context.Background()
+	perms := map[string]any{
+		"access_grants": map[string]any{"allow_users": true},
+		"settings":      map[string]any{"interface": false},
+	}
+	model, diags := flattenPermissions(ctx, perms)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %s", diags)
+	}
+	if model.AccessGrants.IsNull() {
+		t.Fatal("expected non-null access_grants")
+	}
+	if model.Settings.IsNull() {
+		t.Fatal("expected non-null settings")
+	}
+	var ag map[string]bool
+	if err := model.AccessGrants.ElementsAs(ctx, &ag, false); err != nil {
+		t.Fatalf("ElementsAs access_grants: %v", err)
+	}
+	if !ag["allow_users"] {
+		t.Fatalf("expected allow_users=true, got %v", ag)
 	}
 }
