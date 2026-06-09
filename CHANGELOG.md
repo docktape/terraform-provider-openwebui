@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.1.0] - 2026-06-09
+
+### Bug Fixes
+
+- **group:** Fix acc test TF_ACC guard and add update step
+- **prompt:** Handle nil tags as null list, use state for unknown on is_active and tags
+- **model:** Add hidden=false and null coverage in tests
+- Data source group schema and prompt acc test
+
+### Documentation
+
+- Update README for v0.9.6 coverage
+- Regenerate provider docs for group, model, and prompt changes
+- Update provider version constraint to ~> 1.0
+
+### Features
+
+- **group:** Add access_grants and settings permission categories
+- **prompt:** Add is_active, tags, data_json, meta_json fields
+- **model:** Add hidden field
+
 ## [1.0.2] - 2026-06-09
 
 ### Bug Fixes
