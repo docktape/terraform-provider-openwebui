@@ -58,12 +58,15 @@ type modelResourceModel struct {
 type modelCapabilitiesModel struct {
 	Vision          types.Bool `tfsdk:"vision"`
 	FileUpload      types.Bool `tfsdk:"file_upload"`
+	FileContext     types.Bool `tfsdk:"file_context"`
 	WebSearch       types.Bool `tfsdk:"web_search"`
 	ImageGeneration types.Bool `tfsdk:"image_generation"`
 	CodeInterpreter types.Bool `tfsdk:"code_interpreter"`
+	Terminal        types.Bool `tfsdk:"terminal"`
 	Citations       types.Bool `tfsdk:"citations"`
 	StatusUpdates   types.Bool `tfsdk:"status_updates"`
 	Usage           types.Bool `tfsdk:"usage"`
+	BuiltinTools    types.Bool `tfsdk:"builtin_tools"`
 }
 
 // modelParamsModel captures configurable model parameters.
@@ -257,6 +260,12 @@ func (r *modelResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						Description:   "Whether file uploads are allowed in chat.",
 						PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
 					},
+					"file_context": schema.BoolAttribute{
+						Optional:      true,
+						Computed:      true,
+						Description:   "Whether the model can reference full extracted file content as chat context.",
+						PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+					},
 					"web_search": schema.BoolAttribute{
 						Optional:      true,
 						Computed:      true,
@@ -275,6 +284,12 @@ func (r *modelResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						Description:   "Whether code interpreter is available.",
 						PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
 					},
+					"terminal": schema.BoolAttribute{
+						Optional:      true,
+						Computed:      true,
+						Description:   "Whether the model can invoke the built-in terminal tool.",
+						PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+					},
 					"citations": schema.BoolAttribute{
 						Optional:      true,
 						Computed:      true,
@@ -291,6 +306,12 @@ func (r *modelResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						Optional:      true,
 						Computed:      true,
 						Description:   "Whether token usage statistics are returned.",
+						PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+					},
+					"builtin_tools": schema.BoolAttribute{
+						Optional:      true,
+						Computed:      true,
+						Description:   "Whether Open WebUI automatically injects built-in system tools (timestamps, memory, chat history, notes, etc.) in native function-calling mode.",
 						PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
 					},
 				},
@@ -840,6 +861,9 @@ func expandModelCapabilities(caps *modelCapabilitiesModel) map[string]any {
 	if !caps.FileUpload.IsNull() && !caps.FileUpload.IsUnknown() {
 		result["file_upload"] = caps.FileUpload.ValueBool()
 	}
+	if !caps.FileContext.IsNull() && !caps.FileContext.IsUnknown() {
+		result["file_context"] = caps.FileContext.ValueBool()
+	}
 	if !caps.WebSearch.IsNull() && !caps.WebSearch.IsUnknown() {
 		result["web_search"] = caps.WebSearch.ValueBool()
 	}
@@ -849,6 +873,9 @@ func expandModelCapabilities(caps *modelCapabilitiesModel) map[string]any {
 	if !caps.CodeInterpreter.IsNull() && !caps.CodeInterpreter.IsUnknown() {
 		result["code_interpreter"] = caps.CodeInterpreter.ValueBool()
 	}
+	if !caps.Terminal.IsNull() && !caps.Terminal.IsUnknown() {
+		result["terminal"] = caps.Terminal.ValueBool()
+	}
 	if !caps.Citations.IsNull() && !caps.Citations.IsUnknown() {
 		result["citations"] = caps.Citations.ValueBool()
 	}
@@ -857,6 +884,9 @@ func expandModelCapabilities(caps *modelCapabilitiesModel) map[string]any {
 	}
 	if !caps.Usage.IsNull() && !caps.Usage.IsUnknown() {
 		result["usage"] = caps.Usage.ValueBool()
+	}
+	if !caps.BuiltinTools.IsNull() && !caps.BuiltinTools.IsUnknown() {
+		result["builtin_tools"] = caps.BuiltinTools.ValueBool()
 	}
 
 	return result
@@ -1067,12 +1097,15 @@ func flattenModelMeta(ctx context.Context, data map[string]any) (modelMetaState,
 	emptyCapabilities := &modelCapabilitiesModel{
 		Vision:          types.BoolNull(),
 		FileUpload:      types.BoolNull(),
+		FileContext:     types.BoolNull(),
 		WebSearch:       types.BoolNull(),
 		ImageGeneration: types.BoolNull(),
 		CodeInterpreter: types.BoolNull(),
+		Terminal:        types.BoolNull(),
 		Citations:       types.BoolNull(),
 		StatusUpdates:   types.BoolNull(),
 		Usage:           types.BoolNull(),
+		BuiltinTools:    types.BoolNull(),
 	}
 
 	state := modelMetaState{
@@ -1194,12 +1227,15 @@ func flattenModelMeta(ctx context.Context, data map[string]any) (modelMetaState,
 var modelCapabilitiesAttrTypes = map[string]attr.Type{
 	"vision":           types.BoolType,
 	"file_upload":      types.BoolType,
+	"file_context":     types.BoolType,
 	"web_search":       types.BoolType,
 	"image_generation": types.BoolType,
 	"code_interpreter": types.BoolType,
+	"terminal":         types.BoolType,
 	"citations":        types.BoolType,
 	"status_updates":   types.BoolType,
 	"usage":            types.BoolType,
+	"builtin_tools":    types.BoolType,
 }
 
 // capabilitiesEmptyDefaultModifier converts an unknown capabilities plan value
@@ -1242,12 +1278,15 @@ func flattenModelCapabilities(data map[string]any) *modelCapabilitiesModel {
 	caps := &modelCapabilitiesModel{
 		Vision:          types.BoolNull(),
 		FileUpload:      types.BoolNull(),
+		FileContext:     types.BoolNull(),
 		WebSearch:       types.BoolNull(),
 		ImageGeneration: types.BoolNull(),
 		CodeInterpreter: types.BoolNull(),
+		Terminal:        types.BoolNull(),
 		Citations:       types.BoolNull(),
 		StatusUpdates:   types.BoolNull(),
 		Usage:           types.BoolNull(),
+		BuiltinTools:    types.BoolNull(),
 	}
 
 	if data == nil {
@@ -1260,6 +1299,9 @@ func flattenModelCapabilities(data map[string]any) *modelCapabilitiesModel {
 	if value, ok := toBoolValue(data["file_upload"]); ok {
 		caps.FileUpload = types.BoolValue(value)
 	}
+	if value, ok := toBoolValue(data["file_context"]); ok {
+		caps.FileContext = types.BoolValue(value)
+	}
 	if value, ok := toBoolValue(data["web_search"]); ok {
 		caps.WebSearch = types.BoolValue(value)
 	}
@@ -1269,6 +1311,9 @@ func flattenModelCapabilities(data map[string]any) *modelCapabilitiesModel {
 	if value, ok := toBoolValue(data["code_interpreter"]); ok {
 		caps.CodeInterpreter = types.BoolValue(value)
 	}
+	if value, ok := toBoolValue(data["terminal"]); ok {
+		caps.Terminal = types.BoolValue(value)
+	}
 	if value, ok := toBoolValue(data["citations"]); ok {
 		caps.Citations = types.BoolValue(value)
 	}
@@ -1277,6 +1322,9 @@ func flattenModelCapabilities(data map[string]any) *modelCapabilitiesModel {
 	}
 	if value, ok := toBoolValue(data["usage"]); ok {
 		caps.Usage = types.BoolValue(value)
+	}
+	if value, ok := toBoolValue(data["builtin_tools"]); ok {
+		caps.BuiltinTools = types.BoolValue(value)
 	}
 
 	return caps

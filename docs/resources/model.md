@@ -111,11 +111,14 @@ Optional:
 
 Optional:
 
+- `builtin_tools` (Boolean) Whether Open WebUI automatically injects built-in system tools (timestamps, memory, chat history, notes, etc.) in native function-calling mode.
 - `citations` (Boolean) Whether the model returns citations.
 - `code_interpreter` (Boolean) Whether code interpreter is available.
+- `file_context` (Boolean) Whether the model can reference full extracted file content as chat context.
 - `file_upload` (Boolean) Whether file uploads are allowed in chat.
 - `image_generation` (Boolean) Whether image generation is available.
 - `status_updates` (Boolean) Whether the model emits status update messages.
+- `terminal` (Boolean) Whether the model can invoke the built-in terminal tool.
 - `usage` (Boolean) Whether token usage statistics are returned.
 - `vision` (Boolean) Whether the model accepts image inputs.
 - `web_search` (Boolean) Whether web search is available.
