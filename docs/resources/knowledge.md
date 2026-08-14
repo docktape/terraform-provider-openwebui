@@ -35,8 +35,8 @@ resource "openwebui_knowledge" "example" {
 
 ### Optional
 
-- `data_json` (String) Optional JSON object sent as additional metadata during create and update. e.g. `jsonencode({ category = "support" })`.
-- `meta_json` (String) JSON metadata stored on the knowledge entry. Open WebUI may enrich this after create. e.g. `jsonencode({ source = "internal" })`.
+- `data_json` (String) Deprecated: Open WebUI's knowledge create/update API no longer accepts a `data` field (removed prior to v0.9.6), so this attribute has no effect on the server and always reads back as unset. Kept only for backward compatibility with existing configurations; will be removed in a future major version.
+- `meta_json` (String) Deprecated: Open WebUI's knowledge create/update API no longer accepts a `meta` field in the request body (removed prior to v0.9.6) — `meta` is only ever set internally by Open WebUI's external-knowledge sync flow. Setting this attribute has no effect on the server. Kept only for backward compatibility with existing configurations; will be removed in a future major version.
 - `read_groups` (List of String) List of group names or IDs granted read access. Leave unset or empty for public access.
 - `write_groups` (List of String) List of group names or IDs granted write access. Groups here automatically receive read access too. Leave unset or empty for public access.
 
