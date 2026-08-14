@@ -61,9 +61,11 @@ type CodeInterpreterConfigForm struct {
 
 // ModelsConfigForm captures default model configuration.
 type ModelsConfigForm struct {
-	DefaultModels       *string  `json:"DEFAULT_MODELS"`
-	DefaultPinnedModels *string  `json:"DEFAULT_PINNED_MODELS"`
-	ModelOrderList      []string `json:"MODEL_ORDER_LIST"`
+	DefaultModels        *string        `json:"DEFAULT_MODELS"`
+	DefaultPinnedModels  *string        `json:"DEFAULT_PINNED_MODELS"`
+	ModelOrderList       []string       `json:"MODEL_ORDER_LIST"`
+	DefaultModelMetadata map[string]any `json:"DEFAULT_MODEL_METADATA,omitempty"`
+	DefaultModelParams   map[string]any `json:"DEFAULT_MODEL_PARAMS,omitempty"`
 }
 
 // PromptSuggestion captures a default prompt suggestion.
