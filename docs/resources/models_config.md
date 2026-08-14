@@ -25,6 +25,8 @@ resource "openwebui_models_config" "example" {
 
 ### Optional
 
+- `default_model_metadata_json` (String) Optional JSON object of default metadata applied to new models. e.g. `jsonencode({ source = "terraform" })`. Requires Open WebUI v0.9.6+ (present at the currently-supported floor version, but confirm on older deployments).
+- `default_model_params_json` (String) Optional JSON object of default parameters applied to new models. e.g. `jsonencode({ temperature = 0.5 })`. Requires Open WebUI v0.9.6+ (present at the currently-supported floor version, but confirm on older deployments).
 - `default_models` (String) Comma-separated list of model IDs shown by default.
 - `default_pinned_models` (String) Comma-separated list of model IDs pinned at the top of the model list.
 - `model_order_list` (List of String) Ordered list of model IDs controlling display order.

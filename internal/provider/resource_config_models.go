@@ -25,10 +25,12 @@ type modelsConfigResource struct {
 }
 
 type modelsConfigModel struct {
-	ID                  types.String `tfsdk:"id"`
-	DefaultModels       types.String `tfsdk:"default_models"`
-	DefaultPinnedModels types.String `tfsdk:"default_pinned_models"`
-	ModelOrderList      types.List   `tfsdk:"model_order_list"`
+	ID                       types.String `tfsdk:"id"`
+	DefaultModels            types.String `tfsdk:"default_models"`
+	DefaultPinnedModels      types.String `tfsdk:"default_pinned_models"`
+	ModelOrderList           types.List   `tfsdk:"model_order_list"`
+	DefaultModelMetadataJSON types.String `tfsdk:"default_model_metadata_json"`
+	DefaultModelParamsJSON   types.String `tfsdk:"default_model_params_json"`
 }
 
 // NewModelsConfigResource constructs a new models config resource.
@@ -73,6 +75,20 @@ func (r *modelsConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 				Description:         "Ordered list of model IDs controlling display order.",
 				MarkdownDescription: "Ordered list of model IDs controlling display order.",
 				PlanModifiers:       []planmodifier.List{listplanmodifier.UseStateForUnknown()},
+			},
+			"default_model_metadata_json": schema.StringAttribute{
+				Optional:            true,
+				Computed:            true,
+				Description:         "Optional JSON object of default metadata applied to new models. e.g. `jsonencode({ source = \"terraform\" })`. Requires Open WebUI v0.9.6+ (present at the currently-supported floor version, but confirm on older deployments).",
+				MarkdownDescription: "Optional JSON object of default metadata applied to new models. e.g. `jsonencode({ source = \"terraform\" })`. Requires Open WebUI v0.9.6+ (present at the currently-supported floor version, but confirm on older deployments).",
+				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"default_model_params_json": schema.StringAttribute{
+				Optional:            true,
+				Computed:            true,
+				Description:         "Optional JSON object of default parameters applied to new models. e.g. `jsonencode({ temperature = 0.5 })`. Requires Open WebUI v0.9.6+ (present at the currently-supported floor version, but confirm on older deployments).",
+				MarkdownDescription: "Optional JSON object of default parameters applied to new models. e.g. `jsonencode({ temperature = 0.5 })`. Requires Open WebUI v0.9.6+ (present at the currently-supported floor version, but confirm on older deployments).",
+				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 		},
 	}
@@ -127,11 +143,22 @@ func (r *modelsConfigResource) Read(ctx context.Context, req resource.ReadReques
 	orderList, listDiags := flattenStringSlice(ctx, config.ModelOrderList)
 	resp.Diagnostics.Append(listDiags...)
 
+	metadataJSON, err := encodeOptionalJSON(config.DefaultModelMetadata)
+	if err != nil {
+		resp.Diagnostics.AddError("Serialize default_model_metadata_json", err.Error())
+	}
+	paramsJSON, err := encodeOptionalJSON(config.DefaultModelParams)
+	if err != nil {
+		resp.Diagnostics.AddError("Serialize default_model_params_json", err.Error())
+	}
+
 	state := modelsConfigModel{
-		ID:                  types.StringValue("models"),
-		DefaultModels:       stringValueOrNull(config.DefaultModels),
-		DefaultPinnedModels: stringValueOrNull(config.DefaultPinnedModels),
-		ModelOrderList:      orderList,
+		ID:                       types.StringValue("models"),
+		DefaultModels:            stringValueOrNull(config.DefaultModels),
+		DefaultPinnedModels:      stringValueOrNull(config.DefaultPinnedModels),
+		ModelOrderList:           orderList,
+		DefaultModelMetadataJSON: metadataJSON,
+		DefaultModelParamsJSON:   paramsJSON,
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -180,10 +207,18 @@ func applyModelsConfig(ctx context.Context, apiClient *client.Client, plan model
 		orderList = expandStringList(ctx, plan.ModelOrderList, path.Root("model_order_list"), &diags)
 	}
 
+	defaultMetadata := decodeOptionalJSON(plan.DefaultModelMetadataJSON, path.Root("default_model_metadata_json"), &diags)
+	defaultParams := decodeOptionalJSON(plan.DefaultModelParamsJSON, path.Root("default_model_params_json"), &diags)
+	if diags.HasError() {
+		return modelsConfigModel{}, diags
+	}
+
 	form := client.ModelsConfigForm{
-		DefaultModels:       stringPtr(plan.DefaultModels),
-		DefaultPinnedModels: stringPtr(plan.DefaultPinnedModels),
-		ModelOrderList:      orderList,
+		DefaultModels:        stringPtr(plan.DefaultModels),
+		DefaultPinnedModels:  stringPtr(plan.DefaultPinnedModels),
+		ModelOrderList:       orderList,
+		DefaultModelMetadata: defaultMetadata,
+		DefaultModelParams:   defaultParams,
 	}
 
 	updated, err := apiClient.SetModelsConfig(ctx, form)
@@ -195,11 +230,22 @@ func applyModelsConfig(ctx context.Context, apiClient *client.Client, plan model
 	order, listDiags := flattenStringSlice(ctx, updated.ModelOrderList)
 	diags.Append(listDiags...)
 
+	metadataJSON, err := encodeOptionalJSON(updated.DefaultModelMetadata)
+	if err != nil {
+		diags.AddError("Serialize default_model_metadata_json", err.Error())
+	}
+	paramsJSON, err := encodeOptionalJSON(updated.DefaultModelParams)
+	if err != nil {
+		diags.AddError("Serialize default_model_params_json", err.Error())
+	}
+
 	state := modelsConfigModel{
-		ID:                  types.StringValue("models"),
-		DefaultModels:       stringValueOrNull(updated.DefaultModels),
-		DefaultPinnedModels: stringValueOrNull(updated.DefaultPinnedModels),
-		ModelOrderList:      order,
+		ID:                       types.StringValue("models"),
+		DefaultModels:            stringValueOrNull(updated.DefaultModels),
+		DefaultPinnedModels:      stringValueOrNull(updated.DefaultPinnedModels),
+		ModelOrderList:           order,
+		DefaultModelMetadataJSON: metadataJSON,
+		DefaultModelParamsJSON:   paramsJSON,
 	}
 
 	return state, diags
