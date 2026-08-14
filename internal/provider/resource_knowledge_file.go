@@ -220,7 +220,7 @@ func (r *knowledgeFileResource) ImportState(ctx context.Context, req resource.Im
 func readKnowledgeFileState(ctx context.Context, apiClient *client.Client, knowledgeID string, fileID string) (knowledgeFileResourceModel, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	list, err := apiClient.ListKnowledgeFiles(ctx, knowledgeID, "", "", "", "", 1)
+	list, err := apiClient.ListKnowledgeFiles(ctx, knowledgeID, "", "", "", "", 1, client.KnowledgeFilesLookupLimit)
 	if err != nil {
 		if err == client.ErrNotFound {
 			return knowledgeFileResourceModel{}, diags
