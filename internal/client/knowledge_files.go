@@ -31,8 +31,17 @@ type FileUserResponse struct {
 	User      *User          `json:"user,omitempty"`
 }
 
+// KnowledgeFilesLookupLimit is a large page size used when looking up a
+// specific file within a knowledge base by ID, to avoid the server's
+// default 30-item page size (PAGE_ITEM_COUNT) hiding files attached beyond
+// the first page. The backend's limit override on GET /knowledge/{id}/files
+// is admin-only ("Page size (admin only). Defaults to 30.") — safe here
+// because this provider always authenticates with an admin token.
+const KnowledgeFilesLookupLimit = 10000
+
 // ListKnowledgeFiles retrieves file attachments for a knowledge base.
-func (c *Client) ListKnowledgeFiles(ctx context.Context, knowledgeID string, queryValue string, viewOption string, orderBy string, direction string, page int) (*KnowledgeFileListResponse, error) {
+// Pass limit=0 to use the server's default page size.
+func (c *Client) ListKnowledgeFiles(ctx context.Context, knowledgeID string, queryValue string, viewOption string, orderBy string, direction string, page int, limit int) (*KnowledgeFileListResponse, error) {
 	query := url.Values{}
 	if queryValue != "" {
 		query.Set("query", queryValue)
@@ -48,6 +57,9 @@ func (c *Client) ListKnowledgeFiles(ctx context.Context, knowledgeID string, que
 	}
 	if page > 0 {
 		query.Set("page", fmt.Sprintf("%d", page))
+	}
+	if limit > 0 {
+		query.Set("limit", fmt.Sprintf("%d", limit))
 	}
 
 	var resp KnowledgeFileListResponse
