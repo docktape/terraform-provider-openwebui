@@ -260,3 +260,75 @@ func TestExpandModelMeta_HiddenFalse(t *testing.T) {
 		t.Fatalf("expected hidden=false, got %v", val)
 	}
 }
+
+func TestExpandModelCapabilities_NewKeys(t *testing.T) {
+	caps := &modelCapabilitiesModel{
+		Vision:          types.BoolNull(),
+		FileUpload:      types.BoolNull(),
+		WebSearch:       types.BoolNull(),
+		ImageGeneration: types.BoolNull(),
+		CodeInterpreter: types.BoolNull(),
+		Citations:       types.BoolNull(),
+		StatusUpdates:   types.BoolNull(),
+		Usage:           types.BoolNull(),
+		FileContext:     types.BoolValue(true),
+		Terminal:        types.BoolValue(false),
+		BuiltinTools:    types.BoolValue(true),
+	}
+	result := expandModelCapabilities(caps)
+	if result["file_context"] != true {
+		t.Fatalf("expected file_context=true, got %v", result["file_context"])
+	}
+	if result["terminal"] != false {
+		t.Fatalf("expected terminal=false, got %v", result["terminal"])
+	}
+	if result["builtin_tools"] != true {
+		t.Fatalf("expected builtin_tools=true, got %v", result["builtin_tools"])
+	}
+}
+
+func TestFlattenModelCapabilities_NewKeys(t *testing.T) {
+	data := map[string]any{
+		"file_context":  true,
+		"terminal":      false,
+		"builtin_tools": true,
+	}
+	caps := flattenModelCapabilities(data)
+	if caps.FileContext.IsNull() || !caps.FileContext.ValueBool() {
+		t.Fatalf("expected file_context=true, got %v", caps.FileContext)
+	}
+	if caps.Terminal.IsNull() || caps.Terminal.ValueBool() {
+		t.Fatalf("expected terminal=false, got %v", caps.Terminal)
+	}
+	if caps.BuiltinTools.IsNull() || !caps.BuiltinTools.ValueBool() {
+		t.Fatalf("expected builtin_tools=true, got %v", caps.BuiltinTools)
+	}
+}
+
+func TestFlattenModelCapabilities_UnsetNewKeysDefaultNull(t *testing.T) {
+	caps := flattenModelCapabilities(map[string]any{"vision": true})
+	if !caps.FileContext.IsNull() {
+		t.Fatalf("expected file_context null when absent, got %v", caps.FileContext)
+	}
+	if !caps.Terminal.IsNull() {
+		t.Fatalf("expected terminal null when absent, got %v", caps.Terminal)
+	}
+	if !caps.BuiltinTools.IsNull() {
+		t.Fatalf("expected builtin_tools null when absent, got %v", caps.BuiltinTools)
+	}
+}
+
+// Regression test for the exact data-loss bug this task fixes: a model with
+// builtin_tools=true set outside Terraform must not have that flag stripped
+// when Terraform re-flattens and re-expands its capabilities.
+func TestModelCapabilities_UnknownKeyRoundTripDoesNotStrip(t *testing.T) {
+	apiData := map[string]any{
+		"vision":        true,
+		"builtin_tools": true,
+	}
+	flattened := flattenModelCapabilities(apiData)
+	expanded := expandModelCapabilities(flattened)
+	if expanded["builtin_tools"] != true {
+		t.Fatalf("builtin_tools was stripped during flatten/expand round-trip: %v", expanded)
+	}
+}
