@@ -526,3 +526,83 @@ func TestFlattenPermissions_WithAccessGrantsAndSettings(t *testing.T) {
 		t.Fatalf("expected allow_users=true, got %v", ag)
 	}
 }
+
+func TestFilterPermissionKeys_v0110WorkspaceKeys(t *testing.T) {
+	var diags diag.Diagnostics
+	result := filterPermissionKeys(
+		"workspace",
+		map[string]bool{"skills_import": true, "skills_export": false},
+		path.Root("permissions").AtName("workspace"),
+		&diags,
+	)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %s", diags)
+	}
+	if result["skills_import"] != true || result["skills_export"] != false {
+		t.Fatalf("unexpected result: %v", result)
+	}
+}
+
+func TestFilterPermissionKeys_v0110SharingKeys(t *testing.T) {
+	var diags diag.Diagnostics
+	result := filterPermissionKeys(
+		"sharing",
+		map[string]bool{"folders": true},
+		path.Root("permissions").AtName("sharing"),
+		&diags,
+	)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %s", diags)
+	}
+	if result["folders"] != true {
+		t.Fatalf("expected folders=true, got %v", result["folders"])
+	}
+}
+
+func TestFilterPermissionKeys_v0110ChatKeys(t *testing.T) {
+	var diags diag.Diagnostics
+	result := filterPermissionKeys(
+		"chat",
+		map[string]bool{"import": true},
+		path.Root("permissions").AtName("chat"),
+		&diags,
+	)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %s", diags)
+	}
+	if result["import"] != true {
+		t.Fatalf("expected import=true, got %v", result["import"])
+	}
+}
+
+func TestFilterPermissionKeys_v0110FeaturesKeys(t *testing.T) {
+	var diags diag.Diagnostics
+	result := filterPermissionKeys(
+		"features",
+		map[string]bool{"webhooks": true},
+		path.Root("permissions").AtName("features"),
+		&diags,
+	)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %s", diags)
+	}
+	if result["webhooks"] != true {
+		t.Fatalf("expected webhooks=true, got %v", result["webhooks"])
+	}
+}
+
+func TestFilterPermissionKeys_v0110AccessGrantsKeys(t *testing.T) {
+	var diags diag.Diagnostics
+	result := filterPermissionKeys(
+		"access_grants",
+		map[string]bool{"allow_users": true, "allow_groups": false},
+		path.Root("permissions").AtName("access_grants"),
+		&diags,
+	)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %s", diags)
+	}
+	if result["allow_users"] != true || result["allow_groups"] != false {
+		t.Fatalf("unexpected result: %v", result)
+	}
+}

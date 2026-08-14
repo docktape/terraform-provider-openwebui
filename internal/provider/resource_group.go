@@ -102,7 +102,7 @@ func (r *groupResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						Optional:      true,
 						Computed:      true,
 						ElementType:   types.BoolType,
-						Description:   "Workspace-level permissions. Valid keys: `models`, `knowledge`, `prompts`, `tools`.",
+						Description:   "Workspace-level permissions. Valid keys: `models`, `knowledge`, `prompts`, `tools`, `skills`, `models_import`, `models_export`, `prompts_import`, `prompts_export`, `tools_import`, `tools_export`, `skills_import`, `skills_export` (`skills_import`/`skills_export` require Open WebUI v0.10.0+).",
 						PlanModifiers: []planmodifier.Map{mapplanmodifier.UseStateForUnknown()},
 						Validators: []validator.Map{
 							mapvalidator.KeysAre(stringvalidator.OneOf(groupPermissionsWorkspaceKeys...)),
@@ -112,7 +112,7 @@ func (r *groupResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						Optional:      true,
 						Computed:      true,
 						ElementType:   types.BoolType,
-						Description:   "Sharing permissions. Valid keys: `public_models`, `public_knowledge`, `public_prompts`, `public_tools`.",
+						Description:   "Sharing permissions. Valid keys: `public_models`, `public_knowledge`, `public_prompts`, `public_tools`, `models`, `knowledge`, `prompts`, `tools`, `skills`, `public_skills`, `notes`, `public_notes`, `public_chats`, `public_calendars`, `folders` (`folders` requires Open WebUI v0.10.0+).",
 						PlanModifiers: []planmodifier.Map{mapplanmodifier.UseStateForUnknown()},
 						Validators: []validator.Map{
 							mapvalidator.KeysAre(stringvalidator.OneOf(groupPermissionsSharingKeys...)),
@@ -122,7 +122,7 @@ func (r *groupResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						Optional:      true,
 						Computed:      true,
 						ElementType:   types.BoolType,
-						Description:   "Chat-level permissions. Valid keys: `controls`, `valves`, `system_prompt`, `params`, `file_upload`, `delete`, `delete_message`, `continue_response`, `regenerate_response`, `rate_response`, `edit`, `share`, `export`, `stt`, `tts`, `call`, `multiple_models`, `temporary`, `temporary_enforced`.",
+						Description:   "Chat-level permissions. Valid keys: `controls`, `valves`, `system_prompt`, `params`, `file_upload`, `delete`, `delete_message`, `continue_response`, `regenerate_response`, `rate_response`, `edit`, `share`, `export`, `stt`, `tts`, `call`, `multiple_models`, `temporary`, `temporary_enforced`, `web_upload`, `import` (`import` requires Open WebUI v0.10.0+).",
 						PlanModifiers: []planmodifier.Map{mapplanmodifier.UseStateForUnknown()},
 						Validators: []validator.Map{
 							mapvalidator.KeysAre(stringvalidator.OneOf(groupPermissionsChatKeys...)),
@@ -132,7 +132,7 @@ func (r *groupResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						Optional:      true,
 						Computed:      true,
 						ElementType:   types.BoolType,
-						Description:   "Feature access permissions. Valid keys: `direct_tool_servers`, `web_search`, `image_generation`, `code_interpreter`, `notes`.",
+						Description:   "Feature access permissions. Valid keys: `direct_tool_servers`, `web_search`, `image_generation`, `code_interpreter`, `notes`, `memories`, `api_keys`, `channels`, `folders`, `automations`, `calendar`, `webhooks` (`webhooks` requires Open WebUI v0.10.0+).",
 						PlanModifiers: []planmodifier.Map{mapplanmodifier.UseStateForUnknown()},
 						Validators: []validator.Map{
 							mapvalidator.KeysAre(stringvalidator.OneOf(groupPermissionsFeaturesKeys...)),
@@ -142,7 +142,7 @@ func (r *groupResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						ElementType:   types.BoolType,
 						Optional:      true,
 						Computed:      true,
-						Description:   "Access-grant permission flags. Supported key: `allow_users` — whether group members can grant resource access to other users.",
+						Description:   "Access-grant permission flags. Valid keys: `allow_users` — whether group members can grant resource access to other users; `allow_groups` — whether group members can grant resource access to other groups (requires Open WebUI v0.11.0+).",
 						PlanModifiers: []planmodifier.Map{mapplanmodifier.UseStateForUnknown()},
 						Validators: []validator.Map{
 							mapvalidator.KeysAre(stringvalidator.OneOf(groupPermissionsAccessGrantsKeys...)),
