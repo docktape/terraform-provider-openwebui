@@ -461,3 +461,31 @@ resource "openwebui_admin_config" "test" {
 		},
 	})
 }
+
+// TestAccLDAPConfigResource applies LDAP config and verifies idempotency.
+func TestAccLDAPConfigResource(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + `
+resource "openwebui_ldap_config" "test" {
+  enable_ldap = false
+}`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("openwebui_ldap_config.test", "enable_ldap", "false"),
+					resource.TestCheckResourceAttrSet("openwebui_ldap_config.test", "id"),
+				),
+			},
+			{
+				// Idempotency: re-plan with same config, expect no diff
+				Config: testAccProviderConfig() + `
+resource "openwebui_ldap_config" "test" {
+  enable_ldap = false
+}`,
+				PlanOnly: true,
+			},
+		},
+	})
+}

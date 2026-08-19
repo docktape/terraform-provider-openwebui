@@ -421,6 +421,11 @@ type AdminConfigForm struct {
 	ResponseWatermark                 *string `json:"RESPONSE_WATERMARK"`
 }
 
+// LDAPConfigForm captures LDAP enable toggle.
+type LDAPConfigForm struct {
+	EnableLDAP *bool `json:"ENABLE_LDAP"`
+}
+
 // GetAdminConfig retrieves admin configuration.
 func (c *Client) GetAdminConfig(ctx context.Context) (*AdminConfigForm, error) {
 	var resp AdminConfigForm
@@ -434,6 +439,24 @@ func (c *Client) GetAdminConfig(ctx context.Context) (*AdminConfigForm, error) {
 func (c *Client) SetAdminConfig(ctx context.Context, form AdminConfigForm) (*AdminConfigForm, error) {
 	var resp AdminConfigForm
 	if err := c.do(ctx, http.MethodPost, "auths/admin/config", nil, form, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// GetLDAPConfig retrieves LDAP configuration.
+func (c *Client) GetLDAPConfig(ctx context.Context) (*LDAPConfigForm, error) {
+	var resp LDAPConfigForm
+	if err := c.do(ctx, http.MethodGet, "auths/admin/config/ldap", nil, nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// SetLDAPConfig updates LDAP configuration.
+func (c *Client) SetLDAPConfig(ctx context.Context, form LDAPConfigForm) (*LDAPConfigForm, error) {
+	var resp LDAPConfigForm
+	if err := c.do(ctx, http.MethodPost, "auths/admin/config/ldap", nil, form, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
