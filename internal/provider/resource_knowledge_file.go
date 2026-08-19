@@ -47,7 +47,7 @@ func (r *knowledgeFileResource) Metadata(_ context.Context, req resource.Metadat
 // Schema defines the knowledge file resource schema.
 func (r *knowledgeFileResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Attaches an uploaded file to a knowledge base. Destroying this resource detaches the file; set `delete_file = true` to also delete the underlying file.",
+		MarkdownDescription: "Attaches an uploaded file to a knowledge base. Destroying this resource detaches the file; set `delete_file = true` to also delete the underlying file.\n\n~> **Note:** `delete_file = true` only deletes the underlying file if the caller (the provider's configured token) owns the file, or is an admin. Otherwise the detach still succeeds but the underlying file deletion is silently skipped by Open WebUI.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:      true,
@@ -73,7 +73,7 @@ func (r *knowledgeFileResource) Schema(_ context.Context, _ resource.SchemaReque
 			"delete_file": schema.BoolAttribute{
 				Optional:      true,
 				Computed:      true,
-				Description:   "When `true`, the underlying file is deleted when this resource is destroyed. Defaults to `false`.",
+				Description:   "When `true`, the underlying file is deleted when this resource is destroyed. Defaults to `false`. Deletion only takes effect if the caller owns the file or is an admin; otherwise this silently no-ops.",
 				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
 			},
 			"file_json": schema.StringAttribute{

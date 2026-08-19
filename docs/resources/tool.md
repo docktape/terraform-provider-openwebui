@@ -4,11 +4,14 @@ page_title: "openwebui_tool Resource - openwebui"
 subcategory: ""
 description: |-
   Manages a Python tool in Open WebUI. Tools expose callable functions to language models.
+  ~> Note: if an Open WebUI admin disables the ENABLE_PLUGINS setting (introduced in v0.11.0, default enabled), the export endpoint this resource uses to read back content/specs_json returns an empty list, which will read back as empty content on the next terraform plan/apply. CRUD by ID is unaffected — only this fetch-back path.
 ---
 
 # openwebui_tool (Resource)
 
 Manages a Python tool in Open WebUI. Tools expose callable functions to language models.
+
+~> **Note:** if an Open WebUI admin disables the `ENABLE_PLUGINS` setting (introduced in v0.11.0, default enabled), the export endpoint this resource uses to read back `content`/`specs_json` returns an empty list, which will read back as empty content on the next `terraform plan`/`apply`. CRUD by ID is unaffected — only this fetch-back path.
 
 ## Example Usage
 

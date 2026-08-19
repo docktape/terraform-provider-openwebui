@@ -79,8 +79,8 @@ func (r *pipelineResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 			"key": schema.StringAttribute{
 				Optional:            true,
 				Sensitive:           true,
-				Description:         "API key for the pipeline server.",
-				MarkdownDescription: "API key for the pipeline server.",
+				Description:         "API key for the pipeline server. Note: when registering via `url`, Open WebUI ignores any client-supplied key and instead uses the API key already configured for the connection at `url_idx` — this attribute currently has no effect in that path.",
+				MarkdownDescription: "API key for the pipeline server. Note: when registering via `url`, Open WebUI ignores any client-supplied key and instead uses the API key already configured for the connection at `url_idx` — this attribute currently has no effect in that path.",
 				PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
 			},
 			"url_idx": schema.Int64Attribute{

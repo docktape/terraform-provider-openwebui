@@ -8,7 +8,7 @@ import (
 )
 
 // filesListPageSize mirrors the backend PAGE_SIZE for GET /files/.
-const filesListPageSize = 30
+const filesListPageSize = 50
 
 // FileMeta captures metadata returned with files.
 type FileMeta struct {

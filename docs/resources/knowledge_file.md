@@ -4,11 +4,14 @@ page_title: "openwebui_knowledge_file Resource - openwebui"
 subcategory: ""
 description: |-
   Attaches an uploaded file to a knowledge base. Destroying this resource detaches the file; set delete_file = true to also delete the underlying file.
+  ~> Note: delete_file = true only deletes the underlying file if the caller (the provider's configured token) owns the file, or is an admin. Otherwise the detach still succeeds but the underlying file deletion is silently skipped by Open WebUI.
 ---
 
 # openwebui_knowledge_file (Resource)
 
 Attaches an uploaded file to a knowledge base. Destroying this resource detaches the file; set `delete_file = true` to also delete the underlying file.
+
+~> **Note:** `delete_file = true` only deletes the underlying file if the caller (the provider's configured token) owns the file, or is an admin. Otherwise the detach still succeeds but the underlying file deletion is silently skipped by Open WebUI.
 
 ## Example Usage
 
@@ -40,7 +43,7 @@ resource "openwebui_knowledge_file" "example" {
 
 ### Optional
 
-- `delete_file` (Boolean) When `true`, the underlying file is deleted when this resource is destroyed. Defaults to `false`.
+- `delete_file` (Boolean) When `true`, the underlying file is deleted when this resource is destroyed. Defaults to `false`. Deletion only takes effect if the caller owns the file or is an admin; otherwise this silently no-ops.
 
 ### Read-Only
 

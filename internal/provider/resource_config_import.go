@@ -41,7 +41,7 @@ func (r *configImportResource) Metadata(_ context.Context, req resource.Metadata
 // Schema defines the config import schema.
 func (r *configImportResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Restores an Open WebUI configuration from a JSON blob. This is a singleton resource — applying it replaces the entire current configuration.\n\n~> **Warning:** `config_json` may contain secrets. Treat the Terraform state for this resource as sensitive.",
+		MarkdownDescription: "Restores an Open WebUI configuration from a JSON blob. This is a singleton resource — applying it replaces the entire current configuration.\n\n~> **Warning:** `config_json` may contain secrets. Treat the Terraform state for this resource as sensitive.\n\n~> **Note:** Open WebUI v0.10.0 changed the internal key format of this blob from flat `SCREAMING_SNAKE_CASE` keys (e.g. `ENABLE_OPENAI_API`) to dotted namespaced keys (e.g. `openai.enable`). Import a `config_json` produced by a matching major version of Open WebUI — a pre-v0.10.0 export is not meaningfully importable into v0.10.0+, and vice versa.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:      true,
