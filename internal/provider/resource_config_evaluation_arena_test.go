@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/docktape/terraform-provider-openwebui/internal/client"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
@@ -121,5 +122,83 @@ func TestFlattenArenaModelsPreservesNullModelIDs(t *testing.T) {
 	}
 	if !result[0].ModelIDs.IsNull() {
 		t.Fatalf("expected model_ids to be null when Meta.ModelIDs is nil, got %v", result[0].ModelIDs)
+	}
+}
+
+// TestFlattenArenaModelsPreservesEmptyModelIDs is the mirror of
+// TestFlattenArenaModelsPreservesNullModelIDs: when a config explicitly sets
+// model_ids = [], expandArenaModels produces a non-nil, zero-length Go slice,
+// and (with the client's ModelIDs omitempty removed) the backend echoes back
+// "model_ids": [] rather than dropping the key. flattenArenaModels must turn
+// that non-nil-but-empty slice into a non-null, empty Terraform list - not
+// null - or Terraform reports "Provider produced inconsistent result after
+// apply" for a plan that expected an empty list.
+func TestFlattenArenaModelsPreservesEmptyModelIDs(t *testing.T) {
+	ctx := context.Background()
+
+	models := []client.ArenaModel{
+		{
+			ID:   "arena-1",
+			Name: "Arena One",
+			Meta: &client.ArenaModelMeta{
+				ModelIDs: []string{},
+			},
+		},
+	}
+
+	result, diags := flattenArenaModels(ctx, models)
+	if diags.HasError() {
+		t.Fatalf("flattenArenaModels failed: %v", diags)
+	}
+	if len(result) != 1 {
+		t.Fatalf("expected 1 arena model, got %d", len(result))
+	}
+	if result[0].ModelIDs.IsNull() {
+		t.Fatal("expected model_ids to be a non-null empty list when Meta.ModelIDs is non-nil-but-empty, got null")
+	}
+	if len(result[0].ModelIDs.Elements()) != 0 {
+		t.Fatalf("expected model_ids to be empty, got %v", result[0].ModelIDs.Elements())
+	}
+}
+
+// TestExpandArenaModelsProducesNonNilEmptyModelIDs guards the write-side
+// half of the same fix: a Terraform-level model_ids = [] must expand to a
+// non-nil, zero-length Go slice (not nil), so that once the client marshals
+// it without omitempty the wire payload carries "model_ids": [] rather than
+// omitting the key entirely.
+func TestExpandArenaModelsProducesNonNilEmptyModelIDs(t *testing.T) {
+	ctx := context.Background()
+
+	emptyList, listDiags := types.ListValue(types.StringType, []attr.Value{})
+	if listDiags.HasError() {
+		t.Fatalf("types.ListValue failed: %v", listDiags)
+	}
+
+	items := []arenaModelModel{
+		{
+			ID:              types.StringValue("arena-1"),
+			Name:            types.StringValue("Arena One"),
+			ProfileImageURL: types.StringNull(),
+			Description:     types.StringNull(),
+			ModelIDs:        emptyList,
+		},
+	}
+
+	var diags diag.Diagnostics
+	result := expandArenaModels(ctx, items, &diags)
+	if diags.HasError() {
+		t.Fatalf("expandArenaModels failed: %v", diags)
+	}
+	if len(result) != 1 {
+		t.Fatalf("expected 1 arena model, got %d", len(result))
+	}
+	if result[0].Meta == nil {
+		t.Fatal("expected Meta to be non-nil")
+	}
+	if result[0].Meta.ModelIDs == nil {
+		t.Fatal("expected ModelIDs to be a non-nil empty slice, got nil")
+	}
+	if len(result[0].Meta.ModelIDs) != 0 {
+		t.Fatalf("expected ModelIDs to be empty, got %v", result[0].Meta.ModelIDs)
 	}
 }

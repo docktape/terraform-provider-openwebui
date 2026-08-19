@@ -324,7 +324,7 @@ func (c *Client) SetTasksConfig(ctx context.Context, form TaskConfigForm) (*Task
 type ArenaModelMeta struct {
 	ProfileImageURL *string  `json:"profile_image_url,omitempty"`
 	Description     *string  `json:"description,omitempty"`
-	ModelIDs        []string `json:"model_ids,omitempty"`
+	ModelIDs        []string `json:"model_ids"`
 }
 
 // ArenaModel captures a single evaluation arena model entry. The Open WebUI
