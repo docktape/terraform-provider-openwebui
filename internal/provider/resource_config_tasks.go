@@ -65,9 +65,10 @@ func (r *tasksConfigResource) Schema(_ context.Context, _ resource.SchemaRequest
 		MarkdownDescription: "Manages Open WebUI's title/tag/autocomplete/follow-up task-model generation settings. This is a singleton resource.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				Computed:      true,
-				Description:   "Singleton identifier.",
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				Computed:            true,
+				Description:         "Singleton identifier.",
+				MarkdownDescription: "Singleton identifier.",
+				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"task_model":                               str("Model ID used for internal generation tasks (title, tags, etc.) when not using the chat model."),
 			"task_model_external":                      str("Model ID used for internal generation tasks when the chat backend is an external API."),
@@ -101,34 +102,59 @@ func (r *tasksConfigResource) Configure(_ context.Context, req resource.Configur
 }
 
 func (r *tasksConfigResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	r.apply(ctx, req.Plan.Get, resp.Diagnostics.Append, resp.State.Set, &resp.Diagnostics)
-}
-
-func (r *tasksConfigResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	r.apply(ctx, req.Plan.Get, resp.Diagnostics.Append, resp.State.Set, &resp.Diagnostics)
-}
-
-func (r *tasksConfigResource) apply(ctx context.Context, getPlan func(context.Context, any) diag.Diagnostics, appendDiags func(...diag.Diagnostic), setState func(context.Context, any) diag.Diagnostics, diags *diag.Diagnostics) {
 	if r.client == nil {
-		diags.AddError("Unconfigured API client", "Expected provider to configure the Open WebUI client before managing tasks config.")
+		resp.Diagnostics.AddError("Unconfigured API client", "Expected provider to configure the Open WebUI client before managing tasks config.")
 		return
 	}
 
 	var plan tasksConfigModel
-	appendDiags(getPlan(ctx, &plan)...)
-	if diags.HasError() {
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
+	state, diags := applyTasksConfig(ctx, r.client, plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+}
+
+func (r *tasksConfigResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	if r.client == nil {
+		resp.Diagnostics.AddError("Unconfigured API client", "Expected provider to configure the Open WebUI client before managing tasks config.")
+		return
+	}
+
+	var plan tasksConfigModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	state, diags := applyTasksConfig(ctx, r.client, plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+}
+
+func applyTasksConfig(ctx context.Context, apiClient *client.Client, plan tasksConfigModel) (tasksConfigModel, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
 	form := tasksConfigFormFromModel(plan)
-	updated, err := r.client.SetTasksConfig(ctx, form)
+	updated, err := apiClient.SetTasksConfig(ctx, form)
 	if err != nil {
 		diags.AddError("Update tasks config failed", err.Error())
-		return
+		return tasksConfigModel{}, diags
 	}
 
 	state := tasksConfigModelFromForm(*updated)
-	appendDiags(setState(ctx, &state)...)
+	return state, diags
 }
 
 func (r *tasksConfigResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
