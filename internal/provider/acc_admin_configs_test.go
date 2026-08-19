@@ -218,3 +218,38 @@ resource "openwebui_tasks_config" "test" {
 		},
 	})
 }
+
+// TestAccChatConfigResource applies a known chat config and verifies idempotency.
+func TestAccChatConfigResource(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + `
+resource "openwebui_chat_config" "test" {
+  enable_context_compaction                 = true
+  context_compaction_token_threshold        = 8000
+  context_compaction_token_cap              = 12000
+  context_compaction_retention_percentage   = 50.5
+  context_compaction_prompt_template        = "Compact this context: {{context}}"
+}`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("openwebui_chat_config.test", "enable_context_compaction", "true"),
+					resource.TestCheckResourceAttrSet("openwebui_chat_config.test", "id"),
+				),
+			},
+			{
+				Config: testAccProviderConfig() + `
+resource "openwebui_chat_config" "test" {
+  enable_context_compaction                 = true
+  context_compaction_token_threshold        = 8000
+  context_compaction_token_cap              = 12000
+  context_compaction_retention_percentage   = 50.5
+  context_compaction_prompt_template        = "Compact this context: {{context}}"
+}`,
+				PlanOnly: true,
+			},
+		},
+	})
+}

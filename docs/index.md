@@ -4,7 +4,7 @@ page_title: "openwebui Provider"
 description: |-
   The openwebui provider manages resources in an Open WebUI https://openwebui.com deployment via its REST API.
   Resources
-  openwebui_knowledge — knowledge base entriesopenwebui_model — custom model definitionsopenwebui_prompt — reusable prompt commandsopenwebui_group — user groups with permissionsopenwebui_tool / openwebui_tool_valves — Python tools and their settingsopenwebui_pipeline / openwebui_pipeline_valves — pipeline registrations and settingsopenwebui_file / openwebui_knowledge_file — uploaded files and knowledge attachmentsopenwebui_function / openwebui_function_valves — Python functions and their settingsopenwebui_config_import — bulk configuration restoreopenwebui_connections_config — direct connection settingsopenwebui_tool_servers_config — external tool server registrationsopenwebui_code_execution_config — code execution and interpreter settingsopenwebui_models_config — default model ordering settingsopenwebui_tasks_config — title/tag/autocomplete/follow-up generation settingsopenwebui_suggestions_config — default prompt suggestionsopenwebui_banners_config — UI announcement bannersopenwebui_oauth_client — OAuth client registrations
+  openwebui_knowledge — knowledge base entriesopenwebui_model — custom model definitionsopenwebui_prompt — reusable prompt commandsopenwebui_group — user groups with permissionsopenwebui_tool / openwebui_tool_valves — Python tools and their settingsopenwebui_pipeline / openwebui_pipeline_valves — pipeline registrations and settingsopenwebui_file / openwebui_knowledge_file — uploaded files and knowledge attachmentsopenwebui_function / openwebui_function_valves — Python functions and their settingsopenwebui_config_import — bulk configuration restoreopenwebui_connections_config — direct connection settingsopenwebui_tool_servers_config — external tool server registrationsopenwebui_code_execution_config — code execution and interpreter settingsopenwebui_models_config — default model ordering settingsopenwebui_tasks_config — title/tag/autocomplete/follow-up generation settingsopenwebui_chat_config — chat context-compaction settingsopenwebui_suggestions_config — default prompt suggestionsopenwebui_banners_config — UI announcement bannersopenwebui_oauth_client — OAuth client registrations
   Data Sources
   openwebui_model, openwebui_knowledge, openwebui_prompt, openwebui_group, openwebui_tool, openwebui_pipeline — look up existing objects by name or IDopenwebui_file, openwebui_files — look up uploaded filesopenwebui_config_export — export the current Open WebUI configurationopenwebui_user — look up a user by email or IDopenwebui_tool_server_verify — verify connectivity to a tool server
 ---
@@ -29,6 +29,7 @@ The **openwebui** provider manages resources in an [Open WebUI](https://openwebu
 - `openwebui_code_execution_config` — code execution and interpreter settings
 - `openwebui_models_config` — default model ordering settings
 - `openwebui_tasks_config` — title/tag/autocomplete/follow-up generation settings
+- `openwebui_chat_config` — chat context-compaction settings
 - `openwebui_suggestions_config` — default prompt suggestions
 - `openwebui_banners_config` — UI announcement banners
 - `openwebui_oauth_client` — OAuth client registrations
