@@ -267,8 +267,19 @@ func flattenArenaModels(ctx context.Context, models []client.ArenaModel) ([]aren
 			description = m.Meta.Description
 		}
 
-		modelIDList, listDiags := flattenStringSlice(ctx, modelIDs)
-		diags.Append(listDiags...)
+		// model_ids is Optional (not Computed), so Terraform requires the
+		// provider return exactly null when the config omits it. The real
+		// Open WebUI backend's DEFAULT_ARENA_MODEL.meta.model_ids defaults to
+		// None, which json.Unmarshal leaves as a nil []string - distinct from
+		// an explicit "model_ids": [] (a non-nil, zero-length slice). Preserve
+		// that distinction instead of unconditionally calling
+		// flattenStringSlice, which always coerces nil into an empty list.
+		modelIDList := types.ListNull(types.StringType)
+		if modelIDs != nil {
+			var listDiags diag.Diagnostics
+			modelIDList, listDiags = flattenStringSlice(ctx, modelIDs)
+			diags.Append(listDiags...)
+		}
 
 		item := arenaModelModel{
 			ID:              types.StringValue(m.ID),
