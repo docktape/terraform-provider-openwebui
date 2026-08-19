@@ -77,25 +77,30 @@ func (r *evaluationArenaConfigResource) Schema(_ context.Context, _ resource.Sch
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"id": schema.StringAttribute{
-							Required:    true,
-							Description: "Unique identifier for the arena model entry.",
+							Required:            true,
+							Description:         "Unique identifier for the arena model entry.",
+							MarkdownDescription: "Unique identifier for the arena model entry.",
 						},
 						"name": schema.StringAttribute{
-							Required:    true,
-							Description: "Display name for the arena model entry.",
+							Required:            true,
+							Description:         "Display name for the arena model entry.",
+							MarkdownDescription: "Display name for the arena model entry.",
 						},
 						"profile_image_url": schema.StringAttribute{
-							Optional:    true,
-							Description: "Profile image URL shown for the arena model entry, e.g. `/favicon.png`.",
+							Optional:            true,
+							Description:         "Profile image URL shown for the arena model entry, e.g. `/favicon.png`.",
+							MarkdownDescription: "Profile image URL shown for the arena model entry, e.g. `/favicon.png`.",
 						},
 						"description": schema.StringAttribute{
-							Optional:    true,
-							Description: "Description of the arena model entry.",
+							Optional:            true,
+							Description:         "Description of the arena model entry.",
+							MarkdownDescription: "Description of the arena model entry.",
 						},
 						"model_ids": schema.ListAttribute{
-							ElementType: types.StringType,
-							Optional:    true,
-							Description: "IDs of the real models this arena model entry draws from.",
+							ElementType:         types.StringType,
+							Optional:            true,
+							Description:         "IDs of the real models this arena model entry draws from.",
+							MarkdownDescription: "IDs of the real models this arena model entry draws from.",
 						},
 					},
 				},
