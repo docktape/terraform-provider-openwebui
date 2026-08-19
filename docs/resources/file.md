@@ -29,7 +29,7 @@ resource "openwebui_file" "example" {
 ### Optional
 
 - `metadata_json` (String) Optional JSON metadata to attach to the file on upload. e.g. `jsonencode({ category = "docs" })`. Forces replacement.
-- `process` (Boolean) Whether Open WebUI should process the file for RAG (chunk and embed it). Defaults to `false`.
+- `process` (Boolean) Whether Open WebUI should process the file for RAG (chunk and embed it). Defaults to `false`. Note: a file uploaded with `process = false` cannot be attached via `openwebui_knowledge_file` — Open WebUI's knowledge API rejects attaching an unprocessed file with an HTTP 400.
 - `process_in_background` (Boolean) Whether RAG processing runs asynchronously. Only relevant when `process = true`. Defaults to `false`.
 
 ### Read-Only

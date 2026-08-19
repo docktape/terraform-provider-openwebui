@@ -23,7 +23,7 @@ resource "openwebui_pipeline" "example" {
 
 ### Optional
 
-- `key` (String, Sensitive) API key for the pipeline server.
+- `key` (String, Sensitive) API key for the pipeline server. Note: when registering via `url`, Open WebUI ignores any client-supplied key and instead uses the API key already configured for the connection at `url_idx` — this attribute currently has no effect in that path.
 - `source_path` (String) Local path to a pipeline `.py` file to upload.
 - `url` (String) Base URL of the pipeline server to register, e.g. `http://pipelines.internal:9099`.
 - `url_idx` (Number) Index of the pipeline server URL as stored by Open WebUI. Defaults to 0.

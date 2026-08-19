@@ -151,7 +151,7 @@ func (r *modelResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 			"is_active": schema.BoolAttribute{
 				Optional:      true,
 				Computed:      true,
-				Description:   "Whether the model is visible and available to users. Defaults to `false`.",
+				Description:   "Whether the model is visible and available to users. Open WebUI defaults new models to `true` if this is left unset.",
 				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
 			},
 			"hidden": schema.BoolAttribute{

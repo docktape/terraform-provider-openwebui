@@ -5,6 +5,7 @@ subcategory: ""
 description: |-
   Restores an Open WebUI configuration from a JSON blob. This is a singleton resource — applying it replaces the entire current configuration.
   ~> Warning: config_json may contain secrets. Treat the Terraform state for this resource as sensitive.
+  ~> Note: Open WebUI v0.10.0 changed the internal key format of this blob from flat SCREAMING_SNAKE_CASE keys (e.g. ENABLE_OPENAI_API) to dotted namespaced keys (e.g. openai.enable). Import a config_json produced by a matching major version of Open WebUI — a pre-v0.10.0 export is not meaningfully importable into v0.10.0+, and vice versa.
 ---
 
 # openwebui_config_import (Resource)
@@ -12,6 +13,8 @@ description: |-
 Restores an Open WebUI configuration from a JSON blob. This is a singleton resource — applying it replaces the entire current configuration.
 
 ~> **Warning:** `config_json` may contain secrets. Treat the Terraform state for this resource as sensitive.
+
+~> **Note:** Open WebUI v0.10.0 changed the internal key format of this blob from flat `SCREAMING_SNAKE_CASE` keys (e.g. `ENABLE_OPENAI_API`) to dotted namespaced keys (e.g. `openai.enable`). Import a `config_json` produced by a matching major version of Open WebUI — a pre-v0.10.0 export is not meaningfully importable into v0.10.0+, and vice versa.
 
 ## Example Usage
 

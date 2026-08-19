@@ -74,7 +74,7 @@ func (r *fileResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 			"process": schema.BoolAttribute{
 				Optional:      true,
 				Computed:      true,
-				Description:   "Whether Open WebUI should process the file for RAG (chunk and embed it). Defaults to `false`.",
+				Description:   "Whether Open WebUI should process the file for RAG (chunk and embed it). Defaults to `false`. Note: a file uploaded with `process = false` cannot be attached via `openwebui_knowledge_file` — Open WebUI's knowledge API rejects attaching an unprocessed file with an HTTP 400.",
 				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown(), boolplanmodifier.RequiresReplace()},
 			},
 			"process_in_background": schema.BoolAttribute{

@@ -5,6 +5,7 @@ subcategory: ""
 description: |-
   Exports the current Open WebUI configuration as a JSON blob. Use together with openwebui_config_import to back up and restore configuration.
   ~> Warning: The exported JSON may contain secrets. Treat it as sensitive.
+  ~> Note: Open WebUI v0.10.0 changed the internal key format of this blob from flat SCREAMING_SNAKE_CASE keys (e.g. ENABLE_OPENAI_API) to dotted namespaced keys (e.g. openai.enable). An export taken from a pre-v0.10.0 instance is not meaningfully re-importable into v0.10.0+, and vice versa.
 ---
 
 # openwebui_config_export (Data Source)
@@ -12,6 +13,8 @@ description: |-
 Exports the current Open WebUI configuration as a JSON blob. Use together with `openwebui_config_import` to back up and restore configuration.
 
 ~> **Warning:** The exported JSON may contain secrets. Treat it as sensitive.
+
+~> **Note:** Open WebUI v0.10.0 changed the internal key format of this blob from flat `SCREAMING_SNAKE_CASE` keys (e.g. `ENABLE_OPENAI_API`) to dotted namespaced keys (e.g. `openai.enable`). An export taken from a pre-v0.10.0 instance is not meaningfully re-importable into v0.10.0+, and vice versa.
 
 ## Example Usage
 

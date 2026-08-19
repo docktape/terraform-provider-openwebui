@@ -56,7 +56,7 @@ func (r *toolResource) Metadata(_ context.Context, req resource.MetadataRequest,
 // Schema defines the tool resource schema.
 func (r *toolResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manages a Python tool in Open WebUI. Tools expose callable functions to language models.",
+		MarkdownDescription: "Manages a Python tool in Open WebUI. Tools expose callable functions to language models.\n\n~> **Note:** if an Open WebUI admin disables the `ENABLE_PLUGINS` setting (introduced in v0.11.0, default enabled), the export endpoint this resource uses to read back `content`/`specs_json` returns an empty list, which will read back as empty content on the next `terraform plan`/`apply`. CRUD by ID is unaffected — only this fetch-back path.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:            true,

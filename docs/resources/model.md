@@ -51,7 +51,7 @@ resource "openwebui_model" "example" {
 - `default_feature_ids` (List of String) List of feature IDs enabled by default, e.g. `["web_search"]`.
 - `description` (String) Short description shown alongside the model name.
 - `hidden` (Boolean) When `true`, the model is hidden from the model selector list in the UI but remains usable via the API. Distinct from `is_active` — a hidden model is still active.
-- `is_active` (Boolean) Whether the model is visible and available to users. Defaults to `false`.
+- `is_active` (Boolean) Whether the model is visible and available to users. Open WebUI defaults new models to `true` if this is left unset.
 - `meta_additional_json` (String) Additional metadata JSON merged into the model's `meta` object. e.g. `jsonencode({ info = "custom" })`.
 - `params_additional_json` (String) Additional model parameters JSON merged into `params`, for fields not covered by the `params` block. e.g. `jsonencode({ top_p = 0.9 })`.
 - `profile_image_url` (String) URL of the model's profile image.
