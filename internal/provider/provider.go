@@ -62,6 +62,7 @@ func (p *openWebUIProvider) Schema(_ context.Context, _ provider.SchemaRequest, 
 			"- `openwebui_models_config` — default model ordering settings\n" +
 			"- `openwebui_tasks_config` — title/tag/autocomplete/follow-up generation settings\n" +
 			"- `openwebui_chat_config` — chat context-compaction settings\n" +
+			"- `openwebui_evaluation_arena_config` — evaluation arena model comparison settings\n" +
 			"- `openwebui_suggestions_config` — default prompt suggestions\n" +
 			"- `openwebui_banners_config` — UI announcement banners\n" +
 			"- `openwebui_oauth_client` — OAuth client registrations\n\n" +
@@ -177,6 +178,7 @@ func (p *openWebUIProvider) Resources(_ context.Context) []func() resource.Resou
 		NewModelsConfigResource,
 		NewTasksConfigResource,
 		NewChatConfigResource,
+		NewEvaluationArenaConfigResource,
 		NewSuggestionsConfigResource,
 		NewBannersConfigResource,
 		NewOAuthClientResource,

@@ -319,3 +319,27 @@ func (c *Client) SetTasksConfig(ctx context.Context, form TaskConfigForm) (*Task
 	}
 	return &resp, nil
 }
+
+// EvaluationArenaConfigForm captures evaluation arena configuration.
+type EvaluationArenaConfigForm struct {
+	EnableEvaluationArenaModels bool     `json:"ENABLE_EVALUATION_ARENA_MODELS"`
+	EvaluationArenaModels       []string `json:"EVALUATION_ARENA_MODELS"`
+}
+
+// GetEvaluationArenaConfig retrieves evaluation arena configuration.
+func (c *Client) GetEvaluationArenaConfig(ctx context.Context) (*EvaluationArenaConfigForm, error) {
+	var resp EvaluationArenaConfigForm
+	if err := c.do(ctx, http.MethodGet, "evaluations/config", nil, nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// SetEvaluationArenaConfig updates evaluation arena configuration.
+func (c *Client) SetEvaluationArenaConfig(ctx context.Context, form EvaluationArenaConfigForm) (*EvaluationArenaConfigForm, error) {
+	var resp EvaluationArenaConfigForm
+	if err := c.do(ctx, http.MethodPost, "evaluations/config", nil, form, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
