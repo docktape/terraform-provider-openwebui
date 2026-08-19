@@ -213,6 +213,27 @@ func applyModelsConfig(ctx context.Context, apiClient *client.Client, plan model
 		return modelsConfigModel{}, diags
 	}
 
+	// The backend has no partial-update semantics for this endpoint: any field
+	// omitted from the request is defaulted to null server-side by Pydantic and
+	// persisted unconditionally, clobbering whatever was previously configured
+	// (config_updates/Config.upsert forward every field regardless of value).
+	// When the plan doesn't specify a value, fetch the server's current value
+	// first and echo it back so an apply that doesn't touch these fields can't
+	// silently wipe them.
+	if defaultMetadata == nil || defaultParams == nil {
+		current, err := apiClient.GetModelsConfig(ctx)
+		if err != nil {
+			diags.AddError("Read current models config failed", err.Error())
+			return modelsConfigModel{}, diags
+		}
+		if defaultMetadata == nil {
+			defaultMetadata = current.DefaultModelMetadata
+		}
+		if defaultParams == nil {
+			defaultParams = current.DefaultModelParams
+		}
+	}
+
 	form := client.ModelsConfigForm{
 		DefaultModels:        stringPtr(plan.DefaultModels),
 		DefaultPinnedModels:  stringPtr(plan.DefaultPinnedModels),

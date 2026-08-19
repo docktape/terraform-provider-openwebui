@@ -274,6 +274,7 @@ func TestExpandModelCapabilities_NewKeys(t *testing.T) {
 		FileContext:     types.BoolValue(true),
 		Terminal:        types.BoolValue(false),
 		BuiltinTools:    types.BoolValue(true),
+		Memory:          types.BoolValue(false),
 	}
 	result := expandModelCapabilities(caps)
 	if result["file_context"] != true {
@@ -285,6 +286,9 @@ func TestExpandModelCapabilities_NewKeys(t *testing.T) {
 	if result["builtin_tools"] != true {
 		t.Fatalf("expected builtin_tools=true, got %v", result["builtin_tools"])
 	}
+	if result["memory"] != false {
+		t.Fatalf("expected memory=false, got %v", result["memory"])
+	}
 }
 
 func TestFlattenModelCapabilities_NewKeys(t *testing.T) {
@@ -292,6 +296,7 @@ func TestFlattenModelCapabilities_NewKeys(t *testing.T) {
 		"file_context":  true,
 		"terminal":      false,
 		"builtin_tools": true,
+		"memory":        false,
 	}
 	caps := flattenModelCapabilities(data)
 	if caps.FileContext.IsNull() || !caps.FileContext.ValueBool() {
@@ -302,6 +307,9 @@ func TestFlattenModelCapabilities_NewKeys(t *testing.T) {
 	}
 	if caps.BuiltinTools.IsNull() || !caps.BuiltinTools.ValueBool() {
 		t.Fatalf("expected builtin_tools=true, got %v", caps.BuiltinTools)
+	}
+	if caps.Memory.IsNull() || caps.Memory.ValueBool() {
+		t.Fatalf("expected memory=false, got %v", caps.Memory)
 	}
 }
 
@@ -316,6 +324,9 @@ func TestFlattenModelCapabilities_UnsetNewKeysDefaultNull(t *testing.T) {
 	if !caps.BuiltinTools.IsNull() {
 		t.Fatalf("expected builtin_tools null when absent, got %v", caps.BuiltinTools)
 	}
+	if !caps.Memory.IsNull() {
+		t.Fatalf("expected memory null when absent, got %v", caps.Memory)
+	}
 }
 
 // Regression test for the exact data-loss bug this task fixes: a model with
@@ -325,10 +336,14 @@ func TestModelCapabilities_UnknownKeyRoundTripDoesNotStrip(t *testing.T) {
 	apiData := map[string]any{
 		"vision":        true,
 		"builtin_tools": true,
+		"memory":        true,
 	}
 	flattened := flattenModelCapabilities(apiData)
 	expanded := expandModelCapabilities(flattened)
 	if expanded["builtin_tools"] != true {
 		t.Fatalf("builtin_tools was stripped during flatten/expand round-trip: %v", expanded)
+	}
+	if expanded["memory"] != true {
+		t.Fatalf("memory was stripped during flatten/expand round-trip: %v", expanded)
 	}
 }
