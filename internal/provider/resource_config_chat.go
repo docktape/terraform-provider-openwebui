@@ -31,6 +31,7 @@ type chatConfigModel struct {
 	ContextCompactionTokenCap            types.Int64  `tfsdk:"context_compaction_token_cap"`
 	ContextCompactionRetentionPercentage types.Int64  `tfsdk:"context_compaction_retention_percentage"`
 	ContextCompactionPromptTemplate      types.String `tfsdk:"context_compaction_prompt_template"`
+	ContextCompactionModel               types.String `tfsdk:"context_compaction_model"`
 }
 
 func NewChatConfigResource() resource.Resource {
@@ -65,6 +66,7 @@ func (r *chatConfigResource) Schema(_ context.Context, _ resource.SchemaRequest,
 			"context_compaction_token_cap":            i("Maximum tokens to retain after compaction."),
 			"context_compaction_retention_percentage": i("Percentage of tokens to retain from the original context (10-50)."),
 			"context_compaction_prompt_template":      s("Prompt template used for context compaction operations."),
+			"context_compaction_model":                s("Model ID used when compacting/summarizing chat context, if different from the chat's regular model."),
 		},
 	}
 }
@@ -170,6 +172,7 @@ func chatConfigFormFromModel(m chatConfigModel) client.ChatConfigForm {
 		ContextCompactionTokenCap:            tokenCap,
 		ContextCompactionRetentionPercentage: m.ContextCompactionRetentionPercentage.ValueInt64(),
 		ContextCompactionPromptTemplate:      m.ContextCompactionPromptTemplate.ValueString(),
+		ContextCompactionModel:               m.ContextCompactionModel.ValueString(),
 	}
 }
 
@@ -187,5 +190,6 @@ func chatConfigModelFromForm(f client.ChatConfigForm) chatConfigModel {
 		ContextCompactionTokenCap:            tokenCapValue,
 		ContextCompactionRetentionPercentage: types.Int64Value(f.ContextCompactionRetentionPercentage),
 		ContextCompactionPromptTemplate:      types.StringValue(f.ContextCompactionPromptTemplate),
+		ContextCompactionModel:               types.StringValue(f.ContextCompactionModel),
 	}
 }

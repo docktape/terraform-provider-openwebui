@@ -233,6 +233,7 @@ resource "openwebui_chat_config" "test" {
   context_compaction_token_cap              = 12000
   context_compaction_retention_percentage   = 40
   context_compaction_prompt_template        = "Compact this context: {{context}}"
+  context_compaction_model                  = "gpt-4o-mini"
 }`,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("openwebui_chat_config.test", "enable_context_compaction", "true"),
@@ -247,6 +248,7 @@ resource "openwebui_chat_config" "test" {
   context_compaction_token_cap              = 12000
   context_compaction_retention_percentage   = 40
   context_compaction_prompt_template        = "Compact this context: {{context}}"
+  context_compaction_model                  = "gpt-4o-mini"
 }`,
 				PlanOnly: true,
 			},

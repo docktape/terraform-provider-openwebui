@@ -10,7 +10,7 @@ import (
 func TestGetSetChatConfigRoundTrip(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"ENABLE_CONTEXT_COMPACTION":true,"CONTEXT_COMPACTION_TOKEN_THRESHOLD":8000,"CONTEXT_COMPACTION_TOKEN_CAP":12000,"CONTEXT_COMPACTION_RETENTION_PERCENTAGE":40,"CONTEXT_COMPACTION_PROMPT_TEMPLATE":"compact prompt"}`))
+		_, _ = w.Write([]byte(`{"ENABLE_CONTEXT_COMPACTION":true,"CONTEXT_COMPACTION_TOKEN_THRESHOLD":8000,"CONTEXT_COMPACTION_TOKEN_CAP":12000,"CONTEXT_COMPACTION_RETENTION_PERCENTAGE":40,"CONTEXT_COMPACTION_PROMPT_TEMPLATE":"compact prompt","CONTEXT_COMPACTION_MODEL":"gpt-4o-mini"}`))
 	}))
 	t.Cleanup(server.Close)
 
@@ -37,6 +37,9 @@ func TestGetSetChatConfigRoundTrip(t *testing.T) {
 	}
 	if got.ContextCompactionPromptTemplate != "compact prompt" {
 		t.Fatalf("expected ContextCompactionPromptTemplate=compact prompt, got %v", got.ContextCompactionPromptTemplate)
+	}
+	if got.ContextCompactionModel != "gpt-4o-mini" {
+		t.Fatalf("expected ContextCompactionModel=gpt-4o-mini, got %v", got.ContextCompactionModel)
 	}
 
 	updated, err := c.SetChatConfig(context.Background(), *got)

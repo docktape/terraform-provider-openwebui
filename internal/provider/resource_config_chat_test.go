@@ -14,6 +14,7 @@ func TestChatConfigFormModelRoundTrip(t *testing.T) {
 		ContextCompactionTokenCap:            &tokenCap,
 		ContextCompactionRetentionPercentage: 40,
 		ContextCompactionPromptTemplate:      "compact prompt",
+		ContextCompactionModel:               "gpt-4o-mini",
 	}
 	model := chatConfigModelFromForm(form)
 	if !model.EnableContextCompaction.ValueBool() {
@@ -25,6 +26,9 @@ func TestChatConfigFormModelRoundTrip(t *testing.T) {
 	if model.ContextCompactionRetentionPercentage.ValueInt64() != 40 {
 		t.Fatalf("expected 40, got %d", model.ContextCompactionRetentionPercentage.ValueInt64())
 	}
+	if model.ContextCompactionModel.ValueString() != "gpt-4o-mini" {
+		t.Fatalf("expected gpt-4o-mini, got %s", model.ContextCompactionModel.ValueString())
+	}
 
 	roundTripped := chatConfigFormFromModel(model)
 	if !roundTripped.EnableContextCompaction {
@@ -35,5 +39,8 @@ func TestChatConfigFormModelRoundTrip(t *testing.T) {
 	}
 	if roundTripped.ContextCompactionRetentionPercentage != 40 {
 		t.Fatalf("round-trip lost ContextCompactionRetentionPercentage: %d", roundTripped.ContextCompactionRetentionPercentage)
+	}
+	if roundTripped.ContextCompactionModel != "gpt-4o-mini" {
+		t.Fatalf("round-trip lost ContextCompactionModel: %s", roundTripped.ContextCompactionModel)
 	}
 }

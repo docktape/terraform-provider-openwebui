@@ -22,6 +22,7 @@ resource "openwebui_chat_config" "example" {
   context_compaction_token_cap              = 12000
   context_compaction_retention_percentage   = 40
   context_compaction_prompt_template        = "Please compact the following context to the most important parts."
+  context_compaction_model                  = "gpt-4o-mini"
 }
 ```
 
@@ -30,6 +31,7 @@ resource "openwebui_chat_config" "example" {
 
 ### Optional
 
+- `context_compaction_model` (String) Model ID used when compacting/summarizing chat context, if different from the chat's regular model.
 - `context_compaction_prompt_template` (String) Prompt template used for context compaction operations.
 - `context_compaction_retention_percentage` (Number) Percentage of tokens to retain from the original context (10-50).
 - `context_compaction_token_cap` (Number) Maximum tokens to retain after compaction.
