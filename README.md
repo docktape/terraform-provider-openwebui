@@ -13,7 +13,7 @@ configuration in any Open WebUI deployment.
 | Component      | Requirement                                             |
 | -------------- | ------------------------------------------------------- |
 | Terraform      | 1.6 or newer                                            |
-| Open WebUI     | v0.9.0 – v0.9.6                                         |
+| Open WebUI     | v0.9.0 – v0.11.0                                        |
 | Go             | 1.25+ (only required to build the provider)             |
 
 Attributes backed by API endpoints that appeared in a later patch release are
