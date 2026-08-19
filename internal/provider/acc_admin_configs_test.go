@@ -263,6 +263,12 @@ func TestAccEvaluationArenaConfigResource(t *testing.T) {
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
 		Steps: []resource.TestStep{
 			{
+				// The second entry deliberately omits model_ids to exercise
+				// the real Open WebUI backend default (meta.model_ids: None).
+				// model_ids is Optional (not Computed), so the provider must
+				// return exactly null for it, not an empty list - see
+				// TestFlattenArenaModelsPreservesNullModelIDs and the fix in
+				// flattenArenaModels.
 				Config: testAccProviderConfig() + `
 resource "openwebui_evaluation_arena_config" "test" {
   enable_evaluation_arena_models = true
@@ -271,6 +277,10 @@ resource "openwebui_evaluation_arena_config" "test" {
       id        = "arena-test"
       name      = "Arena Test"
       model_ids = ["gpt-4o", "claude-3-opus"]
+    },
+    {
+      id   = "arena-no-model-ids"
+      name = "Arena No Model IDs"
     }
   ]
 }`,
@@ -279,6 +289,8 @@ resource "openwebui_evaluation_arena_config" "test" {
 					resource.TestCheckResourceAttrSet("openwebui_evaluation_arena_config.test", "id"),
 					resource.TestCheckResourceAttr("openwebui_evaluation_arena_config.test", "evaluation_arena_models.0.id", "arena-test"),
 					resource.TestCheckResourceAttr("openwebui_evaluation_arena_config.test", "evaluation_arena_models.0.name", "Arena Test"),
+					resource.TestCheckResourceAttr("openwebui_evaluation_arena_config.test", "evaluation_arena_models.1.id", "arena-no-model-ids"),
+					resource.TestCheckNoResourceAttr("openwebui_evaluation_arena_config.test", "evaluation_arena_models.1.model_ids"),
 				),
 			},
 			{
@@ -290,6 +302,10 @@ resource "openwebui_evaluation_arena_config" "test" {
       id        = "arena-test"
       name      = "Arena Test"
       model_ids = ["gpt-4o", "claude-3-opus"]
+    },
+    {
+      id   = "arena-no-model-ids"
+      name = "Arena No Model IDs"
     }
   ]
 }`,

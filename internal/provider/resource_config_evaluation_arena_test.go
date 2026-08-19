@@ -88,3 +88,38 @@ func TestEvaluationArenaConfigModelRoundTrip(t *testing.T) {
 		t.Fatalf("expected arena-2, got %s", roundTripModels[1].ID)
 	}
 }
+
+// TestFlattenArenaModelsPreservesNullModelIDs guards against a regression
+// where flattenArenaModels unconditionally called flattenStringSlice, which
+// always coerces a nil/empty Go slice into an empty (non-null) Terraform
+// list. model_ids is schema.Optional but not Computed, so when a config
+// omits it Terraform's plan is null and the provider must echo back exactly
+// null after apply, or Terraform fails with "Provider produced inconsistent
+// result after apply". The real Open WebUI backend's
+// DEFAULT_ARENA_MODEL.meta.model_ids defaults to None (Meta.ModelIDs == nil
+// after JSON unmarshal), so this is the common case, not an edge case.
+func TestFlattenArenaModelsPreservesNullModelIDs(t *testing.T) {
+	ctx := context.Background()
+
+	models := []client.ArenaModel{
+		{
+			ID:   "arena-1",
+			Name: "Arena One",
+			Meta: &client.ArenaModelMeta{
+				// ModelIDs deliberately left nil, mirroring a backend
+				// response where "model_ids" was absent or JSON null.
+			},
+		},
+	}
+
+	result, diags := flattenArenaModels(ctx, models)
+	if diags.HasError() {
+		t.Fatalf("flattenArenaModels failed: %v", diags)
+	}
+	if len(result) != 1 {
+		t.Fatalf("expected 1 arena model, got %d", len(result))
+	}
+	if !result[0].ModelIDs.IsNull() {
+		t.Fatalf("expected model_ids to be null when Meta.ModelIDs is nil, got %v", result[0].ModelIDs)
+	}
+}
