@@ -268,7 +268,8 @@ func TestAccEvaluationArenaConfigResource(t *testing.T) {
 				// model_ids is Optional (not Computed), so the provider must
 				// return exactly null for it, not an empty list - see
 				// TestFlattenArenaModelsPreservesNullModelIDs and the fix in
-				// flattenArenaModels.
+				// flattenArenaModels. The third entry explicitly sets model_ids = []
+				// to cover the case from the most recent fix (d2baaff).
 				Config: testAccProviderConfig() + `
 resource "openwebui_evaluation_arena_config" "test" {
   enable_evaluation_arena_models = true
@@ -281,6 +282,11 @@ resource "openwebui_evaluation_arena_config" "test" {
     {
       id   = "arena-no-model-ids"
       name = "Arena No Model IDs"
+    },
+    {
+      id        = "arena-empty-model-ids"
+      name      = "Arena Empty Model IDs"
+      model_ids = []
     }
   ]
 }`,
@@ -291,6 +297,8 @@ resource "openwebui_evaluation_arena_config" "test" {
 					resource.TestCheckResourceAttr("openwebui_evaluation_arena_config.test", "evaluation_arena_models.0.name", "Arena Test"),
 					resource.TestCheckResourceAttr("openwebui_evaluation_arena_config.test", "evaluation_arena_models.1.id", "arena-no-model-ids"),
 					resource.TestCheckNoResourceAttr("openwebui_evaluation_arena_config.test", "evaluation_arena_models.1.model_ids"),
+					resource.TestCheckResourceAttr("openwebui_evaluation_arena_config.test", "evaluation_arena_models.2.id", "arena-empty-model-ids"),
+					resource.TestCheckResourceAttr("openwebui_evaluation_arena_config.test", "evaluation_arena_models.2.model_ids.#", "0"),
 				),
 			},
 			{
@@ -306,6 +314,11 @@ resource "openwebui_evaluation_arena_config" "test" {
     {
       id   = "arena-no-model-ids"
       name = "Arena No Model IDs"
+    },
+    {
+      id        = "arena-empty-model-ids"
+      name      = "Arena Empty Model IDs"
+      model_ids = []
     }
   ]
 }`,
