@@ -75,6 +75,7 @@ type ChatConfigForm struct {
 	ContextCompactionTokenCap            *int64 `json:"CONTEXT_COMPACTION_TOKEN_CAP"`
 	ContextCompactionRetentionPercentage int64  `json:"CONTEXT_COMPACTION_RETENTION_PERCENTAGE"`
 	ContextCompactionPromptTemplate      string `json:"CONTEXT_COMPACTION_PROMPT_TEMPLATE"`
+	ContextCompactionModel               string `json:"CONTEXT_COMPACTION_MODEL"`
 }
 
 // TaskConfigForm captures title/tag/autocomplete/follow-up task-model settings.

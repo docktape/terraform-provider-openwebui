@@ -4,4 +4,5 @@ resource "openwebui_chat_config" "example" {
   context_compaction_token_cap              = 12000
   context_compaction_retention_percentage   = 40
   context_compaction_prompt_template        = "Please compact the following context to the most important parts."
+  context_compaction_model                  = "gpt-4o-mini"
 }
