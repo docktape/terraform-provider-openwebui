@@ -231,7 +231,7 @@ resource "openwebui_chat_config" "test" {
   enable_context_compaction                 = true
   context_compaction_token_threshold        = 8000
   context_compaction_token_cap              = 12000
-  context_compaction_retention_percentage   = 50.5
+  context_compaction_retention_percentage   = 40
   context_compaction_prompt_template        = "Compact this context: {{context}}"
 }`,
 				Check: resource.ComposeTestCheckFunc(
@@ -245,7 +245,7 @@ resource "openwebui_chat_config" "test" {
   enable_context_compaction                 = true
   context_compaction_token_threshold        = 8000
   context_compaction_token_cap              = 12000
-  context_compaction_retention_percentage   = 50.5
+  context_compaction_retention_percentage   = 40
   context_compaction_prompt_template        = "Compact this context: {{context}}"
 }`,
 				PlanOnly: true,

@@ -8,7 +8,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/float64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -26,12 +25,12 @@ type chatConfigResource struct {
 }
 
 type chatConfigModel struct {
-	ID                                   types.String  `tfsdk:"id"`
-	EnableContextCompaction              types.Bool    `tfsdk:"enable_context_compaction"`
-	ContextCompactionTokenThreshold      types.Int64   `tfsdk:"context_compaction_token_threshold"`
-	ContextCompactionTokenCap            types.Int64   `tfsdk:"context_compaction_token_cap"`
-	ContextCompactionRetentionPercentage types.Float64 `tfsdk:"context_compaction_retention_percentage"`
-	ContextCompactionPromptTemplate      types.String  `tfsdk:"context_compaction_prompt_template"`
+	ID                                   types.String `tfsdk:"id"`
+	EnableContextCompaction              types.Bool   `tfsdk:"enable_context_compaction"`
+	ContextCompactionTokenThreshold      types.Int64  `tfsdk:"context_compaction_token_threshold"`
+	ContextCompactionTokenCap            types.Int64  `tfsdk:"context_compaction_token_cap"`
+	ContextCompactionRetentionPercentage types.Int64  `tfsdk:"context_compaction_retention_percentage"`
+	ContextCompactionPromptTemplate      types.String `tfsdk:"context_compaction_prompt_template"`
 }
 
 func NewChatConfigResource() resource.Resource {
@@ -49,14 +48,11 @@ func (r *chatConfigResource) Schema(_ context.Context, _ resource.SchemaRequest,
 	i := func(desc string) schema.Int64Attribute {
 		return schema.Int64Attribute{Optional: true, Computed: true, Description: desc, MarkdownDescription: desc, PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}}
 	}
-	f := func(desc string) schema.Float64Attribute {
-		return schema.Float64Attribute{Optional: true, Computed: true, Description: desc, MarkdownDescription: desc, PlanModifiers: []planmodifier.Float64{float64planmodifier.UseStateForUnknown()}}
-	}
 	s := func(desc string) schema.StringAttribute {
 		return schema.StringAttribute{Optional: true, Computed: true, Description: desc, MarkdownDescription: desc, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}
 	}
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "~> **Requires Open WebUI v0.10.0+.** Context compaction and this config endpoint did not exist in earlier releases.\n\nManages Open WebUI's chat context-compaction settings. This is a singleton resource.",
+		MarkdownDescription: "~> **Requires Open WebUI v0.11.0+.** Context compaction and this config endpoint did not exist in earlier releases.\n\nManages Open WebUI's chat context-compaction settings. This is a singleton resource.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:            true,
@@ -67,7 +63,7 @@ func (r *chatConfigResource) Schema(_ context.Context, _ resource.SchemaRequest,
 			"enable_context_compaction":               b("Whether context compaction is enabled for chat processing."),
 			"context_compaction_token_threshold":      i("Minimum token count that triggers context compaction."),
 			"context_compaction_token_cap":            i("Maximum tokens to retain after compaction."),
-			"context_compaction_retention_percentage": f("Percentage of tokens to retain from the original context (0-100)."),
+			"context_compaction_retention_percentage": i("Percentage of tokens to retain from the original context (10-50)."),
 			"context_compaction_prompt_template":      s("Prompt template used for context compaction operations."),
 		},
 	}
@@ -163,22 +159,33 @@ func (r *chatConfigResource) ImportState(ctx context.Context, req resource.Impor
 }
 
 func chatConfigFormFromModel(m chatConfigModel) client.ChatConfigForm {
+	var tokenCap *int64
+	if !m.ContextCompactionTokenCap.IsNull() {
+		val := m.ContextCompactionTokenCap.ValueInt64()
+		tokenCap = &val
+	}
 	return client.ChatConfigForm{
 		EnableContextCompaction:              m.EnableContextCompaction.ValueBool(),
 		ContextCompactionTokenThreshold:      m.ContextCompactionTokenThreshold.ValueInt64(),
-		ContextCompactionTokenCap:            m.ContextCompactionTokenCap.ValueInt64(),
-		ContextCompactionRetentionPercentage: m.ContextCompactionRetentionPercentage.ValueFloat64(),
+		ContextCompactionTokenCap:            tokenCap,
+		ContextCompactionRetentionPercentage: m.ContextCompactionRetentionPercentage.ValueInt64(),
 		ContextCompactionPromptTemplate:      m.ContextCompactionPromptTemplate.ValueString(),
 	}
 }
 
 func chatConfigModelFromForm(f client.ChatConfigForm) chatConfigModel {
+	var tokenCapValue types.Int64
+	if f.ContextCompactionTokenCap != nil {
+		tokenCapValue = types.Int64Value(*f.ContextCompactionTokenCap)
+	} else {
+		tokenCapValue = types.Int64Null()
+	}
 	return chatConfigModel{
 		ID:                                   types.StringValue("chat"),
 		EnableContextCompaction:              types.BoolValue(f.EnableContextCompaction),
 		ContextCompactionTokenThreshold:      types.Int64Value(f.ContextCompactionTokenThreshold),
-		ContextCompactionTokenCap:            types.Int64Value(f.ContextCompactionTokenCap),
-		ContextCompactionRetentionPercentage: types.Float64Value(f.ContextCompactionRetentionPercentage),
+		ContextCompactionTokenCap:            tokenCapValue,
+		ContextCompactionRetentionPercentage: types.Int64Value(f.ContextCompactionRetentionPercentage),
 		ContextCompactionPromptTemplate:      types.StringValue(f.ContextCompactionPromptTemplate),
 	}
 }
