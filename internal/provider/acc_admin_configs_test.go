@@ -185,3 +185,36 @@ resource "openwebui_tool_servers_config" "test" {
 		},
 	})
 }
+
+// TestAccTasksConfigResource applies a known tasks config and verifies idempotency.
+func TestAccTasksConfigResource(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + `
+resource "openwebui_tasks_config" "test" {
+  enable_title_generation        = true
+  title_generation_prompt_template = "Summarize this conversation: {{prompt}}"
+  enable_tags_generation         = true
+  tags_generation_prompt_template = "Generate tags: {{prompt}}"
+}`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("openwebui_tasks_config.test", "enable_title_generation", "true"),
+					resource.TestCheckResourceAttrSet("openwebui_tasks_config.test", "id"),
+				),
+			},
+			{
+				Config: testAccProviderConfig() + `
+resource "openwebui_tasks_config" "test" {
+  enable_title_generation        = true
+  title_generation_prompt_template = "Summarize this conversation: {{prompt}}"
+  enable_tags_generation         = true
+  tags_generation_prompt_template = "Generate tags: {{prompt}}"
+}`,
+				PlanOnly: true,
+			},
+		},
+	})
+}
