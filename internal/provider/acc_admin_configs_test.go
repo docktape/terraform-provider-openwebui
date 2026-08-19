@@ -327,3 +327,49 @@ resource "openwebui_evaluation_arena_config" "test" {
 		},
 	})
 }
+
+// TestAccSubagentsConfigResource applies a known subagents config and verifies idempotency.
+func TestAccSubagentsConfigResource(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + `
+resource "openwebui_subagents_config" "test" {
+  enable_subagents              = true
+  subagents_background_enabled  = false
+  subagents_max_concurrent      = 5
+  subagents_max_async           = 3
+  subagents_max_iterations      = 10
+  subagents_max_output          = 2048
+  subagents_system_prompt       = "You are a helpful agent."
+}`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("openwebui_subagents_config.test", "enable_subagents", "true"),
+					resource.TestCheckResourceAttr("openwebui_subagents_config.test", "subagents_background_enabled", "false"),
+					resource.TestCheckResourceAttr("openwebui_subagents_config.test", "subagents_max_concurrent", "5"),
+					resource.TestCheckResourceAttr("openwebui_subagents_config.test", "subagents_max_async", "3"),
+					resource.TestCheckResourceAttr("openwebui_subagents_config.test", "subagents_max_iterations", "10"),
+					resource.TestCheckResourceAttr("openwebui_subagents_config.test", "subagents_max_output", "2048"),
+					resource.TestCheckResourceAttr("openwebui_subagents_config.test", "subagents_system_prompt", "You are a helpful agent."),
+					resource.TestCheckResourceAttrSet("openwebui_subagents_config.test", "id"),
+				),
+			},
+			{
+				// Idempotency: re-plan with same config, expect no diff
+				Config: testAccProviderConfig() + `
+resource "openwebui_subagents_config" "test" {
+  enable_subagents              = true
+  subagents_background_enabled  = false
+  subagents_max_concurrent      = 5
+  subagents_max_async           = 3
+  subagents_max_iterations      = 10
+  subagents_max_output          = 2048
+  subagents_system_prompt       = "You are a helpful agent."
+}`,
+				PlanOnly: true,
+			},
+		},
+	})
+}
