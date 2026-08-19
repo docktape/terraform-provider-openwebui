@@ -15,7 +15,21 @@ Manages Open WebUI's evaluation arena configuration for model comparison.
 ```terraform
 resource "openwebui_evaluation_arena_config" "example" {
   enable_evaluation_arena_models = true
-  evaluation_arena_models        = ["gpt-4o", "claude-3-opus", "llama3.2"]
+
+  evaluation_arena_models = [
+    {
+      id                = "arena-model"
+      name              = "Arena Model"
+      profile_image_url = "/favicon.png"
+      description       = "Compares gpt-4o against claude-3-opus"
+      model_ids         = ["gpt-4o", "claude-3-opus"]
+    },
+    {
+      id        = "arena-model-2"
+      name      = "Local Models Arena"
+      model_ids = ["llama3.2"]
+    }
+  ]
 }
 ```
 
@@ -25,8 +39,22 @@ resource "openwebui_evaluation_arena_config" "example" {
 ### Optional
 
 - `enable_evaluation_arena_models` (Boolean) Whether evaluation arena model comparison is enabled.
-- `evaluation_arena_models` (List of String) List of model IDs enabled for evaluation arena comparison.
+- `evaluation_arena_models` (Attributes List) List of arena model entries used for evaluation arena comparison. (see [below for nested schema](#nestedatt--evaluation_arena_models))
 
 ### Read-Only
 
 - `id` (String) Singleton identifier.
+
+<a id="nestedatt--evaluation_arena_models"></a>
+### Nested Schema for `evaluation_arena_models`
+
+Required:
+
+- `id` (String) Unique identifier for the arena model entry.
+- `name` (String) Display name for the arena model entry.
+
+Optional:
+
+- `description` (String) Description of the arena model entry.
+- `model_ids` (List of String) IDs of the real models this arena model entry draws from.
+- `profile_image_url` (String) Profile image URL shown for the arena model entry, e.g. `/favicon.png`.

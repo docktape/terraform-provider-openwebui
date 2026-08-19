@@ -266,18 +266,32 @@ func TestAccEvaluationArenaConfigResource(t *testing.T) {
 				Config: testAccProviderConfig() + `
 resource "openwebui_evaluation_arena_config" "test" {
   enable_evaluation_arena_models = true
-  evaluation_arena_models        = ["gpt-4o", "claude-3-opus"]
+  evaluation_arena_models = [
+    {
+      id        = "arena-test"
+      name      = "Arena Test"
+      model_ids = ["gpt-4o", "claude-3-opus"]
+    }
+  ]
 }`,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("openwebui_evaluation_arena_config.test", "enable_evaluation_arena_models", "true"),
 					resource.TestCheckResourceAttrSet("openwebui_evaluation_arena_config.test", "id"),
+					resource.TestCheckResourceAttr("openwebui_evaluation_arena_config.test", "evaluation_arena_models.0.id", "arena-test"),
+					resource.TestCheckResourceAttr("openwebui_evaluation_arena_config.test", "evaluation_arena_models.0.name", "Arena Test"),
 				),
 			},
 			{
 				Config: testAccProviderConfig() + `
 resource "openwebui_evaluation_arena_config" "test" {
   enable_evaluation_arena_models = true
-  evaluation_arena_models        = ["gpt-4o", "claude-3-opus"]
+  evaluation_arena_models = [
+    {
+      id        = "arena-test"
+      name      = "Arena Test"
+      model_ids = ["gpt-4o", "claude-3-opus"]
+    }
+  ]
 }`,
 				PlanOnly: true,
 			},

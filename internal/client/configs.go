@@ -320,10 +320,26 @@ func (c *Client) SetTasksConfig(ctx context.Context, form TaskConfigForm) (*Task
 	return &resp, nil
 }
 
+// ArenaModelMeta captures the metadata block of an evaluation arena model entry.
+type ArenaModelMeta struct {
+	ProfileImageURL *string  `json:"profile_image_url,omitempty"`
+	Description     *string  `json:"description,omitempty"`
+	ModelIDs        []string `json:"model_ids,omitempty"`
+}
+
+// ArenaModel captures a single evaluation arena model entry. The Open WebUI
+// backend models EVALUATION_ARENA_MODELS as a list of these objects, not a
+// list of plain model-ID strings.
+type ArenaModel struct {
+	ID   string          `json:"id"`
+	Name string          `json:"name"`
+	Meta *ArenaModelMeta `json:"meta,omitempty"`
+}
+
 // EvaluationArenaConfigForm captures evaluation arena configuration.
 type EvaluationArenaConfigForm struct {
-	EnableEvaluationArenaModels bool     `json:"ENABLE_EVALUATION_ARENA_MODELS"`
-	EvaluationArenaModels       []string `json:"EVALUATION_ARENA_MODELS"`
+	EnableEvaluationArenaModels bool         `json:"ENABLE_EVALUATION_ARENA_MODELS"`
+	EvaluationArenaModels       []ArenaModel `json:"EVALUATION_ARENA_MODELS"`
 }
 
 // GetEvaluationArenaConfig retrieves evaluation arena configuration.

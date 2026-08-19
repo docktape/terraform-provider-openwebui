@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/docktape/terraform-provider-openwebui/internal/client"
-	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -13,15 +13,34 @@ func TestEvaluationArenaConfigModelRoundTrip(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a client form with test data
+	profileImageURL := "/favicon.png"
+	description := "first arena model"
 	form := client.EvaluationArenaConfigForm{
 		EnableEvaluationArenaModels: true,
-		EvaluationArenaModels:       []string{"model-1", "model-2", "model-3"},
+		EvaluationArenaModels: []client.ArenaModel{
+			{
+				ID:   "arena-1",
+				Name: "Arena One",
+				Meta: &client.ArenaModelMeta{
+					ProfileImageURL: &profileImageURL,
+					Description:     &description,
+					ModelIDs:        []string{"model-1", "model-2"},
+				},
+			},
+			{
+				ID:   "arena-2",
+				Name: "Arena Two",
+				Meta: &client.ArenaModelMeta{
+					ModelIDs: []string{"model-3"},
+				},
+			},
+		},
 	}
 
-	// Convert to Terraform model via flattenStringSlice
-	modelList, listDiags := flattenStringSlice(ctx, form.EvaluationArenaModels)
+	// Convert to Terraform model via flattenArenaModels
+	modelList, listDiags := flattenArenaModels(ctx, form.EvaluationArenaModels)
 	if listDiags.HasError() {
-		t.Fatalf("flattenStringSlice failed: %v", listDiags)
+		t.Fatalf("flattenArenaModels failed: %v", listDiags)
 	}
 
 	model := evaluationArenaConfigModel{
@@ -33,23 +52,39 @@ func TestEvaluationArenaConfigModelRoundTrip(t *testing.T) {
 	if !model.EnableEvaluationArenaModels.ValueBool() {
 		t.Fatal("expected enable_evaluation_arena_models=true")
 	}
-
-	// Convert back to strings via expandStringList
-	roundTripModels := expandStringList(ctx, model.EvaluationArenaModels, path.Root("evaluation_arena_models"), &listDiags)
-	if listDiags.HasError() {
-		t.Fatalf("expandStringList failed: %v", listDiags)
+	if len(model.EvaluationArenaModels) != 2 {
+		t.Fatalf("expected 2 arena models, got %d", len(model.EvaluationArenaModels))
+	}
+	if model.EvaluationArenaModels[0].ID.ValueString() != "arena-1" {
+		t.Fatalf("expected id=arena-1, got %s", model.EvaluationArenaModels[0].ID.ValueString())
+	}
+	if model.EvaluationArenaModels[0].Name.ValueString() != "Arena One" {
+		t.Fatalf("expected name=Arena One, got %s", model.EvaluationArenaModels[0].Name.ValueString())
+	}
+	if model.EvaluationArenaModels[0].ProfileImageURL.ValueString() != "/favicon.png" {
+		t.Fatalf("expected profile_image_url=/favicon.png, got %s", model.EvaluationArenaModels[0].ProfileImageURL.ValueString())
+	}
+	if model.EvaluationArenaModels[1].ProfileImageURL.IsNull() != true {
+		t.Fatalf("expected second entry profile_image_url to be null, got %v", model.EvaluationArenaModels[1].ProfileImageURL)
 	}
 
-	if len(roundTripModels) != 3 {
-		t.Fatalf("expected 3 models, got %d", len(roundTripModels))
+	// Convert back to client structs via expandArenaModels
+	var diags diag.Diagnostics
+	roundTripModels := expandArenaModels(ctx, model.EvaluationArenaModels, &diags)
+	if diags.HasError() {
+		t.Fatalf("expandArenaModels failed: %v", diags)
 	}
-	if roundTripModels[0] != "model-1" {
-		t.Fatalf("expected model-1, got %s", roundTripModels[0])
+
+	if len(roundTripModels) != 2 {
+		t.Fatalf("expected 2 models, got %d", len(roundTripModels))
 	}
-	if roundTripModels[1] != "model-2" {
-		t.Fatalf("expected model-2, got %s", roundTripModels[1])
+	if roundTripModels[0].ID != "arena-1" {
+		t.Fatalf("expected arena-1, got %s", roundTripModels[0].ID)
 	}
-	if roundTripModels[2] != "model-3" {
-		t.Fatalf("expected model-3, got %s", roundTripModels[2])
+	if roundTripModels[0].Meta == nil || len(roundTripModels[0].Meta.ModelIDs) != 2 || roundTripModels[0].Meta.ModelIDs[0] != "model-1" {
+		t.Fatalf("expected round-tripped model_ids=[model-1 model-2], got %+v", roundTripModels[0].Meta)
+	}
+	if roundTripModels[1].ID != "arena-2" {
+		t.Fatalf("expected arena-2, got %s", roundTripModels[1].ID)
 	}
 }
