@@ -117,6 +117,7 @@ Optional:
 - `file_context` (Boolean) Whether the model can reference full extracted file content as chat context.
 - `file_upload` (Boolean) Whether file uploads are allowed in chat.
 - `image_generation` (Boolean) Whether image generation is available.
+- `memory` (Boolean) Whether the model can access long-term memory. Defaults to `true` server-side when absent; not yet exposed in the Open WebUI admin UI as of v0.11.0.
 - `status_updates` (Boolean) Whether the model emits status update messages.
 - `terminal` (Boolean) Whether the model can invoke the built-in terminal tool.
 - `usage` (Boolean) Whether token usage statistics are returned.

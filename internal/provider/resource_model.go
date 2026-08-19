@@ -67,6 +67,7 @@ type modelCapabilitiesModel struct {
 	StatusUpdates   types.Bool `tfsdk:"status_updates"`
 	Usage           types.Bool `tfsdk:"usage"`
 	BuiltinTools    types.Bool `tfsdk:"builtin_tools"`
+	Memory          types.Bool `tfsdk:"memory"`
 }
 
 // modelParamsModel captures configurable model parameters.
@@ -312,6 +313,12 @@ func (r *modelResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						Optional:      true,
 						Computed:      true,
 						Description:   "Whether Open WebUI automatically injects built-in system tools (timestamps, memory, chat history, notes, etc.) in native function-calling mode.",
+						PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+					},
+					"memory": schema.BoolAttribute{
+						Optional:      true,
+						Computed:      true,
+						Description:   "Whether the model can access long-term memory. Defaults to `true` server-side when absent; not yet exposed in the Open WebUI admin UI as of v0.11.0.",
 						PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
 					},
 				},
@@ -888,6 +895,9 @@ func expandModelCapabilities(caps *modelCapabilitiesModel) map[string]any {
 	if !caps.BuiltinTools.IsNull() && !caps.BuiltinTools.IsUnknown() {
 		result["builtin_tools"] = caps.BuiltinTools.ValueBool()
 	}
+	if !caps.Memory.IsNull() && !caps.Memory.IsUnknown() {
+		result["memory"] = caps.Memory.ValueBool()
+	}
 
 	return result
 }
@@ -1106,6 +1116,7 @@ func flattenModelMeta(ctx context.Context, data map[string]any) (modelMetaState,
 		StatusUpdates:   types.BoolNull(),
 		Usage:           types.BoolNull(),
 		BuiltinTools:    types.BoolNull(),
+		Memory:          types.BoolNull(),
 	}
 
 	state := modelMetaState{
@@ -1236,6 +1247,7 @@ var modelCapabilitiesAttrTypes = map[string]attr.Type{
 	"status_updates":   types.BoolType,
 	"usage":            types.BoolType,
 	"builtin_tools":    types.BoolType,
+	"memory":           types.BoolType,
 }
 
 // capabilitiesEmptyDefaultModifier converts an unknown capabilities plan value
@@ -1287,6 +1299,7 @@ func flattenModelCapabilities(data map[string]any) *modelCapabilitiesModel {
 		StatusUpdates:   types.BoolNull(),
 		Usage:           types.BoolNull(),
 		BuiltinTools:    types.BoolNull(),
+		Memory:          types.BoolNull(),
 	}
 
 	if data == nil {
@@ -1325,6 +1338,9 @@ func flattenModelCapabilities(data map[string]any) *modelCapabilitiesModel {
 	}
 	if value, ok := toBoolValue(data["builtin_tools"]); ok {
 		caps.BuiltinTools = types.BoolValue(value)
+	}
+	if value, ok := toBoolValue(data["memory"]); ok {
+		caps.Memory = types.BoolValue(value)
 	}
 
 	return caps
