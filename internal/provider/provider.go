@@ -65,6 +65,7 @@ func (p *openWebUIProvider) Schema(_ context.Context, _ provider.SchemaRequest, 
 			"- `openwebui_evaluation_arena_config` — evaluation arena model comparison settings\n" +
 			"- `openwebui_suggestions_config` — default prompt suggestions\n" +
 			"- `openwebui_banners_config` — UI announcement banners\n" +
+			"- `openwebui_subagents_config` — sub-agent orchestration settings\n" +
 			"- `openwebui_oauth_client` — OAuth client registrations\n\n" +
 			"## Data Sources\n\n" +
 			"- `openwebui_model`, `openwebui_knowledge`, `openwebui_prompt`, `openwebui_group`, `openwebui_tool`, `openwebui_pipeline` — look up existing objects by name or ID\n" +
@@ -181,6 +182,7 @@ func (p *openWebUIProvider) Resources(_ context.Context) []func() resource.Resou
 		NewEvaluationArenaConfigResource,
 		NewSuggestionsConfigResource,
 		NewBannersConfigResource,
+		NewSubagentsConfigResource,
 		NewOAuthClientResource,
 		NewFunctionResource,
 		NewFunctionValvesResource,

@@ -359,3 +359,32 @@ func (c *Client) SetEvaluationArenaConfig(ctx context.Context, form EvaluationAr
 	}
 	return &resp, nil
 }
+
+// SubagentsConfigForm captures sub-agent orchestration settings.
+type SubagentsConfigForm struct {
+	EnableSubagents            bool   `json:"ENABLE_SUBAGENTS"`
+	SubagentsBackgroundEnabled bool   `json:"SUBAGENTS_BACKGROUND_ENABLED"`
+	SubagentsMaxConcurrent     int64  `json:"SUBAGENTS_MAX_CONCURRENT"`
+	SubagentsMaxAsync          int64  `json:"SUBAGENTS_MAX_ASYNC"`
+	SubagentsMaxIterations     int64  `json:"SUBAGENTS_MAX_ITERATIONS"`
+	SubagentsMaxOutput         int64  `json:"SUBAGENTS_MAX_OUTPUT"`
+	SubagentsSystemPrompt      string `json:"SUBAGENTS_SYSTEM_PROMPT"`
+}
+
+// GetSubagentsConfig retrieves sub-agent orchestration configuration.
+func (c *Client) GetSubagentsConfig(ctx context.Context) (*SubagentsConfigForm, error) {
+	var resp SubagentsConfigForm
+	if err := c.do(ctx, http.MethodGet, "configs/subagents", nil, nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// SetSubagentsConfig updates sub-agent orchestration configuration.
+func (c *Client) SetSubagentsConfig(ctx context.Context, form SubagentsConfigForm) (*SubagentsConfigForm, error) {
+	var resp SubagentsConfigForm
+	if err := c.do(ctx, http.MethodPost, "configs/subagents", nil, form, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
