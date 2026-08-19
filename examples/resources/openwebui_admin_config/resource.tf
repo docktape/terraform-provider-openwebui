@@ -1,0 +1,29 @@
+resource "openwebui_admin_config" "main" {
+  show_admin_details                   = true
+  admin_email                          = "admin@example.com"
+  webui_url                            = "https://webui.example.com"
+  enable_signup                        = true
+  enable_api_keys                      = true
+  enable_api_keys_endpoint_restrictions = false
+  api_keys_allowed_endpoints           = "/api/v1/chat/completions,/api/v1/models"
+  default_user_role                    = "user"
+  default_group_id                     = "default"
+  jwt_expires_in                       = "30d"
+  enable_community_sharing             = true
+  enable_message_rating                = true
+  enable_folders                       = true
+  folder_max_file_count                = 100
+  automation_max_count                 = 50
+  automation_min_interval              = 1000
+  enable_automations                   = true
+  enable_channels                      = false
+  enable_calendar                      = true
+  enable_memories                      = true
+  enable_memory_system_context         = true
+  enable_notes                         = true
+  enable_user_webhooks                 = true
+  enable_user_status                   = true
+  pending_user_overlay_title           = "Welcome to Open WebUI"
+  pending_user_overlay_content         = "Your account is pending approval."
+  response_watermark                   = "Powered by Open WebUI"
+}

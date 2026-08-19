@@ -388,3 +388,53 @@ func (c *Client) SetSubagentsConfig(ctx context.Context, form SubagentsConfigFor
 	}
 	return &resp, nil
 }
+
+// AdminConfigForm captures general admin settings (signup, API keys, JWT,
+// feature toggles, watermarking).
+type AdminConfigForm struct {
+	ShowAdminDetails                  bool    `json:"SHOW_ADMIN_DETAILS"`
+	AdminEmail                        *string `json:"ADMIN_EMAIL"`
+	WebUIURL                          string  `json:"WEBUI_URL"`
+	EnableSignup                      bool    `json:"ENABLE_SIGNUP"`
+	EnableAPIKeys                     bool    `json:"ENABLE_API_KEYS"`
+	EnableAPIKeysEndpointRestrictions bool    `json:"ENABLE_API_KEYS_ENDPOINT_RESTRICTIONS"`
+	APIKeysAllowedEndpoints           string  `json:"API_KEYS_ALLOWED_ENDPOINTS"`
+	DefaultUserRole                   string  `json:"DEFAULT_USER_ROLE"`
+	DefaultGroupID                    string  `json:"DEFAULT_GROUP_ID"`
+	JWTExpiresIn                      string  `json:"JWT_EXPIRES_IN"`
+	EnableCommunitySharing            bool    `json:"ENABLE_COMMUNITY_SHARING"`
+	EnableMessageRating               bool    `json:"ENABLE_MESSAGE_RATING"`
+	EnableFolders                     bool    `json:"ENABLE_FOLDERS"`
+	FolderMaxFileCount                *int64  `json:"FOLDER_MAX_FILE_COUNT"`
+	AutomationMaxCount                *int64  `json:"AUTOMATION_MAX_COUNT"`
+	AutomationMinInterval             *int64  `json:"AUTOMATION_MIN_INTERVAL"`
+	EnableAutomations                 bool    `json:"ENABLE_AUTOMATIONS"`
+	EnableChannels                    bool    `json:"ENABLE_CHANNELS"`
+	EnableCalendar                    bool    `json:"ENABLE_CALENDAR"`
+	EnableMemories                    bool    `json:"ENABLE_MEMORIES"`
+	EnableMemorySystemContext         *bool   `json:"ENABLE_MEMORY_SYSTEM_CONTEXT,omitempty"`
+	EnableNotes                       bool    `json:"ENABLE_NOTES"`
+	EnableUserWebhooks                bool    `json:"ENABLE_USER_WEBHOOKS"`
+	EnableUserStatus                  bool    `json:"ENABLE_USER_STATUS"`
+	PendingUserOverlayTitle           *string `json:"PENDING_USER_OVERLAY_TITLE"`
+	PendingUserOverlayContent         *string `json:"PENDING_USER_OVERLAY_CONTENT"`
+	ResponseWatermark                 *string `json:"RESPONSE_WATERMARK"`
+}
+
+// GetAdminConfig retrieves admin configuration.
+func (c *Client) GetAdminConfig(ctx context.Context) (*AdminConfigForm, error) {
+	var resp AdminConfigForm
+	if err := c.do(ctx, http.MethodGet, "auths/admin/config", nil, nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// SetAdminConfig updates admin configuration.
+func (c *Client) SetAdminConfig(ctx context.Context, form AdminConfigForm) (*AdminConfigForm, error) {
+	var resp AdminConfigForm
+	if err := c.do(ctx, http.MethodPost, "auths/admin/config", nil, form, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}

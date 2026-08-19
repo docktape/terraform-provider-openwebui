@@ -373,3 +373,91 @@ resource "openwebui_subagents_config" "test" {
 		},
 	})
 }
+
+// TestAccAdminConfigResource applies a known admin config and verifies idempotency.
+func TestAccAdminConfigResource(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + `
+resource "openwebui_admin_config" "test" {
+  show_admin_details                   = true
+  admin_email                          = "admin@test.local"
+  webui_url                            = "http://localhost:3000"
+  enable_signup                        = false
+  enable_api_keys                      = true
+  enable_api_keys_endpoint_restrictions = false
+  api_keys_allowed_endpoints           = "/api/v1/chat/completions"
+  default_user_role                    = "user"
+  default_group_id                     = "default"
+  jwt_expires_in                       = "30d"
+  enable_community_sharing             = true
+  enable_message_rating                = false
+  enable_folders                       = true
+  folder_max_file_count                = 100
+  automation_max_count                 = 50
+  automation_min_interval              = 1000
+  enable_automations                   = true
+  enable_channels                      = false
+  enable_calendar                      = true
+  enable_memories                      = true
+  enable_memory_system_context         = true
+  enable_notes                         = false
+  enable_user_webhooks                 = true
+  enable_user_status                   = false
+  pending_user_overlay_title           = "Pending Approval"
+  pending_user_overlay_content         = "Your account is pending admin approval."
+  response_watermark                   = "Powered by Open WebUI"
+}`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("openwebui_admin_config.test", "show_admin_details", "true"),
+					resource.TestCheckResourceAttr("openwebui_admin_config.test", "admin_email", "admin@test.local"),
+					resource.TestCheckResourceAttr("openwebui_admin_config.test", "webui_url", "http://localhost:3000"),
+					resource.TestCheckResourceAttr("openwebui_admin_config.test", "enable_signup", "false"),
+					resource.TestCheckResourceAttr("openwebui_admin_config.test", "enable_api_keys", "true"),
+					resource.TestCheckResourceAttr("openwebui_admin_config.test", "default_user_role", "user"),
+					resource.TestCheckResourceAttr("openwebui_admin_config.test", "folder_max_file_count", "100"),
+					resource.TestCheckResourceAttr("openwebui_admin_config.test", "enable_memory_system_context", "true"),
+					resource.TestCheckResourceAttr("openwebui_admin_config.test", "pending_user_overlay_title", "Pending Approval"),
+					resource.TestCheckResourceAttrSet("openwebui_admin_config.test", "id"),
+				),
+			},
+			{
+				// Idempotency: re-plan with same config, expect no diff
+				Config: testAccProviderConfig() + `
+resource "openwebui_admin_config" "test" {
+  show_admin_details                   = true
+  admin_email                          = "admin@test.local"
+  webui_url                            = "http://localhost:3000"
+  enable_signup                        = false
+  enable_api_keys                      = true
+  enable_api_keys_endpoint_restrictions = false
+  api_keys_allowed_endpoints           = "/api/v1/chat/completions"
+  default_user_role                    = "user"
+  default_group_id                     = "default"
+  jwt_expires_in                       = "30d"
+  enable_community_sharing             = true
+  enable_message_rating                = false
+  enable_folders                       = true
+  folder_max_file_count                = 100
+  automation_max_count                 = 50
+  automation_min_interval              = 1000
+  enable_automations                   = true
+  enable_channels                      = false
+  enable_calendar                      = true
+  enable_memories                      = true
+  enable_memory_system_context         = true
+  enable_notes                         = false
+  enable_user_webhooks                 = true
+  enable_user_status                   = false
+  pending_user_overlay_title           = "Pending Approval"
+  pending_user_overlay_content         = "Your account is pending admin approval."
+  response_watermark                   = "Powered by Open WebUI"
+}`,
+				PlanOnly: true,
+			},
+		},
+	})
+}
