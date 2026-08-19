@@ -68,6 +68,15 @@ type ModelsConfigForm struct {
 	DefaultModelParams   map[string]any `json:"DEFAULT_MODEL_PARAMS,omitempty"`
 }
 
+// ChatConfigForm captures chat context-compaction settings.
+type ChatConfigForm struct {
+	EnableContextCompaction              bool    `json:"ENABLE_CONTEXT_COMPACTION"`
+	ContextCompactionTokenThreshold      int64   `json:"CONTEXT_COMPACTION_TOKEN_THRESHOLD"`
+	ContextCompactionTokenCap            int64   `json:"CONTEXT_COMPACTION_TOKEN_CAP"`
+	ContextCompactionRetentionPercentage float64 `json:"CONTEXT_COMPACTION_RETENTION_PERCENTAGE"`
+	ContextCompactionPromptTemplate      string  `json:"CONTEXT_COMPACTION_PROMPT_TEMPLATE"`
+}
+
 // TaskConfigForm captures title/tag/autocomplete/follow-up task-model settings.
 type TaskConfigForm struct {
 	TaskModel                            *string `json:"TASK_MODEL"`
@@ -272,6 +281,24 @@ func (c *Client) VerifyToolServer(ctx context.Context, connection ToolServerConn
 	}
 
 	return nil
+}
+
+// GetChatConfig retrieves chat context-compaction configuration.
+func (c *Client) GetChatConfig(ctx context.Context) (*ChatConfigForm, error) {
+	var resp ChatConfigForm
+	if err := c.do(ctx, http.MethodGet, "chats/config", nil, nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// SetChatConfig updates chat context-compaction configuration.
+func (c *Client) SetChatConfig(ctx context.Context, form ChatConfigForm) (*ChatConfigForm, error) {
+	var resp ChatConfigForm
+	if err := c.do(ctx, http.MethodPost, "chats/config/update", nil, form, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
 }
 
 // GetTasksConfig retrieves task-model generation settings.
