@@ -68,6 +68,28 @@ type ModelsConfigForm struct {
 	DefaultModelParams   map[string]any `json:"DEFAULT_MODEL_PARAMS,omitempty"`
 }
 
+// TaskConfigForm captures title/tag/autocomplete/follow-up task-model settings.
+type TaskConfigForm struct {
+	TaskModel                            *string `json:"TASK_MODEL"`
+	TaskModelExternal                    *string `json:"TASK_MODEL_EXTERNAL"`
+	EnableTitleGeneration                bool    `json:"ENABLE_TITLE_GENERATION"`
+	TitleGenerationPromptTemplate        string  `json:"TITLE_GENERATION_PROMPT_TEMPLATE"`
+	ImagePromptGenerationPromptTemplate  string  `json:"IMAGE_PROMPT_GENERATION_PROMPT_TEMPLATE"`
+	EnableAutocompleteGeneration         bool    `json:"ENABLE_AUTOCOMPLETE_GENERATION"`
+	AutocompleteGenerationInputMaxLength int64   `json:"AUTOCOMPLETE_GENERATION_INPUT_MAX_LENGTH"`
+	AutocompleteGenerationPromptTemplate *string `json:"AUTOCOMPLETE_GENERATION_PROMPT_TEMPLATE,omitempty"`
+	TagsGenerationPromptTemplate         string  `json:"TAGS_GENERATION_PROMPT_TEMPLATE"`
+	FollowUpGenerationPromptTemplate     string  `json:"FOLLOW_UP_GENERATION_PROMPT_TEMPLATE"`
+	EnableFollowUpGeneration             bool    `json:"ENABLE_FOLLOW_UP_GENERATION"`
+	EnableTagsGeneration                 bool    `json:"ENABLE_TAGS_GENERATION"`
+	EnableSearchQueryGeneration          bool    `json:"ENABLE_SEARCH_QUERY_GENERATION"`
+	EnableRetrievalQueryGeneration       bool    `json:"ENABLE_RETRIEVAL_QUERY_GENERATION"`
+	QueryGenerationPromptTemplate        string  `json:"QUERY_GENERATION_PROMPT_TEMPLATE"`
+	ToolsFunctionCallingPromptTemplate   string  `json:"TOOLS_FUNCTION_CALLING_PROMPT_TEMPLATE"`
+	EnableVoiceModePrompt                bool    `json:"ENABLE_VOICE_MODE_PROMPT"`
+	VoiceModePromptTemplate              *string `json:"VOICE_MODE_PROMPT_TEMPLATE"`
+}
+
 // PromptSuggestion captures a default prompt suggestion.
 type PromptSuggestion struct {
 	Title   []string `json:"title"`
@@ -250,4 +272,22 @@ func (c *Client) VerifyToolServer(ctx context.Context, connection ToolServerConn
 	}
 
 	return nil
+}
+
+// GetTasksConfig retrieves task-model generation settings.
+func (c *Client) GetTasksConfig(ctx context.Context) (*TaskConfigForm, error) {
+	var resp TaskConfigForm
+	if err := c.do(ctx, http.MethodGet, "tasks/config", nil, nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// SetTasksConfig updates task-model generation settings.
+func (c *Client) SetTasksConfig(ctx context.Context, form TaskConfigForm) (*TaskConfigForm, error) {
+	var resp TaskConfigForm
+	if err := c.do(ctx, http.MethodPost, "tasks/config/update", nil, form, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
 }
