@@ -255,3 +255,32 @@ resource "openwebui_chat_config" "test" {
 		},
 	})
 }
+
+// TestAccEvaluationArenaConfigResource applies a known evaluation arena config and verifies idempotency.
+func TestAccEvaluationArenaConfigResource(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + `
+resource "openwebui_evaluation_arena_config" "test" {
+  enable_evaluation_arena_models = true
+  evaluation_arena_models        = ["gpt-4o", "claude-3-opus"]
+}`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("openwebui_evaluation_arena_config.test", "enable_evaluation_arena_models", "true"),
+					resource.TestCheckResourceAttrSet("openwebui_evaluation_arena_config.test", "id"),
+				),
+			},
+			{
+				Config: testAccProviderConfig() + `
+resource "openwebui_evaluation_arena_config" "test" {
+  enable_evaluation_arena_models = true
+  evaluation_arena_models        = ["gpt-4o", "claude-3-opus"]
+}`,
+				PlanOnly: true,
+			},
+		},
+	})
+}
