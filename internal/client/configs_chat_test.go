@@ -10,7 +10,7 @@ import (
 func TestGetSetChatConfigRoundTrip(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"ENABLE_CONTEXT_COMPACTION":true,"CONTEXT_COMPACTION_TOKEN_THRESHOLD":8000,"CONTEXT_COMPACTION_TOKEN_CAP":12000,"CONTEXT_COMPACTION_RETENTION_PERCENTAGE":50.5,"CONTEXT_COMPACTION_PROMPT_TEMPLATE":"compact prompt"}`))
+		_, _ = w.Write([]byte(`{"ENABLE_CONTEXT_COMPACTION":true,"CONTEXT_COMPACTION_TOKEN_THRESHOLD":8000,"CONTEXT_COMPACTION_TOKEN_CAP":12000,"CONTEXT_COMPACTION_RETENTION_PERCENTAGE":40,"CONTEXT_COMPACTION_PROMPT_TEMPLATE":"compact prompt"}`))
 	}))
 	t.Cleanup(server.Close)
 
@@ -29,11 +29,11 @@ func TestGetSetChatConfigRoundTrip(t *testing.T) {
 	if got.ContextCompactionTokenThreshold != 8000 {
 		t.Fatalf("expected ContextCompactionTokenThreshold=8000, got %v", got.ContextCompactionTokenThreshold)
 	}
-	if got.ContextCompactionTokenCap != 12000 {
+	if got.ContextCompactionTokenCap == nil || *got.ContextCompactionTokenCap != 12000 {
 		t.Fatalf("expected ContextCompactionTokenCap=12000, got %v", got.ContextCompactionTokenCap)
 	}
-	if got.ContextCompactionRetentionPercentage != 50.5 {
-		t.Fatalf("expected ContextCompactionRetentionPercentage=50.5, got %v", got.ContextCompactionRetentionPercentage)
+	if got.ContextCompactionRetentionPercentage != 40 {
+		t.Fatalf("expected ContextCompactionRetentionPercentage=40, got %v", got.ContextCompactionRetentionPercentage)
 	}
 	if got.ContextCompactionPromptTemplate != "compact prompt" {
 		t.Fatalf("expected ContextCompactionPromptTemplate=compact prompt, got %v", got.ContextCompactionPromptTemplate)

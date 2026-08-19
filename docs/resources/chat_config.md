@@ -3,13 +3,13 @@
 page_title: "openwebui_chat_config Resource - openwebui"
 subcategory: ""
 description: |-
-  ~> Requires Open WebUI v0.10.0+. Context compaction and this config endpoint did not exist in earlier releases.
+  ~> Requires Open WebUI v0.11.0+. Context compaction and this config endpoint did not exist in earlier releases.
   Manages Open WebUI's chat context-compaction settings. This is a singleton resource.
 ---
 
 # openwebui_chat_config (Resource)
 
-~> **Requires Open WebUI v0.10.0+.** Context compaction and this config endpoint did not exist in earlier releases.
+~> **Requires Open WebUI v0.11.0+.** Context compaction and this config endpoint did not exist in earlier releases.
 
 Manages Open WebUI's chat context-compaction settings. This is a singleton resource.
 
@@ -20,7 +20,7 @@ resource "openwebui_chat_config" "example" {
   enable_context_compaction                 = true
   context_compaction_token_threshold        = 8000
   context_compaction_token_cap              = 12000
-  context_compaction_retention_percentage   = 50.5
+  context_compaction_retention_percentage   = 40
   context_compaction_prompt_template        = "Please compact the following context to the most important parts."
 }
 ```
@@ -31,7 +31,7 @@ resource "openwebui_chat_config" "example" {
 ### Optional
 
 - `context_compaction_prompt_template` (String) Prompt template used for context compaction operations.
-- `context_compaction_retention_percentage` (Number) Percentage of tokens to retain from the original context (0-100).
+- `context_compaction_retention_percentage` (Number) Percentage of tokens to retain from the original context (10-50).
 - `context_compaction_token_cap` (Number) Maximum tokens to retain after compaction.
 - `context_compaction_token_threshold` (Number) Minimum token count that triggers context compaction.
 - `enable_context_compaction` (Boolean) Whether context compaction is enabled for chat processing.
