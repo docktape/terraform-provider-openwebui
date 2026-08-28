@@ -53,7 +53,8 @@ func (r *chatConfigResource) Schema(_ context.Context, _ resource.SchemaRequest,
 		return schema.StringAttribute{Optional: true, Computed: true, Description: desc, MarkdownDescription: desc, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}
 	}
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "~> **Requires Open WebUI v0.11.0+.** Context compaction and this config endpoint did not exist in earlier releases.\n\nManages Open WebUI's chat context-compaction settings. This is a singleton resource.",
+		MarkdownDescription: "~> **Requires Open WebUI v0.11.0+.** Context compaction and this config endpoint did not exist in earlier releases.\n\nManages Open WebUI's chat context-compaction settings. This is a singleton resource.\n\n" +
+			"~> This resource does a full-object update: any attribute not explicitly set in your configuration will be reset to its zero value (false/0/empty string) on every apply.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:            true,
@@ -152,7 +153,11 @@ func (r *chatConfigResource) Read(ctx context.Context, req resource.ReadRequest,
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-func (r *chatConfigResource) Delete(_ context.Context, _ resource.DeleteRequest, _ *resource.DeleteResponse) {
+func (r *chatConfigResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	if r.client == nil {
+		resp.Diagnostics.AddError("Unconfigured API client", "Expected provider to configure the Open WebUI client before managing chat config.")
+		return
+	}
 	// Singleton config: destroying the resource leaves the remote config untouched.
 }
 
@@ -161,15 +166,10 @@ func (r *chatConfigResource) ImportState(ctx context.Context, req resource.Impor
 }
 
 func chatConfigFormFromModel(m chatConfigModel) client.ChatConfigForm {
-	var tokenCap *int64
-	if !m.ContextCompactionTokenCap.IsNull() {
-		val := m.ContextCompactionTokenCap.ValueInt64()
-		tokenCap = &val
-	}
 	return client.ChatConfigForm{
 		EnableContextCompaction:              m.EnableContextCompaction.ValueBool(),
 		ContextCompactionTokenThreshold:      m.ContextCompactionTokenThreshold.ValueInt64(),
-		ContextCompactionTokenCap:            tokenCap,
+		ContextCompactionTokenCap:            int64Ptr(m.ContextCompactionTokenCap),
 		ContextCompactionRetentionPercentage: m.ContextCompactionRetentionPercentage.ValueInt64(),
 		ContextCompactionPromptTemplate:      m.ContextCompactionPromptTemplate.ValueString(),
 		ContextCompactionModel:               m.ContextCompactionModel.ValueString(),

@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -28,7 +29,7 @@ func TestGetSubagentsConfig(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{
+		if _, err := w.Write([]byte(`{
 			"ENABLE_SUBAGENTS": true,
 			"SUBAGENTS_BACKGROUND_ENABLED": false,
 			"SUBAGENTS_MAX_CONCURRENT": 5,
@@ -36,7 +37,9 @@ func TestGetSubagentsConfig(t *testing.T) {
 			"SUBAGENTS_MAX_ITERATIONS": 10,
 			"SUBAGENTS_MAX_OUTPUT": 2048,
 			"SUBAGENTS_SYSTEM_PROMPT": "You are a helpful assistant."
-		}`))
+		}`)); err != nil {
+			t.Errorf("failed to write response: %v", err)
+		}
 	})
 
 	config, err := client.GetSubagentsConfig(context.Background())
@@ -75,9 +78,28 @@ func TestSetSubagentsConfig(t *testing.T) {
 		if r.URL.Path != "/api/v1/configs/subagents" {
 			t.Errorf("expected /api/v1/configs/subagents, got %s", r.URL.Path)
 		}
+
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("failed to decode request body: %v", err)
+		}
+		for _, key := range []string{
+			"ENABLE_SUBAGENTS",
+			"SUBAGENTS_BACKGROUND_ENABLED",
+			"SUBAGENTS_MAX_CONCURRENT",
+			"SUBAGENTS_MAX_ASYNC",
+			"SUBAGENTS_MAX_ITERATIONS",
+			"SUBAGENTS_MAX_OUTPUT",
+			"SUBAGENTS_SYSTEM_PROMPT",
+		} {
+			if _, ok := body[key]; !ok {
+				t.Errorf("expected request body to contain key %q, got %v", key, body)
+			}
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{
+		if _, err := w.Write([]byte(`{
 			"ENABLE_SUBAGENTS": true,
 			"SUBAGENTS_BACKGROUND_ENABLED": true,
 			"SUBAGENTS_MAX_CONCURRENT": 8,
@@ -85,7 +107,9 @@ func TestSetSubagentsConfig(t *testing.T) {
 			"SUBAGENTS_MAX_ITERATIONS": 15,
 			"SUBAGENTS_MAX_OUTPUT": 4096,
 			"SUBAGENTS_SYSTEM_PROMPT": "Updated prompt"
-		}`))
+		}`)); err != nil {
+			t.Errorf("failed to write response: %v", err)
+		}
 	})
 
 	form := SubagentsConfigForm{

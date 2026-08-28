@@ -16,8 +16,9 @@ func TestEvaluationArenaConfigModelRoundTrip(t *testing.T) {
 	// Create a client form with test data
 	profileImageURL := "/favicon.png"
 	description := "first arena model"
+	enableArenaModels := true
 	form := client.EvaluationArenaConfigForm{
-		EnableEvaluationArenaModels: true,
+		EnableEvaluationArenaModels: &enableArenaModels,
 		EvaluationArenaModels: []client.ArenaModel{
 			{
 				ID:   "arena-1",
@@ -46,7 +47,7 @@ func TestEvaluationArenaConfigModelRoundTrip(t *testing.T) {
 
 	model := evaluationArenaConfigModel{
 		ID:                          types.StringValue("evaluation_arena"),
-		EnableEvaluationArenaModels: types.BoolValue(form.EnableEvaluationArenaModels),
+		EnableEvaluationArenaModels: boolValueOrNull(form.EnableEvaluationArenaModels),
 		EvaluationArenaModels:       modelList,
 	}
 

@@ -5,6 +5,7 @@ subcategory: ""
 description: |-
   ~> Requires Open WebUI v0.11.0+. Context compaction and this config endpoint did not exist in earlier releases.
   Manages Open WebUI's chat context-compaction settings. This is a singleton resource.
+  ~> This resource does a full-object update: any attribute not explicitly set in your configuration will be reset to its zero value (false/0/empty string) on every apply.
 ---
 
 # openwebui_chat_config (Resource)
@@ -13,16 +14,18 @@ description: |-
 
 Manages Open WebUI's chat context-compaction settings. This is a singleton resource.
 
+~> This resource does a full-object update: any attribute not explicitly set in your configuration will be reset to its zero value (false/0/empty string) on every apply.
+
 ## Example Usage
 
 ```terraform
 resource "openwebui_chat_config" "example" {
-  enable_context_compaction                 = true
-  context_compaction_token_threshold        = 8000
-  context_compaction_token_cap              = 12000
-  context_compaction_retention_percentage   = 40
-  context_compaction_prompt_template        = "Please compact the following context to the most important parts."
-  context_compaction_model                  = "gpt-4o-mini"
+  enable_context_compaction               = true
+  context_compaction_token_threshold      = 8000
+  context_compaction_token_cap            = 12000
+  context_compaction_retention_percentage = 40
+  context_compaction_prompt_template      = "Please compact the following context to the most important parts."
+  context_compaction_model                = "gpt-4o-mini"
 }
 ```
 

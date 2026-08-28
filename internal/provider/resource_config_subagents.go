@@ -54,7 +54,8 @@ func (r *subagentsConfigResource) Schema(_ context.Context, _ resource.SchemaReq
 		return schema.StringAttribute{Optional: true, Computed: true, Description: desc, MarkdownDescription: desc, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}
 	}
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "~> **Requires Open WebUI v0.11.0+** — the Subagents feature and this config endpoint did not exist in earlier releases.\n\nManages Open WebUI's sub-agent orchestration settings. This is a singleton resource.",
+		MarkdownDescription: "~> **Requires Open WebUI v0.11.0+** — the Subagents feature and this config endpoint did not exist in earlier releases.\n\nManages Open WebUI's sub-agent orchestration settings. This is a singleton resource.\n\n" +
+			"~> This resource does a full-object update: any attribute not explicitly set in your configuration will be reset to its zero value (false/0/empty string) on every apply.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:            true,
@@ -67,7 +68,7 @@ func (r *subagentsConfigResource) Schema(_ context.Context, _ resource.SchemaReq
 			"subagents_max_concurrent":     i("Maximum number of concurrent sub-agent tasks."),
 			"subagents_max_async":          i("Maximum number of asynchronous sub-agent tasks."),
 			"subagents_max_iterations":     i("Maximum number of iterations for sub-agent loops."),
-			"subagents_max_output":         i("Maximum output size in bytes for sub-agent results."),
+			"subagents_max_output":         i("Maximum output size in characters for sub-agent results."),
 			"subagents_system_prompt":      s("System prompt used to guide sub-agent behavior."),
 		},
 	}
@@ -154,7 +155,11 @@ func (r *subagentsConfigResource) Read(ctx context.Context, req resource.ReadReq
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-func (r *subagentsConfigResource) Delete(_ context.Context, _ resource.DeleteRequest, _ *resource.DeleteResponse) {
+func (r *subagentsConfigResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	if r.client == nil {
+		resp.Diagnostics.AddError("Unconfigured API client", "Expected provider to configure the Open WebUI client before managing subagents config.")
+		return
+	}
 	// Singleton config: destroying the resource leaves the remote config untouched.
 }
 

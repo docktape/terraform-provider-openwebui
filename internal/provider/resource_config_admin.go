@@ -46,6 +46,7 @@ type adminConfigModel struct {
 	AutomationMinInterval             types.Int64  `tfsdk:"automation_min_interval"`
 	EnableAutomations                 types.Bool   `tfsdk:"enable_automations"`
 	EnableChannels                    types.Bool   `tfsdk:"enable_channels"`
+	ChannelModelResponseMode          types.String `tfsdk:"channel_model_response_mode"`
 	EnableCalendar                    types.Bool   `tfsdk:"enable_calendar"`
 	EnableMemories                    types.Bool   `tfsdk:"enable_memories"`
 	EnableMemorySystemContext         types.Bool   `tfsdk:"enable_memory_system_context"`
@@ -77,7 +78,8 @@ func (r *adminConfigResource) Schema(_ context.Context, _ resource.SchemaRequest
 	}
 
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manages Open WebUI admin configuration. This is a singleton resource.",
+		MarkdownDescription: "Manages Open WebUI admin configuration. This is a singleton resource.\n\n" +
+			"~> **This resource manages the entire admin config object.** Any attribute not explicitly set in your configuration will be reset to its zero value (false/empty string) on every apply — this endpoint does not support partial updates. Set every attribute you care about explicitly.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:            true,
@@ -118,8 +120,18 @@ func (r *adminConfigResource) Schema(_ context.Context, _ resource.SchemaRequest
 			"automation_min_interval":  i("Minimum interval between automations in milliseconds."),
 			"enable_automations":       b("Whether automations are enabled."),
 			"enable_channels":          b("Whether channels are enabled."),
-			"enable_calendar":          b("Whether calendar is enabled."),
-			"enable_memories":          b("Whether memories are enabled."),
+			"channel_model_response_mode": schema.StringAttribute{
+				Optional:            true,
+				Computed:            true,
+				Description:         "Whether model responses in channels are posted as threads or as channel messages (thread or channel).",
+				MarkdownDescription: "Whether model responses in channels are posted as threads or as channel messages (`thread` or `channel`).",
+				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				Validators: []validator.String{
+					stringvalidator.OneOf("thread", "channel"),
+				},
+			},
+			"enable_calendar": b("Whether calendar is enabled."),
+			"enable_memories": b("Whether memories are enabled."),
 			"enable_memory_system_context": schema.BoolAttribute{
 				Optional:            true,
 				Computed:            true,
@@ -218,7 +230,11 @@ func (r *adminConfigResource) Read(ctx context.Context, req resource.ReadRequest
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-func (r *adminConfigResource) Delete(_ context.Context, _ resource.DeleteRequest, _ *resource.DeleteResponse) {
+func (r *adminConfigResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	if r.client == nil {
+		resp.Diagnostics.AddError("Unconfigured API client", "Expected provider to configure the Open WebUI client before managing admin config.")
+		return
+	}
 	// Singleton config: destroying the resource leaves the remote config untouched.
 }
 
@@ -246,6 +262,7 @@ func adminConfigFormFromModel(m adminConfigModel) client.AdminConfigForm {
 		AutomationMinInterval:             int64Ptr(m.AutomationMinInterval),
 		EnableAutomations:                 m.EnableAutomations.ValueBool(),
 		EnableChannels:                    m.EnableChannels.ValueBool(),
+		ChannelModelResponseMode:          m.ChannelModelResponseMode.ValueString(),
 		EnableCalendar:                    m.EnableCalendar.ValueBool(),
 		EnableMemories:                    m.EnableMemories.ValueBool(),
 		EnableMemorySystemContext:         boolPtr(m.EnableMemorySystemContext),
@@ -279,6 +296,7 @@ func adminConfigModelFromForm(f client.AdminConfigForm) adminConfigModel {
 		AutomationMinInterval:             int64ValueOrNull(f.AutomationMinInterval),
 		EnableAutomations:                 types.BoolValue(f.EnableAutomations),
 		EnableChannels:                    types.BoolValue(f.EnableChannels),
+		ChannelModelResponseMode:          types.StringValue(f.ChannelModelResponseMode),
 		EnableCalendar:                    types.BoolValue(f.EnableCalendar),
 		EnableMemories:                    types.BoolValue(f.EnableMemories),
 		EnableMemorySystemContext:         boolValueOrNull(f.EnableMemorySystemContext),
@@ -289,19 +307,4 @@ func adminConfigModelFromForm(f client.AdminConfigForm) adminConfigModel {
 		PendingUserOverlayContent:         stringValueOrNull(f.PendingUserOverlayContent),
 		ResponseWatermark:                 stringValueOrNull(f.ResponseWatermark),
 	}
-}
-
-func boolPtr(value types.Bool) *bool {
-	if value.IsNull() || value.IsUnknown() {
-		return nil
-	}
-	result := value.ValueBool()
-	return &result
-}
-
-func boolValueOrNull(value *bool) types.Bool {
-	if value == nil {
-		return types.BoolNull()
-	}
-	return types.BoolValue(*value)
 }
