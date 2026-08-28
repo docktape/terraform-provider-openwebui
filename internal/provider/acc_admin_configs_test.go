@@ -401,6 +401,7 @@ resource "openwebui_admin_config" "test" {
   automation_min_interval              = 1000
   enable_automations                   = true
   enable_channels                      = false
+  channel_model_response_mode          = "channel"
   enable_calendar                      = true
   enable_memories                      = true
   enable_memory_system_context         = true
@@ -419,6 +420,7 @@ resource "openwebui_admin_config" "test" {
 					resource.TestCheckResourceAttr("openwebui_admin_config.test", "enable_api_keys", "true"),
 					resource.TestCheckResourceAttr("openwebui_admin_config.test", "default_user_role", "user"),
 					resource.TestCheckResourceAttr("openwebui_admin_config.test", "folder_max_file_count", "100"),
+					resource.TestCheckResourceAttr("openwebui_admin_config.test", "channel_model_response_mode", "channel"),
 					resource.TestCheckResourceAttr("openwebui_admin_config.test", "enable_memory_system_context", "true"),
 					resource.TestCheckResourceAttr("openwebui_admin_config.test", "pending_user_overlay_title", "Pending Approval"),
 					resource.TestCheckResourceAttrSet("openwebui_admin_config.test", "id"),
@@ -446,6 +448,7 @@ resource "openwebui_admin_config" "test" {
   automation_min_interval              = 1000
   enable_automations                   = true
   enable_channels                      = false
+  channel_model_response_mode          = "channel"
   enable_calendar                      = true
   enable_memories                      = true
   enable_memory_system_context         = true

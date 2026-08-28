@@ -8,7 +8,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -69,11 +68,9 @@ func (r *evaluationArenaConfigResource) Schema(_ context.Context, _ resource.Sch
 				PlanModifiers:       []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
 			},
 			"evaluation_arena_models": schema.ListNestedAttribute{
-				Optional:            true,
-				Computed:            true,
+				Required:            true,
 				Description:         "List of arena model entries used for evaluation arena comparison.",
 				MarkdownDescription: "List of arena model entries used for evaluation arena comparison.",
-				PlanModifiers:       []planmodifier.List{listplanmodifier.UseStateForUnknown()},
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"id": schema.StringAttribute{
@@ -169,7 +166,7 @@ func applyEvaluationArenaConfig(ctx context.Context, apiClient *client.Client, p
 	}
 
 	form := client.EvaluationArenaConfigForm{
-		EnableEvaluationArenaModels: plan.EnableEvaluationArenaModels.ValueBool(),
+		EnableEvaluationArenaModels: boolPtr(plan.EnableEvaluationArenaModels),
 		EvaluationArenaModels:       arenaModels,
 	}
 
@@ -184,7 +181,7 @@ func applyEvaluationArenaConfig(ctx context.Context, apiClient *client.Client, p
 
 	state := evaluationArenaConfigModel{
 		ID:                          types.StringValue("evaluation_arena"),
-		EnableEvaluationArenaModels: types.BoolValue(updated.EnableEvaluationArenaModels),
+		EnableEvaluationArenaModels: boolValueOrNull(updated.EnableEvaluationArenaModels),
 		EvaluationArenaModels:       modelList,
 	}
 
@@ -208,14 +205,18 @@ func (r *evaluationArenaConfigResource) Read(ctx context.Context, req resource.R
 
 	state := evaluationArenaConfigModel{
 		ID:                          types.StringValue("evaluation_arena"),
-		EnableEvaluationArenaModels: types.BoolValue(current.EnableEvaluationArenaModels),
+		EnableEvaluationArenaModels: boolValueOrNull(current.EnableEvaluationArenaModels),
 		EvaluationArenaModels:       modelList,
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-func (r *evaluationArenaConfigResource) Delete(_ context.Context, _ resource.DeleteRequest, _ *resource.DeleteResponse) {
+func (r *evaluationArenaConfigResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	if r.client == nil {
+		resp.Diagnostics.AddError("Unconfigured API client", "Expected provider to configure the Open WebUI client before managing evaluation arena config.")
+		return
+	}
 	// Singleton config: destroying the resource leaves the remote config untouched.
 }
 

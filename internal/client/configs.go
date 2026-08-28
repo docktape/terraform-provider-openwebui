@@ -87,7 +87,7 @@ type TaskConfigForm struct {
 	ImagePromptGenerationPromptTemplate  string  `json:"IMAGE_PROMPT_GENERATION_PROMPT_TEMPLATE"`
 	EnableAutocompleteGeneration         bool    `json:"ENABLE_AUTOCOMPLETE_GENERATION"`
 	AutocompleteGenerationInputMaxLength int64   `json:"AUTOCOMPLETE_GENERATION_INPUT_MAX_LENGTH"`
-	AutocompleteGenerationPromptTemplate *string `json:"AUTOCOMPLETE_GENERATION_PROMPT_TEMPLATE,omitempty"`
+	AutocompleteGenerationPromptTemplate *string `json:"AUTOCOMPLETE_GENERATION_PROMPT_TEMPLATE"`
 	TagsGenerationPromptTemplate         string  `json:"TAGS_GENERATION_PROMPT_TEMPLATE"`
 	FollowUpGenerationPromptTemplate     string  `json:"FOLLOW_UP_GENERATION_PROMPT_TEMPLATE"`
 	EnableFollowUpGeneration             bool    `json:"ENABLE_FOLLOW_UP_GENERATION"`
@@ -337,8 +337,14 @@ type ArenaModel struct {
 }
 
 // EvaluationArenaConfigForm captures evaluation arena configuration.
+//
+// EnableEvaluationArenaModels is nullable because the real backend
+// (backend/open_webui/routers/evaluations.py's UpdateConfigForm) treats
+// ENABLE_EVALUATION_ARENA_MODELS as Optional[bool] = None and only applies it
+// when not None - so a config that sets only evaluation_arena_models must be
+// able to send this key omitted rather than forcing it to false.
 type EvaluationArenaConfigForm struct {
-	EnableEvaluationArenaModels bool         `json:"ENABLE_EVALUATION_ARENA_MODELS"`
+	EnableEvaluationArenaModels *bool        `json:"ENABLE_EVALUATION_ARENA_MODELS,omitempty"`
 	EvaluationArenaModels       []ArenaModel `json:"EVALUATION_ARENA_MODELS"`
 }
 
@@ -410,9 +416,10 @@ type AdminConfigForm struct {
 	AutomationMinInterval             *int64  `json:"AUTOMATION_MIN_INTERVAL"`
 	EnableAutomations                 bool    `json:"ENABLE_AUTOMATIONS"`
 	EnableChannels                    bool    `json:"ENABLE_CHANNELS"`
+	ChannelModelResponseMode          string  `json:"CHANNEL_MODEL_RESPONSE_MODE"`
 	EnableCalendar                    bool    `json:"ENABLE_CALENDAR"`
 	EnableMemories                    bool    `json:"ENABLE_MEMORIES"`
-	EnableMemorySystemContext         *bool   `json:"ENABLE_MEMORY_SYSTEM_CONTEXT,omitempty"`
+	EnableMemorySystemContext         *bool   `json:"ENABLE_MEMORY_SYSTEM_CONTEXT"`
 	EnableNotes                       bool    `json:"ENABLE_NOTES"`
 	EnableUserWebhooks                bool    `json:"ENABLE_USER_WEBHOOKS"`
 	EnableUserStatus                  bool    `json:"ENABLE_USER_STATUS"`
@@ -421,9 +428,22 @@ type AdminConfigForm struct {
 	ResponseWatermark                 *string `json:"RESPONSE_WATERMARK"`
 }
 
-// LDAPConfigForm captures LDAP enable toggle.
+// LDAPConfigForm captures the LDAP enable toggle as returned by both the GET
+// and POST /auths/admin/config/ldap endpoints (backend/open_webui/routers/
+// auths.py's get_ldap_config/update_ldap_config both return
+// {"ENABLE_LDAP": ...}, uppercase).
 type LDAPConfigForm struct {
 	EnableLDAP *bool `json:"ENABLE_LDAP"`
+}
+
+// ldapConfigUpdateForm is the wire shape of the POST /auths/admin/config/ldap
+// request body. The backend's LdapConfigForm (backend/open_webui/routers/
+// auths.py) declares a lowercase `enable_ldap` field, distinct from the
+// uppercase ENABLE_LDAP used in both endpoints' responses - sending the
+// response-shaped key here would be silently ignored by Pydantic and the
+// backend would reset LDAP to disabled on every apply.
+type ldapConfigUpdateForm struct {
+	EnableLDAP *bool `json:"enable_ldap"`
 }
 
 // GetAdminConfig retrieves admin configuration.
@@ -453,10 +473,15 @@ func (c *Client) GetLDAPConfig(ctx context.Context) (*LDAPConfigForm, error) {
 	return &resp, nil
 }
 
-// SetLDAPConfig updates LDAP configuration.
+// SetLDAPConfig updates LDAP configuration. The request body uses the
+// lowercase enable_ldap key expected by the backend's LdapConfigForm, while
+// the response is decoded using the uppercase ENABLE_LDAP shape both LDAP
+// config endpoints return.
 func (c *Client) SetLDAPConfig(ctx context.Context, form LDAPConfigForm) (*LDAPConfigForm, error) {
+	updateForm := ldapConfigUpdateForm(form)
+
 	var resp LDAPConfigForm
-	if err := c.do(ctx, http.MethodPost, "auths/admin/config/ldap", nil, form, &resp); err != nil {
+	if err := c.do(ctx, http.MethodPost, "auths/admin/config/ldap", nil, updateForm, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil

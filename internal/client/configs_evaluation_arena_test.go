@@ -11,7 +11,29 @@ import (
 
 func TestGetSetEvaluationArenaConfigRoundTrip(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/evaluations/config" {
+			t.Errorf("expected path /api/v1/evaluations/config, got %s", r.URL.Path)
+		}
 		w.Header().Set("Content-Type", "application/json")
+
+		switch r.Method {
+		case http.MethodGet:
+			// no request body to inspect.
+		case http.MethodPost:
+			var body map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Fatalf("failed to decode request body: %v", err)
+			}
+			if _, ok := body["ENABLE_EVALUATION_ARENA_MODELS"]; !ok {
+				t.Errorf("expected request body to contain key %q, got %v", "ENABLE_EVALUATION_ARENA_MODELS", body)
+			}
+			if _, ok := body["EVALUATION_ARENA_MODELS"]; !ok {
+				t.Errorf("expected request body to contain key %q, got %v", "EVALUATION_ARENA_MODELS", body)
+			}
+		default:
+			t.Errorf("expected GET or POST, got %s", r.Method)
+		}
+
 		_, _ = w.Write([]byte(`{"ENABLE_EVALUATION_ARENA_MODELS":true,"EVALUATION_ARENA_MODELS":[{"id":"arena-1","name":"Arena One","meta":{"profile_image_url":"/favicon.png","description":"first arena model","model_ids":["model-1","model-2"]}},{"id":"arena-2","name":"Arena Two","meta":{"model_ids":["model-3"]}}]}`))
 	}))
 	t.Cleanup(server.Close)
@@ -25,7 +47,7 @@ func TestGetSetEvaluationArenaConfigRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetEvaluationArenaConfig: %v", err)
 	}
-	if !got.EnableEvaluationArenaModels {
+	if got.EnableEvaluationArenaModels == nil || !*got.EnableEvaluationArenaModels {
 		t.Fatal("expected EnableEvaluationArenaModels=true")
 	}
 	if len(got.EvaluationArenaModels) != 2 {
@@ -54,7 +76,7 @@ func TestGetSetEvaluationArenaConfigRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SetEvaluationArenaConfig: %v", err)
 	}
-	if !updated.EnableEvaluationArenaModels {
+	if updated.EnableEvaluationArenaModels == nil || !*updated.EnableEvaluationArenaModels {
 		t.Fatal("expected round-tripped EnableEvaluationArenaModels=true")
 	}
 	if len(updated.EvaluationArenaModels) != 2 {
@@ -62,6 +84,28 @@ func TestGetSetEvaluationArenaConfigRoundTrip(t *testing.T) {
 	}
 	if updated.EvaluationArenaModels[0].ID != "arena-1" {
 		t.Fatalf("expected round-tripped first model id=arena-1, got %v", updated.EvaluationArenaModels[0].ID)
+	}
+}
+
+// TestEvaluationArenaConfigFormEnableOmittedWhenNil guards the exact bug this
+// fix addresses: the real backend (backend/open_webui/routers/evaluations.py's
+// UpdateConfigForm) treats ENABLE_EVALUATION_ARENA_MODELS as
+// Optional[bool] = None and only applies it when not None, so a Terraform
+// config that sets only evaluation_arena_models (leaving the enable flag
+// unset) must be able to send a request that omits the key entirely rather
+// than forcing it to false.
+func TestEvaluationArenaConfigFormEnableOmittedWhenNil(t *testing.T) {
+	form := EvaluationArenaConfigForm{
+		EnableEvaluationArenaModels: nil,
+		EvaluationArenaModels:       []ArenaModel{},
+	}
+
+	encoded, err := json.Marshal(form)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+	if strings.Contains(string(encoded), "ENABLE_EVALUATION_ARENA_MODELS") {
+		t.Fatalf("expected ENABLE_EVALUATION_ARENA_MODELS to be omitted when nil, got %s", encoded)
 	}
 }
 

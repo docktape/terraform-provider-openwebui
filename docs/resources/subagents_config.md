@@ -5,6 +5,7 @@ subcategory: ""
 description: |-
   ~> Requires Open WebUI v0.11.0+ — the Subagents feature and this config endpoint did not exist in earlier releases.
   Manages Open WebUI's sub-agent orchestration settings. This is a singleton resource.
+  ~> This resource does a full-object update: any attribute not explicitly set in your configuration will be reset to its zero value (false/0/empty string) on every apply.
 ---
 
 # openwebui_subagents_config (Resource)
@@ -13,17 +14,19 @@ description: |-
 
 Manages Open WebUI's sub-agent orchestration settings. This is a singleton resource.
 
+~> This resource does a full-object update: any attribute not explicitly set in your configuration will be reset to its zero value (false/0/empty string) on every apply.
+
 ## Example Usage
 
 ```terraform
 resource "openwebui_subagents_config" "example" {
-  enable_subagents              = true
-  subagents_background_enabled  = true
-  subagents_max_concurrent      = 5
-  subagents_max_async           = 3
-  subagents_max_iterations      = 10
-  subagents_max_output          = 4096
-  subagents_system_prompt       = "You are a helpful assistant designed to break down complex tasks into smaller sub-tasks."
+  enable_subagents             = true
+  subagents_background_enabled = true
+  subagents_max_concurrent     = 5
+  subagents_max_async          = 3
+  subagents_max_iterations     = 10
+  subagents_max_output         = 4096
+  subagents_system_prompt      = "You are a helpful assistant designed to break down complex tasks into smaller sub-tasks."
 }
 ```
 
@@ -37,7 +40,7 @@ resource "openwebui_subagents_config" "example" {
 - `subagents_max_async` (Number) Maximum number of asynchronous sub-agent tasks.
 - `subagents_max_concurrent` (Number) Maximum number of concurrent sub-agent tasks.
 - `subagents_max_iterations` (Number) Maximum number of iterations for sub-agent loops.
-- `subagents_max_output` (Number) Maximum output size in bytes for sub-agent results.
+- `subagents_max_output` (Number) Maximum output size in characters for sub-agent results.
 - `subagents_system_prompt` (String) System prompt used to guide sub-agent behavior.
 
 ### Read-Only

@@ -4,43 +4,47 @@ page_title: "openwebui_admin_config Resource - openwebui"
 subcategory: ""
 description: |-
   Manages Open WebUI admin configuration. This is a singleton resource.
+  ~> This resource manages the entire admin config object. Any attribute not explicitly set in your configuration will be reset to its zero value (false/empty string) on every apply — this endpoint does not support partial updates. Set every attribute you care about explicitly.
 ---
 
 # openwebui_admin_config (Resource)
 
 Manages Open WebUI admin configuration. This is a singleton resource.
 
+~> **This resource manages the entire admin config object.** Any attribute not explicitly set in your configuration will be reset to its zero value (false/empty string) on every apply — this endpoint does not support partial updates. Set every attribute you care about explicitly.
+
 ## Example Usage
 
 ```terraform
 resource "openwebui_admin_config" "main" {
-  show_admin_details                   = true
-  admin_email                          = "admin@example.com"
-  webui_url                            = "https://webui.example.com"
-  enable_signup                        = true
-  enable_api_keys                      = true
+  show_admin_details                    = true
+  admin_email                           = "admin@example.com"
+  webui_url                             = "https://webui.example.com"
+  enable_signup                         = true
+  enable_api_keys                       = true
   enable_api_keys_endpoint_restrictions = false
-  api_keys_allowed_endpoints           = "/api/v1/chat/completions,/api/v1/models"
-  default_user_role                    = "user"
-  default_group_id                     = "default"
-  jwt_expires_in                       = "30d"
-  enable_community_sharing             = true
-  enable_message_rating                = true
-  enable_folders                       = true
-  folder_max_file_count                = 100
-  automation_max_count                 = 50
-  automation_min_interval              = 1000
-  enable_automations                   = true
-  enable_channels                      = false
-  enable_calendar                      = true
-  enable_memories                      = true
-  enable_memory_system_context         = true
-  enable_notes                         = true
-  enable_user_webhooks                 = true
-  enable_user_status                   = true
-  pending_user_overlay_title           = "Welcome to Open WebUI"
-  pending_user_overlay_content         = "Your account is pending approval."
-  response_watermark                   = "Powered by Open WebUI"
+  api_keys_allowed_endpoints            = "/api/v1/chat/completions,/api/v1/models"
+  default_user_role                     = "user"
+  default_group_id                      = "default"
+  jwt_expires_in                        = "30d"
+  enable_community_sharing              = true
+  enable_message_rating                 = true
+  enable_folders                        = true
+  folder_max_file_count                 = 100
+  automation_max_count                  = 50
+  automation_min_interval               = 1000
+  enable_automations                    = true
+  enable_channels                       = false
+  channel_model_response_mode           = "thread"
+  enable_calendar                       = true
+  enable_memories                       = true
+  enable_memory_system_context          = true
+  enable_notes                          = true
+  enable_user_webhooks                  = true
+  enable_user_status                    = true
+  pending_user_overlay_title            = "Welcome to Open WebUI"
+  pending_user_overlay_content          = "Your account is pending approval."
+  response_watermark                    = "Powered by Open WebUI"
 }
 ```
 
@@ -53,6 +57,7 @@ resource "openwebui_admin_config" "main" {
 - `api_keys_allowed_endpoints` (String) Comma-separated list of allowed endpoints for API keys.
 - `automation_max_count` (Number) Maximum number of concurrent automations.
 - `automation_min_interval` (Number) Minimum interval between automations in milliseconds.
+- `channel_model_response_mode` (String) Whether model responses in channels are posted as threads or as channel messages (`thread` or `channel`).
 - `default_group_id` (String) Default group ID for new users.
 - `default_user_role` (String) Default role for new users (pending, user, or admin).
 - `enable_api_keys` (Boolean) Whether API key authentication is enabled.
