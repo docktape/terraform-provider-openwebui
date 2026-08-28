@@ -10,7 +10,6 @@ func TestAdminConfigFormModelRoundTrip(t *testing.T) {
 	folderMax := int64(100)
 	automationMax := int64(50)
 	automationMin := int64(1000)
-	memSysCtx := true
 	overlayTitle := "Welcome"
 	watermark := "Powered by Open WebUI"
 
@@ -35,7 +34,7 @@ func TestAdminConfigFormModelRoundTrip(t *testing.T) {
 		EnableChannels:                    false,
 		EnableCalendar:                    true,
 		EnableMemories:                    true,
-		EnableMemorySystemContext:         &memSysCtx,
+		EnableMemorySystemContext:         true,
 		EnableNotes:                       false,
 		EnableUserWebhooks:                true,
 		EnableUserStatus:                  false,
@@ -85,8 +84,8 @@ func TestAdminConfigFormModelRoundTrip(t *testing.T) {
 	if roundTripped.FolderMaxFileCount == nil || *roundTripped.FolderMaxFileCount != 100 {
 		t.Fatalf("round-trip lost FolderMaxFileCount: %v", roundTripped.FolderMaxFileCount)
 	}
-	if roundTripped.EnableMemorySystemContext == nil || !*roundTripped.EnableMemorySystemContext {
-		t.Fatalf("round-trip lost EnableMemorySystemContext: %v", roundTripped.EnableMemorySystemContext)
+	if !roundTripped.EnableMemorySystemContext {
+		t.Fatal("round-trip lost EnableMemorySystemContext")
 	}
 	if roundTripped.PendingUserOverlayTitle == nil || *roundTripped.PendingUserOverlayTitle != "Welcome" {
 		t.Fatalf("round-trip lost PendingUserOverlayTitle: %v", roundTripped.PendingUserOverlayTitle)

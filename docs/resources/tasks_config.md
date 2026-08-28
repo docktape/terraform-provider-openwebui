@@ -27,7 +27,7 @@ resource "openwebui_tasks_config" "example" {
 ### Optional
 
 - `autocomplete_generation_input_max_length` (Number) Maximum input length considered for autocomplete generation.
-- `autocomplete_generation_prompt_template` (String) Prompt template used for autocomplete generation. Requires an Open WebUI release after v0.9.6.
+- `autocomplete_generation_prompt_template` (String) Prompt template used for autocomplete generation. Always sent on write, including as an empty string when unset. On an Open WebUI release at or before v0.9.6, the read response may omit this key entirely, which is read back as an empty string.
 - `enable_autocomplete_generation` (Boolean) Whether inline autocomplete suggestions are generated.
 - `enable_follow_up_generation` (Boolean) Whether follow-up suggestions are generated.
 - `enable_retrieval_query_generation` (Boolean) Whether knowledge-retrieval queries are auto-generated from chat context.
