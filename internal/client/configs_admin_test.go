@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -110,8 +111,8 @@ func TestGetSetAdminConfigRoundTrip(t *testing.T) {
 	if got.ChannelModelResponseMode != "thread" {
 		t.Fatalf("expected ChannelModelResponseMode=thread, got %q", got.ChannelModelResponseMode)
 	}
-	if got.EnableMemorySystemContext == nil || !*got.EnableMemorySystemContext {
-		t.Fatalf("expected EnableMemorySystemContext=true, got %v", got.EnableMemorySystemContext)
+	if !got.EnableMemorySystemContext {
+		t.Fatal("expected EnableMemorySystemContext=true")
 	}
 	if got.PendingUserOverlayTitle == nil || *got.PendingUserOverlayTitle != "Welcome" {
 		t.Fatalf("expected PendingUserOverlayTitle=Welcome, got %v", got.PendingUserOverlayTitle)
@@ -139,7 +140,117 @@ func TestGetSetAdminConfigRoundTrip(t *testing.T) {
 	if updated.ChannelModelResponseMode != "thread" {
 		t.Fatalf("expected round-tripped ChannelModelResponseMode=thread, got %q", updated.ChannelModelResponseMode)
 	}
-	if updated.EnableMemorySystemContext == nil || !*updated.EnableMemorySystemContext {
-		t.Fatalf("expected round-tripped EnableMemorySystemContext=true, got %v", updated.EnableMemorySystemContext)
+	if !updated.EnableMemorySystemContext {
+		t.Fatal("expected round-tripped EnableMemorySystemContext=true")
 	}
+}
+
+// TestAdminConfigFormEnableMemorySystemContextZeroValueSentAsFalse guards the
+// exact bug this fix addresses: ENABLE_MEMORY_SYSTEM_CONTEXT has no Python
+// default at v0.11.0 and is declared as a plain, non-Optional `bool` on the
+// backend's AdminConfig (backend/open_webui/routers/auths.py), so it rejects
+// both a missing key and an explicit `null` with a 422. A Terraform user who
+// never sets enable_memory_system_context must still produce a request that
+// sends the key as a genuine, valid boolean - never omitted and never null.
+// This exercises the "field genuinely unset by the user" path directly via
+// json.Marshal on a zero-value form, rather than round-tripping a value that
+// was already decoded from a populated response (which would not catch a
+// regression back to a *bool/omitempty representation).
+func TestAdminConfigFormEnableMemorySystemContextZeroValueSentAsFalse(t *testing.T) {
+	form := AdminConfigForm{}
+
+	encoded, err := json.Marshal(form)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+	if !strings.Contains(string(encoded), `"ENABLE_MEMORY_SYSTEM_CONTEXT":false`) {
+		t.Fatalf("expected encoded JSON to contain \"ENABLE_MEMORY_SYSTEM_CONTEXT\":false, got %s", encoded)
+	}
+}
+
+// TestAdminConfigFormIntOrEmptyStringFields guards the exact bug this fix
+// addresses: FOLDER_MAX_FILE_COUNT, AUTOMATION_MAX_COUNT, and
+// AUTOMATION_MIN_INTERVAL each default via Python's os.getenv(key, "")
+// (backend/open_webui/config.py) and are stored as int(v) if v else "" by
+// the update handler (backend/open_webui/routers/auths.py's
+// update_admin_config) - so a stock, never-configured server serves the
+// JSON string "" for these keys rather than a number, null, or an omitted
+// key. Unmarshaling "" into a plain *int64 field crashes with a type error
+// before any write ever happens.
+func TestAdminConfigFormIntOrEmptyStringFields(t *testing.T) {
+	t.Run("empty string decodes to nil", func(t *testing.T) {
+		var form AdminConfigForm
+		if err := json.Unmarshal([]byte(`{"FOLDER_MAX_FILE_COUNT":""}`), &form); err != nil {
+			t.Fatalf("json.Unmarshal: %v", err)
+		}
+		if form.FolderMaxFileCount != nil {
+			t.Fatalf("expected FolderMaxFileCount=nil, got %v", *form.FolderMaxFileCount)
+		}
+	})
+
+	t.Run("real integer decodes to that value", func(t *testing.T) {
+		var form AdminConfigForm
+		if err := json.Unmarshal([]byte(`{"AUTOMATION_MAX_COUNT":50}`), &form); err != nil {
+			t.Fatalf("json.Unmarshal: %v", err)
+		}
+		if form.AutomationMaxCount == nil || *form.AutomationMaxCount != 50 {
+			t.Fatalf("expected AutomationMaxCount=50, got %v", form.AutomationMaxCount)
+		}
+	})
+
+	t.Run("null decodes to nil", func(t *testing.T) {
+		var form AdminConfigForm
+		if err := json.Unmarshal([]byte(`{"AUTOMATION_MIN_INTERVAL":null}`), &form); err != nil {
+			t.Fatalf("json.Unmarshal: %v", err)
+		}
+		if form.AutomationMinInterval != nil {
+			t.Fatalf("expected AutomationMinInterval=nil, got %v", *form.AutomationMinInterval)
+		}
+	})
+
+	t.Run("Set round-trips with the field left unset", func(t *testing.T) {
+		c := newAdminConfigTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			switch r.Method {
+			case http.MethodGet:
+				// A stock, never-configured server: all three fields are "".
+				_, _ = w.Write([]byte(`{"FOLDER_MAX_FILE_COUNT":"","AUTOMATION_MAX_COUNT":"","AUTOMATION_MIN_INTERVAL":""}`))
+			case http.MethodPost:
+				var body map[string]any
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+					t.Fatalf("failed to decode request body: %v", err)
+				}
+				// A nil *int64 must marshal to a bare `null`, which the real
+				// backend's `int | str | None = None` request-body field accepts.
+				for _, key := range []string{"FOLDER_MAX_FILE_COUNT", "AUTOMATION_MAX_COUNT", "AUTOMATION_MIN_INTERVAL"} {
+					v, ok := body[key]
+					if !ok {
+						t.Errorf("expected request body to contain key %q, got %v", key, body)
+					}
+					if v != nil {
+						t.Errorf("expected request body key %q to be null, got %v", key, v)
+					}
+				}
+				_, _ = w.Write([]byte(`{"FOLDER_MAX_FILE_COUNT":"","AUTOMATION_MAX_COUNT":"","AUTOMATION_MIN_INTERVAL":""}`))
+			default:
+				t.Errorf("expected GET or POST, got %s", r.Method)
+			}
+		})
+
+		got, err := c.GetAdminConfig(context.Background())
+		if err != nil {
+			t.Fatalf("GetAdminConfig: %v", err)
+		}
+		if got.FolderMaxFileCount != nil || got.AutomationMaxCount != nil || got.AutomationMinInterval != nil {
+			t.Fatalf("expected all three fields nil on a stock server, got %v %v %v", got.FolderMaxFileCount, got.AutomationMaxCount, got.AutomationMinInterval)
+		}
+
+		updated, err := c.SetAdminConfig(context.Background(), *got)
+		if err != nil {
+			t.Fatalf("SetAdminConfig: %v", err)
+		}
+		if updated.FolderMaxFileCount != nil || updated.AutomationMaxCount != nil || updated.AutomationMinInterval != nil {
+			t.Fatalf("expected all three round-tripped fields nil, got %v %v %v", updated.FolderMaxFileCount, updated.AutomationMaxCount, updated.AutomationMinInterval)
+		}
+	})
 }

@@ -2,8 +2,11 @@ package client
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 )
 
 // ConnectionsConfigForm captures connection configuration.
@@ -87,7 +90,7 @@ type TaskConfigForm struct {
 	ImagePromptGenerationPromptTemplate  string  `json:"IMAGE_PROMPT_GENERATION_PROMPT_TEMPLATE"`
 	EnableAutocompleteGeneration         bool    `json:"ENABLE_AUTOCOMPLETE_GENERATION"`
 	AutocompleteGenerationInputMaxLength int64   `json:"AUTOCOMPLETE_GENERATION_INPUT_MAX_LENGTH"`
-	AutocompleteGenerationPromptTemplate *string `json:"AUTOCOMPLETE_GENERATION_PROMPT_TEMPLATE"`
+	AutocompleteGenerationPromptTemplate string  `json:"AUTOCOMPLETE_GENERATION_PROMPT_TEMPLATE"`
 	TagsGenerationPromptTemplate         string  `json:"TAGS_GENERATION_PROMPT_TEMPLATE"`
 	FollowUpGenerationPromptTemplate     string  `json:"FOLLOW_UP_GENERATION_PROMPT_TEMPLATE"`
 	EnableFollowUpGeneration             bool    `json:"ENABLE_FOLLOW_UP_GENERATION"`
@@ -419,13 +422,79 @@ type AdminConfigForm struct {
 	ChannelModelResponseMode          string  `json:"CHANNEL_MODEL_RESPONSE_MODE"`
 	EnableCalendar                    bool    `json:"ENABLE_CALENDAR"`
 	EnableMemories                    bool    `json:"ENABLE_MEMORIES"`
-	EnableMemorySystemContext         *bool   `json:"ENABLE_MEMORY_SYSTEM_CONTEXT"`
+	EnableMemorySystemContext         bool    `json:"ENABLE_MEMORY_SYSTEM_CONTEXT"`
 	EnableNotes                       bool    `json:"ENABLE_NOTES"`
 	EnableUserWebhooks                bool    `json:"ENABLE_USER_WEBHOOKS"`
 	EnableUserStatus                  bool    `json:"ENABLE_USER_STATUS"`
 	PendingUserOverlayTitle           *string `json:"PENDING_USER_OVERLAY_TITLE"`
 	PendingUserOverlayContent         *string `json:"PENDING_USER_OVERLAY_CONTENT"`
 	ResponseWatermark                 *string `json:"RESPONSE_WATERMARK"`
+}
+
+// UnmarshalJSON decodes AdminConfigForm, tolerating FOLDER_MAX_FILE_COUNT,
+// AUTOMATION_MAX_COUNT, and AUTOMATION_MIN_INTERVAL being served as either a
+// JSON number or the JSON string "". The real backend
+// (backend/open_webui/config.py) defaults each of these via
+// os.getenv(key, ""), and the update handler
+// (backend/open_webui/routers/auths.py's update_admin_config) stores
+// int(v) if v else "" - so on a stock, never-configured instance (or any
+// instance where one of these was reset to empty) the GET response serves
+// "" for that key rather than omitting it or serving null. A plain *int64
+// field fails to unmarshal a JSON string at all, which crashed GetAdminConfig
+// against a fresh server before any write had ever happened.
+func (f *AdminConfigForm) UnmarshalJSON(data []byte) error {
+	type alias AdminConfigForm
+	aux := struct {
+		FolderMaxFileCount    json.RawMessage `json:"FOLDER_MAX_FILE_COUNT"`
+		AutomationMaxCount    json.RawMessage `json:"AUTOMATION_MAX_COUNT"`
+		AutomationMinInterval json.RawMessage `json:"AUTOMATION_MIN_INTERVAL"`
+		*alias
+	}{alias: (*alias)(f)}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	var err error
+	if f.FolderMaxFileCount, err = decodeIntOrEmptyString(aux.FolderMaxFileCount); err != nil {
+		return fmt.Errorf("FOLDER_MAX_FILE_COUNT: %w", err)
+	}
+	if f.AutomationMaxCount, err = decodeIntOrEmptyString(aux.AutomationMaxCount); err != nil {
+		return fmt.Errorf("AUTOMATION_MAX_COUNT: %w", err)
+	}
+	if f.AutomationMinInterval, err = decodeIntOrEmptyString(aux.AutomationMinInterval); err != nil {
+		return fmt.Errorf("AUTOMATION_MIN_INTERVAL: %w", err)
+	}
+
+	return nil
+}
+
+// decodeIntOrEmptyString decodes a JSON value that may be a number, the
+// empty string, a non-empty numeric string, or absent/null - returning nil
+// for all of the "no value set" cases (absent, null, or "").
+func decodeIntOrEmptyString(raw json.RawMessage) (*int64, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, nil
+	}
+
+	var n int64
+	if err := json.Unmarshal(raw, &n); err == nil {
+		return &n, nil
+	}
+
+	var s string
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return nil, fmt.Errorf("expected a JSON number or string, got %s", string(raw))
+	}
+	if s == "" {
+		return nil, nil
+	}
+
+	parsed, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("non-numeric string %q: %w", s, err)
+	}
+	return &parsed, nil
 }
 
 // LDAPConfigForm captures the LDAP enable toggle as returned by both the GET
