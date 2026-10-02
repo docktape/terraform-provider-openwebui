@@ -38,7 +38,8 @@ func (r *ldapConfigResource) Metadata(_ context.Context, req resource.MetadataRe
 
 func (r *ldapConfigResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manages Open WebUI LDAP enable toggle. This is a singleton resource.",
+		MarkdownDescription: "Manages Open WebUI LDAP enable toggle. This is a singleton resource.\n\n" +
+			"~> If `enable_ldap` is omitted, the resource sends `null` and Open WebUI stores it unconditionally, which disables LDAP authentication. Set `enable_ldap` explicitly.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:            true,

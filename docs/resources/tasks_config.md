@@ -4,11 +4,14 @@ page_title: "openwebui_tasks_config Resource - openwebui"
 subcategory: ""
 description: |-
   Manages Open WebUI's title/tag/autocomplete/follow-up task-model generation settings. This is a singleton resource.
+  ~> This resource does a full-object update: any attribute not explicitly set in your configuration will be reset to its zero value (false/0/empty string) on every apply. Because prompt-template attributes are written verbatim, omitting them blanks the corresponding prompt on the server — set every template you rely on explicitly.
 ---
 
 # openwebui_tasks_config (Resource)
 
 Manages Open WebUI's title/tag/autocomplete/follow-up task-model generation settings. This is a singleton resource.
+
+~> This resource does a full-object update: any attribute not explicitly set in your configuration will be reset to its zero value (false/0/empty string) on every apply. Because prompt-template attributes are written verbatim, omitting them blanks the corresponding prompt on the server — set every template you rely on explicitly.
 
 ## Example Usage
 
