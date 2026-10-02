@@ -4,11 +4,14 @@ page_title: "openwebui_ldap_config Resource - openwebui"
 subcategory: ""
 description: |-
   Manages Open WebUI LDAP enable toggle. This is a singleton resource.
+  ~> If enable_ldap is omitted, the resource sends null and Open WebUI stores it unconditionally, which disables LDAP authentication. Set enable_ldap explicitly.
 ---
 
 # openwebui_ldap_config (Resource)
 
 Manages Open WebUI LDAP enable toggle. This is a singleton resource.
+
+~> If `enable_ldap` is omitted, the resource sends `null` and Open WebUI stores it unconditionally, which disables LDAP authentication. Set `enable_ldap` explicitly.
 
 ## Example Usage
 
