@@ -70,6 +70,7 @@ func (p *openWebUIProvider) Schema(_ context.Context, _ provider.SchemaRequest, 
 			"- `openwebui_ldap_config` — LDAP authentication enable toggle\n" +
 			"- `openwebui_ldap_server_config` — LDAP server connection, search, and group-sync settings\n" +
 			"- `openwebui_oauth_config` — generic OIDC provider settings, role/group mapping, claims, and domain allowlist (Open WebUI v0.10.0+)\n" +
+			"- `openwebui_images_config` — image generation and image editing engines, models, sizes, and engine connection settings\n" +
 			"- `openwebui_oauth_client` — OAuth client registrations\n\n" +
 			"## Data Sources\n\n" +
 			"- `openwebui_model`, `openwebui_knowledge`, `openwebui_prompt`, `openwebui_group`, `openwebui_tool`, `openwebui_pipeline` — look up existing objects by name or ID\n" +
@@ -191,6 +192,7 @@ func (p *openWebUIProvider) Resources(_ context.Context) []func() resource.Resou
 		NewLDAPConfigResource,
 		NewLDAPServerConfigResource,
 		NewOAuthConfigResource,
+		NewImagesConfigResource,
 		NewOAuthClientResource,
 		NewFunctionResource,
 		NewFunctionValvesResource,

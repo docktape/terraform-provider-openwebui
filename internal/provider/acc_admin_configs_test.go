@@ -701,3 +701,118 @@ resource "openwebui_oauth_config" "test" {
 		},
 	})
 }
+
+// TestAccImagesConfigResource covers the full-object images config through the
+// provider's fetch-then-merge: an empty apply (every value read back from the
+// server), a PlanOnly idempotency step, an apply touching every kind of value
+// (secrets, nullable size/steps, JSON object and node-list attributes written
+// with non-canonical key order and whitespace to prove semantic comparison,
+// verbatim workflow text) and a restore to the stock values so the shared
+// instance is left as found. The engine stays "openai" and generation stays
+// disabled, so the server never contacts the placeholder engine URLs.
+func TestAccImagesConfigResource(t *testing.T) {
+	const name = "openwebui_images_config.test"
+	const empty = `
+resource "openwebui_images_config" "test" {
+}`
+	full := testAccProviderConfig() + `
+resource "openwebui_images_config" "test" {
+  enable_image_generation        = false
+  enable_image_prompt_generation = false
+  image_generation_engine        = "openai"
+  image_size                     = "768x768"
+  image_steps                    = 12
+  images_openai_api_version      = "acc-version"
+  images_openai_api_params_json  = "{ \"quality\": \"hd\",  \"n\": 2 }"
+  automatic1111_base_url         = "http://a1111.invalid:7860"
+  automatic1111_api_auth         = "acc:secret"
+  automatic1111_params_json      = jsonencode({ cfg_scale = 7 })
+  comfyui_base_url               = "http://comfy.invalid:8188"
+  comfyui_api_key                = "acc-comfy-key"
+  comfyui_workflow_nodes_json    = jsonencode([{ type = "prompt", key = "text", node_ids = ["6"] }])
+  images_gemini_endpoint_method  = "predict"
+  image_edit_size                = "1024x1024"
+  images_edit_comfyui_workflow   = "{\"1\": {}}"
+
+  images_edit_comfyui_workflow_nodes_json = "[ ]"
+}`
+	restore := testAccProviderConfig() + `
+resource "openwebui_images_config" "test" {
+  enable_image_generation        = false
+  enable_image_prompt_generation = true
+  image_generation_engine        = "openai"
+  image_generation_model         = ""
+  image_size                     = "512x512"
+  image_steps                    = 50
+  images_openai_api_version      = ""
+  images_openai_api_params_json  = "{}"
+  automatic1111_base_url         = ""
+  automatic1111_api_auth         = ""
+  automatic1111_params_json      = "{}"
+  comfyui_base_url               = ""
+  comfyui_api_key                = ""
+  comfyui_workflow_nodes_json    = "[]"
+  images_gemini_endpoint_method  = ""
+  image_edit_size                = ""
+  images_edit_comfyui_workflow   = ""
+
+  images_edit_comfyui_workflow_nodes_json = "[]"
+}`
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + empty,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "id", "images"),
+					resource.TestCheckResourceAttrSet(name, "image_generation_engine"),
+					resource.TestCheckResourceAttrSet(name, "image_steps"),
+					resource.TestCheckResourceAttrSet(name, "comfyui_workflow"),
+					resource.TestCheckResourceAttrSet(name, "comfyui_workflow_nodes_json"),
+				),
+			},
+			{
+				Config:   testAccProviderConfig() + empty,
+				PlanOnly: true,
+			},
+			{
+				Config: full,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "enable_image_prompt_generation", "false"),
+					resource.TestCheckResourceAttr(name, "image_size", "768x768"),
+					resource.TestCheckResourceAttr(name, "image_steps", "12"),
+					resource.TestCheckResourceAttr(name, "images_openai_api_params_json", "{ \"quality\": \"hd\",  \"n\": 2 }"),
+					resource.TestCheckResourceAttr(name, "automatic1111_api_auth", "acc:secret"),
+					resource.TestCheckResourceAttr(name, "automatic1111_params_json", `{"cfg_scale":7}`),
+					resource.TestCheckResourceAttr(name, "comfyui_base_url", "http://comfy.invalid:8188"),
+					resource.TestCheckResourceAttr(name, "comfyui_api_key", "acc-comfy-key"),
+					resource.TestCheckResourceAttr(name, "comfyui_workflow_nodes_json", `[{"key":"text","node_ids":["6"],"type":"prompt"}]`),
+					resource.TestCheckResourceAttr(name, "image_edit_size", "1024x1024"),
+					resource.TestCheckResourceAttr(name, "images_edit_comfyui_workflow", `{"1": {}}`),
+					resource.TestCheckResourceAttr(name, "images_edit_comfyui_workflow_nodes_json", "[ ]"),
+					resource.TestCheckResourceAttr(name, "image_generation_engine", "openai"),
+				),
+			},
+			{
+				Config:   full,
+				PlanOnly: true,
+			},
+			{
+				Config: restore,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "image_size", "512x512"),
+					resource.TestCheckResourceAttr(name, "image_steps", "50"),
+					resource.TestCheckResourceAttr(name, "images_openai_api_params_json", "{}"),
+					resource.TestCheckResourceAttr(name, "automatic1111_api_auth", ""),
+					resource.TestCheckResourceAttr(name, "comfyui_workflow_nodes_json", "[]"),
+					resource.TestCheckResourceAttr(name, "image_edit_size", ""),
+				),
+			},
+			{
+				Config:   restore,
+				PlanOnly: true,
+			},
+		},
+	})
+}
