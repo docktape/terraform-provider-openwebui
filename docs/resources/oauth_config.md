@@ -71,7 +71,7 @@ resource "openwebui_oauth_config" "example" {
 - `oauth_blocked_groups` (String) Blocked OAuth groups, stored as a string (the server default is the JSON list text `[]`).
 - `oauth_client_id` (String) OAuth client ID of the generic OIDC provider.
 - `oauth_client_secret` (String, Sensitive) OAuth client secret of the generic OIDC provider. Sensitive. Open WebUI returns it in plain text from its read endpoint, so it is also kept in Terraform state.
-- `oauth_client_timeout` (String) HTTP client timeout in seconds, as a numeric string, or an empty string for none. Server default: empty string.
+- `oauth_client_timeout` (String) HTTP client timeout in seconds, as a whole-number string without leading zeros, or an empty string for none. Server default: empty string.
 - `oauth_code_challenge_method` (String) PKCE code challenge method. Only `S256` is supported by Open WebUI; an empty string disables PKCE. Null until set.
 - `oauth_email_claim` (String) Claim that carries the user's email. Server default: `email`.
 - `oauth_group_claim` (String) Claim that carries the user's groups. Server default: `groups`.
@@ -83,7 +83,7 @@ resource "openwebui_oauth_config" "example" {
 - `oauth_roles_claim` (String) Claim that carries the user's roles. Server default: `roles`.
 - `oauth_scopes` (String) Space-separated scopes requested from the provider. Server default: `openid email profile`.
 - `oauth_sub_claim` (String) Claim used as the subject identifier. Null until set (the provider default `sub` applies).
-- `oauth_timeout` (String) HTTP timeout in seconds for provider requests, as a numeric string (for example `"30"`), or an empty string for no explicit timeout. The server accepts an integer or a string; Terraform always sees a string. Server default: empty string.
+- `oauth_timeout` (String) HTTP timeout in seconds for provider requests, as a whole-number string without leading zeros (for example `"30"`), or an empty string for no explicit timeout. The server accepts an integer or a string; Terraform always sees a string. Server default: empty string.
 - `oauth_token_endpoint_auth_method` (String) Client authentication method at the token endpoint (for example `client_secret_post`). Null until set.
 - `oauth_update_email_on_login` (Boolean) Whether the user's email is refreshed from the provider on every login. Server default: `false`.
 - `oauth_update_name_on_login` (Boolean) Whether the user's name is refreshed on every login. Server default: `false`.
