@@ -31,10 +31,10 @@ var commaListValidator = stringvalidator.RegexMatches(
 	"must be a comma-separated list of non-empty items without leading or trailing whitespace, or an empty string",
 )
 
-// secondsValidator accepts a non-negative integer string or the empty string.
+// secondsValidator accepts a canonical non-negative integer string (no leading zeros, so it round-trips through a JSON number) or the empty string.
 var secondsValidator = stringvalidator.RegexMatches(
-	regexp.MustCompile(`^[0-9]*$`),
-	"must be a non-negative whole number of seconds, or an empty string",
+	regexp.MustCompile(`^(0|[1-9][0-9]*)?$`),
+	"must be a non-negative whole number of seconds without leading zeros, or an empty string",
 )
 
 type oauthConfigResource struct {
@@ -133,8 +133,8 @@ func (r *oauthConfigResource) Schema(_ context.Context, _ resource.SchemaRequest
 			"oauth_code_challenge_method":       str("PKCE code challenge method. Only `S256` is supported by Open WebUI; an empty string disables PKCE. Null until set.", stringvalidator.OneOf("", "S256")),
 			"oauth_token_endpoint_auth_method":  str("Client authentication method at the token endpoint (for example `client_secret_post`). Null until set."),
 			"openid_end_session_endpoint":       str("Provider end-session (logout) endpoint. Empty means none."),
-			"oauth_timeout":                     str("HTTP timeout in seconds for provider requests, as a numeric string (for example `\"30\"`), or an empty string for no explicit timeout. The server accepts an integer or a string; Terraform always sees a string. Server default: empty string.", secondsValidator),
-			"oauth_client_timeout":              str("HTTP client timeout in seconds, as a numeric string, or an empty string for none. Server default: empty string.", secondsValidator),
+			"oauth_timeout":                     str("HTTP timeout in seconds for provider requests, as a whole-number string without leading zeros (for example `\"30\"`), or an empty string for no explicit timeout. The server accepts an integer or a string; Terraform always sees a string. Server default: empty string.", secondsValidator),
+			"oauth_client_timeout":              str("HTTP client timeout in seconds, as a whole-number string without leading zeros, or an empty string for none. Server default: empty string.", secondsValidator),
 			"oauth_email_claim":                 str("Claim that carries the user's email. Server default: `email`."),
 			"oauth_username_claim":              str("Claim that carries the user's display name. Server default: `name`."),
 			"oauth_picture_claim":               str("Claim that carries the user's profile picture URL. Server default: `picture`."),

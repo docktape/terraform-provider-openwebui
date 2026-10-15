@@ -108,10 +108,10 @@ func TestOAuthConfigValidators_ScalarFields(t *testing.T) {
 	planOnlyRejected(t, oauthHCL(`  oauth_group_default_share = "everyone"`), `(?s)oauth_group_default_share.*(one of|must be)`)
 
 	for _, attr := range []string{"oauth_timeout", "oauth_client_timeout"} {
-		for _, ok := range []string{"", "30"} {
+		for _, ok := range []string{"", "0", "30"} {
 			planOnlyValid(t, oauthHCL(`  `+attr+` = "`+ok+`"`))
 		}
-		for _, bad := range []string{"30s", "-1", "1.5"} {
+		for _, bad := range []string{"30s", "-1", "1.5", "030", "00", "05"} {
 			planOnlyRejected(t, oauthHCL(`  `+attr+` = "`+bad+`"`), `(?s)`+attr+`.*whole number`)
 		}
 	}
