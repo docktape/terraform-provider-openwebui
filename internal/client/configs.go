@@ -604,3 +604,167 @@ func (c *Client) SetLDAPServerConfig(ctx context.Context, form LDAPServerConfigF
 	}
 	return &resp, nil
 }
+
+// OAuthConfigForm mirrors the OAuthConfigForm Pydantic model served by GET and
+// accepted by POST /auths/admin/config/oauth (backend/open_webui/routers/
+// auths.py; the endpoint exists from Open WebUI v0.10.0). Every field is
+// Optional[...] = None server-side and the handler stores
+// model_dump(exclude_none=True), so the POST is a genuine partial update: a
+// nil (omitted) field leaves the stored value untouched and there is no way to
+// send null. Clearing a string is done by sending "".
+//
+// Three fields are unions on the server and get custom wire handling (see
+// MarshalJSON/UnmarshalJSON): OAuthTimeout and OAuthClientTimeout are int|str
+// and OAuthGroupDefaultShare is bool|str. All three are exposed as *string.
+// ENABLE_OAUTH was added in v0.11.0 and is absent from v0.10.x responses.
+type OAuthConfigForm struct {
+	EnableOAuth                   *bool   `json:"ENABLE_OAUTH,omitempty"`
+	EnableOAuthSignup             *bool   `json:"ENABLE_OAUTH_SIGNUP,omitempty"`
+	OAuthMergeAccountsByEmail     *bool   `json:"OAUTH_MERGE_ACCOUNTS_BY_EMAIL,omitempty"`
+	OAuthAutoRedirect             *bool   `json:"OAUTH_AUTO_REDIRECT,omitempty"`
+	OAuthAllowedDomains           *string `json:"OAUTH_ALLOWED_DOMAINS,omitempty"`
+	OAuthBlockedGroups            *string `json:"OAUTH_BLOCKED_GROUPS,omitempty"`
+	EnableOAuthRoleManagement     *bool   `json:"ENABLE_OAUTH_ROLE_MANAGEMENT,omitempty"`
+	OAuthRolesClaim               *string `json:"OAUTH_ROLES_CLAIM,omitempty"`
+	OAuthAdminRoles               *string `json:"OAUTH_ADMIN_ROLES,omitempty"`
+	OAuthAllowedRoles             *string `json:"OAUTH_ALLOWED_ROLES,omitempty"`
+	EnableOAuthGroupManagement    *bool   `json:"ENABLE_OAUTH_GROUP_MANAGEMENT,omitempty"`
+	EnableOAuthGroupCreation      *bool   `json:"ENABLE_OAUTH_GROUP_CREATION,omitempty"`
+	OAuthGroupClaim               *string `json:"OAUTH_GROUP_CLAIM,omitempty"`
+	OAuthGroupDefaultShare        *string `json:"-"`
+	OAuthProviderName             *string `json:"OAUTH_PROVIDER_NAME,omitempty"`
+	OpenIDProviderURL             *string `json:"OPENID_PROVIDER_URL,omitempty"`
+	OAuthClientID                 *string `json:"OAUTH_CLIENT_ID,omitempty"`
+	OAuthClientSecret             *string `json:"OAUTH_CLIENT_SECRET,omitempty"`
+	OpenIDRedirectURI             *string `json:"OPENID_REDIRECT_URI,omitempty"`
+	OAuthScopes                   *string `json:"OAUTH_SCOPES,omitempty"`
+	OAuthCodeChallengeMethod      *string `json:"OAUTH_CODE_CHALLENGE_METHOD,omitempty"`
+	OAuthTokenEndpointAuthMethod  *string `json:"OAUTH_TOKEN_ENDPOINT_AUTH_METHOD,omitempty"`
+	OpenIDEndSessionEndpoint      *string `json:"OPENID_END_SESSION_ENDPOINT,omitempty"`
+	OAuthTimeout                  *string `json:"-"`
+	OAuthClientTimeout            *string `json:"-"`
+	OAuthEmailClaim               *string `json:"OAUTH_EMAIL_CLAIM,omitempty"`
+	OAuthUsernameClaim            *string `json:"OAUTH_USERNAME_CLAIM,omitempty"`
+	OAuthPictureClaim             *string `json:"OAUTH_PICTURE_CLAIM,omitempty"`
+	OAuthSubClaim                 *string `json:"OAUTH_SUB_CLAIM,omitempty"`
+	OAuthAudience                 *string `json:"OAUTH_AUDIENCE,omitempty"`
+	OAuthUpdateEmailOnLogin       *bool   `json:"OAUTH_UPDATE_EMAIL_ON_LOGIN,omitempty"`
+	OAuthUpdateNameOnLogin        *bool   `json:"OAUTH_UPDATE_NAME_ON_LOGIN,omitempty"`
+	OAuthUpdatePictureOnLogin     *bool   `json:"OAUTH_UPDATE_PICTURE_ON_LOGIN,omitempty"`
+	OAuthRefreshTokenIncludeScope *bool   `json:"OAUTH_REFRESH_TOKEN_INCLUDE_SCOPE,omitempty"`
+}
+
+// MarshalJSON encodes the union fields: numeric timeout strings become JSON
+// numbers (the empty string stays "", which the backend stores as "no
+// timeout"), and "true"/"false" share values become JSON booleans, because a
+// JSON string "true" would be stored as that string by Pydantic's bool|str
+// smart-mode union rather than as a boolean.
+func (f OAuthConfigForm) MarshalJSON() ([]byte, error) {
+	type alias OAuthConfigForm
+	aux := struct {
+		alias
+		GroupDefaultShare any `json:"OAUTH_GROUP_DEFAULT_SHARE,omitempty"`
+		Timeout           any `json:"OAUTH_TIMEOUT,omitempty"`
+		ClientTimeout     any `json:"OAUTH_CLIENT_TIMEOUT,omitempty"`
+	}{alias: alias(f)}
+
+	if f.OAuthGroupDefaultShare != nil {
+		switch *f.OAuthGroupDefaultShare {
+		case "true":
+			aux.GroupDefaultShare = true
+		case "false":
+			// A boolean false is a real value, but omitempty drops a nil
+			// interface only; false inside an interface is kept.
+			aux.GroupDefaultShare = false
+		default:
+			aux.GroupDefaultShare = *f.OAuthGroupDefaultShare
+		}
+	}
+	aux.Timeout = encodeIntOrString(f.OAuthTimeout)
+	aux.ClientTimeout = encodeIntOrString(f.OAuthClientTimeout)
+	return json.Marshal(aux)
+}
+
+// encodeIntOrString returns a JSON number for a numeric string, the string
+// itself otherwise, and nil (omitted) for a nil pointer.
+func encodeIntOrString(v *string) any {
+	if v == nil {
+		return nil
+	}
+	if n, err := strconv.ParseInt(*v, 10, 64); err == nil {
+		return n
+	}
+	return *v
+}
+
+// UnmarshalJSON decodes the union fields into strings: JSON numbers and
+// booleans are rendered in their canonical text form, JSON strings pass
+// through, and null/absent stay nil.
+func (f *OAuthConfigForm) UnmarshalJSON(data []byte) error {
+	type alias OAuthConfigForm
+	aux := struct {
+		*alias
+		GroupDefaultShare json.RawMessage `json:"OAUTH_GROUP_DEFAULT_SHARE"`
+		Timeout           json.RawMessage `json:"OAUTH_TIMEOUT"`
+		ClientTimeout     json.RawMessage `json:"OAUTH_CLIENT_TIMEOUT"`
+	}{alias: (*alias)(f)}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	var err error
+	if f.OAuthGroupDefaultShare, err = decodeScalarAsString(aux.GroupDefaultShare); err != nil {
+		return fmt.Errorf("OAUTH_GROUP_DEFAULT_SHARE: %w", err)
+	}
+	if f.OAuthTimeout, err = decodeScalarAsString(aux.Timeout); err != nil {
+		return fmt.Errorf("OAUTH_TIMEOUT: %w", err)
+	}
+	if f.OAuthClientTimeout, err = decodeScalarAsString(aux.ClientTimeout); err != nil {
+		return fmt.Errorf("OAUTH_CLIENT_TIMEOUT: %w", err)
+	}
+	return nil
+}
+
+// decodeScalarAsString decodes a JSON string, number or boolean as its text
+// form; null or an absent key yields nil.
+func decodeScalarAsString(raw json.RawMessage) (*string, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, nil
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		return &s, nil
+	}
+	var b bool
+	if err := json.Unmarshal(raw, &b); err == nil {
+		s = strconv.FormatBool(b)
+		return &s, nil
+	}
+	var n json.Number
+	if err := json.Unmarshal(raw, &n); err == nil {
+		s = n.String()
+		return &s, nil
+	}
+	return nil, fmt.Errorf("expected a JSON string, number or boolean, got %s", string(raw))
+}
+
+// GetOAuthConfig retrieves the OIDC/OAuth configuration (Open WebUI v0.10.0+).
+// OAUTH_CLIENT_SECRET is returned in plain text.
+func (c *Client) GetOAuthConfig(ctx context.Context) (*OAuthConfigForm, error) {
+	var resp OAuthConfigForm
+	if err := c.do(ctx, http.MethodGet, "auths/admin/config/oauth", nil, nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// SetOAuthConfig applies a partial update: only the non-nil fields of form are
+// sent and every other stored value is left untouched by the server. The
+// response is the full resulting configuration.
+func (c *Client) SetOAuthConfig(ctx context.Context, form OAuthConfigForm) (*OAuthConfigForm, error) {
+	var resp OAuthConfigForm
+	if err := c.do(ctx, http.MethodPost, "auths/admin/config/oauth", nil, form, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}

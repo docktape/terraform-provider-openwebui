@@ -575,3 +575,129 @@ resource "openwebui_ldap_server_config" "test" {
 		},
 	})
 }
+
+// TestAccOAuthConfigResource covers the generic OIDC config: an empty apply
+// (server defaults, null/"" round-tripping), a PlanOnly idempotency step, a
+// full apply with every kind of value including the sensitive secret and the
+// union-typed string attributes, and finally a restore to the stock defaults so
+// the shared instance is left as it was found. Nothing here can lock the admin
+// out: auto-redirect stays false and no provider URL is configured.
+func TestAccOAuthConfigResource(t *testing.T) {
+	const name = "openwebui_oauth_config.test"
+	const empty = `
+resource "openwebui_oauth_config" "test" {
+}`
+	full := testAccProviderConfig() + `
+resource "openwebui_oauth_config" "test" {
+  enable_oauth_signup               = false
+  oauth_auto_redirect               = false
+  oauth_allowed_domains             = "acc.example.com,example.org"
+  oauth_blocked_groups              = "[]"
+  enable_oauth_role_management      = false
+  oauth_roles_claim                 = "acc_roles"
+  oauth_admin_roles                 = "Acc Admin,admin"
+  oauth_allowed_roles               = "user,admin"
+  oauth_group_claim                 = "acc_groups"
+  oauth_group_default_share         = "members"
+  oauth_provider_name               = "Acc SSO"
+  oauth_client_id                   = "acc-client"
+  oauth_client_secret               = "acc-secret"
+  oauth_scopes                      = "openid email"
+  oauth_code_challenge_method       = "S256"
+  oauth_token_endpoint_auth_method  = "client_secret_post"
+  oauth_timeout                     = "30"
+  oauth_client_timeout              = "45"
+  oauth_email_claim                 = "acc_email"
+  oauth_username_claim              = "acc_name"
+  oauth_picture_claim               = "acc_picture"
+  oauth_sub_claim                   = "acc_sub"
+  oauth_audience                    = "acc-audience"
+  oauth_update_email_on_login       = true
+  oauth_update_name_on_login        = true
+  oauth_update_picture_on_login     = true
+  oauth_refresh_token_include_scope = true
+}`
+	restore := testAccProviderConfig() + `
+resource "openwebui_oauth_config" "test" {
+  oauth_auto_redirect               = false
+  oauth_allowed_domains             = "*"
+  oauth_blocked_groups              = "[]"
+  oauth_roles_claim                 = "roles"
+  oauth_admin_roles                 = "admin"
+  oauth_allowed_roles               = "user,admin"
+  oauth_group_claim                 = "groups"
+  oauth_group_default_share         = "true"
+  oauth_provider_name               = "SSO"
+  oauth_client_id                   = ""
+  oauth_client_secret               = ""
+  oauth_scopes                      = "openid email profile"
+  oauth_code_challenge_method       = ""
+  oauth_token_endpoint_auth_method  = ""
+  oauth_timeout                     = ""
+  oauth_client_timeout              = ""
+  oauth_email_claim                 = "email"
+  oauth_username_claim              = "name"
+  oauth_picture_claim               = "picture"
+  oauth_sub_claim                   = ""
+  oauth_audience                    = ""
+  oauth_update_email_on_login       = false
+  oauth_update_name_on_login        = false
+  oauth_update_picture_on_login     = false
+  oauth_refresh_token_include_scope = false
+}`
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + empty,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "id", "oauth_config"),
+					resource.TestCheckResourceAttrSet(name, "enable_oauth_signup"),
+					resource.TestCheckResourceAttrSet(name, "oauth_scopes"),
+					resource.TestCheckResourceAttr(name, "oauth_timeout", ""),
+				),
+			},
+			{
+				Config:   testAccProviderConfig() + empty,
+				PlanOnly: true,
+			},
+			{
+				Config: full,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "oauth_allowed_domains", "acc.example.com,example.org"),
+					resource.TestCheckResourceAttr(name, "oauth_admin_roles", "Acc Admin,admin"),
+					resource.TestCheckResourceAttr(name, "oauth_group_default_share", "members"),
+					resource.TestCheckResourceAttr(name, "oauth_provider_name", "Acc SSO"),
+					resource.TestCheckResourceAttr(name, "oauth_client_secret", "acc-secret"),
+					resource.TestCheckResourceAttr(name, "oauth_code_challenge_method", "S256"),
+					resource.TestCheckResourceAttr(name, "oauth_timeout", "30"),
+					resource.TestCheckResourceAttr(name, "oauth_client_timeout", "45"),
+					resource.TestCheckResourceAttr(name, "oauth_sub_claim", "acc_sub"),
+					resource.TestCheckResourceAttr(name, "oauth_update_email_on_login", "true"),
+					resource.TestCheckResourceAttr(name, "oauth_refresh_token_include_scope", "true"),
+					resource.TestCheckResourceAttr(name, "oauth_auto_redirect", "false"),
+				),
+			},
+			{
+				Config:   full,
+				PlanOnly: true,
+			},
+			{
+				Config: restore,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "oauth_allowed_domains", "*"),
+					resource.TestCheckResourceAttr(name, "oauth_group_default_share", "true"),
+					resource.TestCheckResourceAttr(name, "oauth_client_secret", ""),
+					resource.TestCheckResourceAttr(name, "oauth_timeout", ""),
+					resource.TestCheckResourceAttr(name, "oauth_code_challenge_method", ""),
+					resource.TestCheckResourceAttr(name, "oauth_update_email_on_login", "false"),
+				),
+			},
+			{
+				Config:   restore,
+				PlanOnly: true,
+			},
+		},
+	})
+}
