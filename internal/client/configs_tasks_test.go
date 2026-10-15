@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 )
 
@@ -88,7 +87,16 @@ func TestTaskConfigFormAutocompleteGenerationPromptTemplateZeroValueSentAsEmptyS
 	if err != nil {
 		t.Fatalf("json.Marshal: %v", err)
 	}
-	if !strings.Contains(string(encoded), `"AUTOCOMPLETE_GENERATION_PROMPT_TEMPLATE":""`) {
-		t.Fatalf("expected encoded JSON to contain \"AUTOCOMPLETE_GENERATION_PROMPT_TEMPLATE\":\"\", got %s", encoded)
+
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(encoded, &fields); err != nil {
+		t.Fatalf("json.Unmarshal of encoded form: %v", err)
+	}
+	raw, ok := fields["AUTOCOMPLETE_GENERATION_PROMPT_TEMPLATE"]
+	if !ok {
+		t.Fatalf("expected key AUTOCOMPLETE_GENERATION_PROMPT_TEMPLATE to be present, got %s", encoded)
+	}
+	if string(raw) != `""` {
+		t.Fatalf("expected AUTOCOMPLETE_GENERATION_PROMPT_TEMPLATE to be the empty string \"\", got %s", raw)
 	}
 }

@@ -2,7 +2,9 @@ package provider
 
 import (
 	"context"
+	"regexp"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -58,6 +60,10 @@ type adminConfigModel struct {
 	ResponseWatermark                 types.String `tfsdk:"response_watermark"`
 }
 
+// jwtExpiresInPattern mirrors the regex Open WebUI's update_admin_config applies
+// to JWT_EXPIRES_IN; non-matching values are silently dropped by the backend.
+var jwtExpiresInPattern = regexp.MustCompile(`^(-1|0|(-?\d+(\.\d+)?)(ms|s|m|h|d|w))$`)
+
 func NewAdminConfigResource() resource.Resource {
 	return &adminConfigResource{}
 }
@@ -70,11 +76,11 @@ func (r *adminConfigResource) Schema(_ context.Context, _ resource.SchemaRequest
 	b := func(desc string) schema.BoolAttribute {
 		return schema.BoolAttribute{Optional: true, Computed: true, Description: desc, MarkdownDescription: desc, PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}}
 	}
-	i := func(desc string) schema.Int64Attribute {
-		return schema.Int64Attribute{Optional: true, Computed: true, Description: desc, MarkdownDescription: desc, PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}}
+	i := func(desc string, validators ...validator.Int64) schema.Int64Attribute {
+		return schema.Int64Attribute{Optional: true, Computed: true, Description: desc, MarkdownDescription: desc, PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}, Validators: validators}
 	}
-	s := func(desc string) schema.StringAttribute {
-		return schema.StringAttribute{Optional: true, Computed: true, Description: desc, MarkdownDescription: desc, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}
+	s := func(desc string, validators ...validator.String) schema.StringAttribute {
+		return schema.StringAttribute{Optional: true, Computed: true, Description: desc, MarkdownDescription: desc, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}, Validators: validators}
 	}
 
 	resp.Schema = schema.Schema{
@@ -110,21 +116,22 @@ func (r *adminConfigResource) Schema(_ context.Context, _ resource.SchemaRequest
 					stringvalidator.OneOf("pending", "user", "admin"),
 				},
 			},
-			"default_group_id":         s("Default group ID for new users."),
-			"jwt_expires_in":           s("JWT token expiration duration (e.g., 30d, 24h)."),
+			"default_group_id": s("Default group ID for new users."),
+			"jwt_expires_in": s("JWT token expiration duration (e.g., 30d, 24h). Must be -1, 0, or a number followed by one of the units ms, s, m, h, d, w (Open WebUI silently ignores any other value).",
+				stringvalidator.RegexMatches(jwtExpiresInPattern, "must be -1, 0, or a number followed by one of the units ms, s, m, h, d, w (e.g. \"30d\", \"24h\", \"1.5h\")")),
 			"enable_community_sharing": b("Whether community sharing is enabled."),
 			"enable_message_rating":    b("Whether message rating is enabled."),
 			"enable_folders":           b("Whether folders are enabled."),
-			"folder_max_file_count":    i("Maximum number of files per folder."),
-			"automation_max_count":     i("Maximum number of concurrent automations."),
-			"automation_min_interval":  i("Minimum interval between automations in milliseconds."),
+			"folder_max_file_count":    i("Maximum number of files per folder. 0 is not accepted: Open WebUI stores 0 as unset (no limit) and reads it back as null.", int64validator.NoneOf(0)),
+			"automation_max_count":     i("Maximum number of concurrent automations. 0 is not accepted: Open WebUI stores 0 as unset (no limit) and reads it back as null.", int64validator.NoneOf(0)),
+			"automation_min_interval":  i("Minimum interval between automations in milliseconds. 0 is not accepted: Open WebUI stores 0 as unset (no limit) and reads it back as null.", int64validator.NoneOf(0)),
 			"enable_automations":       b("Whether automations are enabled."),
 			"enable_channels":          b("Whether channels are enabled."),
 			"channel_model_response_mode": schema.StringAttribute{
 				Optional:            true,
 				Computed:            true,
-				Description:         "Whether model responses in channels are posted as threads or as channel messages (thread or channel).",
-				MarkdownDescription: "Whether model responses in channels are posted as threads or as channel messages (`thread` or `channel`).",
+				Description:         "Whether model responses in channels are posted as threads or as channel messages (thread or channel). Requires Open WebUI v0.11.0 or later.",
+				MarkdownDescription: "Whether model responses in channels are posted as threads or as channel messages (`thread` or `channel`). Requires Open WebUI v0.11.0 or later.",
 				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 				Validators: []validator.String{
 					stringvalidator.OneOf("thread", "channel"),
@@ -135,8 +142,8 @@ func (r *adminConfigResource) Schema(_ context.Context, _ resource.SchemaRequest
 			"enable_memory_system_context": schema.BoolAttribute{
 				Optional:            true,
 				Computed:            true,
-				Description:         "Whether memory system context is enabled. Available in v0.10.2+.",
-				MarkdownDescription: "Whether memory system context is enabled. Available in v0.10.2+.",
+				Description:         "Whether memory system context is enabled. Requires Open WebUI v0.10.2 or later.",
+				MarkdownDescription: "Whether memory system context is enabled. Requires Open WebUI v0.10.2 or later.",
 				PlanModifiers:       []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
 			},
 			"enable_notes":                 b("Whether notes are enabled."),
