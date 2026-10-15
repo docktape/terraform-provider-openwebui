@@ -1,9 +1,13 @@
 package provider
 
 import (
+	"context"
+	"os"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+
+	"github.com/docktape/terraform-provider-openwebui/internal/client"
 )
 
 // TestAccConnectionsConfigResource applies a known connections config and
@@ -813,6 +817,123 @@ resource "openwebui_images_config" "test" {
 				Config:   restore,
 				PlanOnly: true,
 			},
+		},
+	})
+}
+
+// TestAccAudioConfigResource covers the nested tts/stt audio config through the
+// provider's fetch-then-merge: an empty apply (both sub-objects read back from
+// the server), an apply with only `tts` (params JSON written with
+// non-canonical whitespace), an apply with only `stt` (tts values must
+// survive), and all three list shapes ([] / populated / omitted). Each apply
+// step is followed by a PlanOnly idempotency step. stt.engine and
+// stt.whisper_model are never changed, so the server only reloads the Whisper
+// model it already has cached. The pre-test configuration is captured and
+// POSTed back on cleanup, so the instance is left exactly as found.
+func TestAccAudioConfigResource(t *testing.T) {
+	testAccPreCheck(t)
+	const name = "openwebui_audio_config.test"
+
+	apiClient, err := client.NewClient(os.Getenv("OPENWEBUI_ENDPOINT"), os.Getenv("OPENWEBUI_TOKEN"), os.Getenv("OPENWEBUI_INSECURE") != "")
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	original, err := apiClient.GetAudioConfig(context.Background())
+	if err != nil {
+		t.Fatalf("capture pre-test audio config: %v", err)
+	}
+	t.Cleanup(func() {
+		if _, err := apiClient.SetAudioConfig(context.Background(), *original); err != nil {
+			t.Errorf("restore pre-test audio config: %v", err)
+		}
+	})
+
+	empty := testAccProviderConfig() + `
+resource "openwebui_audio_config" "test" {
+}`
+	ttsOnly := testAccProviderConfig() + `
+resource "openwebui_audio_config" "test" {
+  tts = {
+    voice              = "acc-voice"
+    split_on           = "paragraphs"
+    api_key            = "acc-tts-key"
+    openai_params_json = "{ \"speed\":  1.25 }"
+  }
+}`
+	sttOnly := testAccProviderConfig() + `
+resource "openwebui_audio_config" "test" {
+  stt = {
+    supported_content_types      = []
+    allowed_extensions           = ["mp3", "wav"]
+    azure_max_speakers           = "2"
+    azure_locales                = "en-US,de-DE"
+    deepgram_api_key             = "acc-dg-key"
+    mistral_use_chat_completions = true
+    openai_api_request_format    = "json"
+  }
+}`
+	sttLists := testAccProviderConfig() + `
+resource "openwebui_audio_config" "test" {
+  stt = {
+    supported_content_types = ["audio/*", "video/webm"]
+    allowed_extensions      = []
+  }
+}`
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: empty,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "id", "audio"),
+					resource.TestCheckResourceAttr(name, "tts.model", original.TTS.Model),
+					resource.TestCheckResourceAttr(name, "stt.whisper_model", original.STT.WhisperModel),
+					resource.TestCheckResourceAttrSet(name, "stt.allowed_extensions.#"),
+					resource.TestCheckResourceAttrSet(name, "stt.supported_content_types.#"),
+				),
+			},
+			{Config: empty, PlanOnly: true},
+			{
+				Config: ttsOnly,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "tts.voice", "acc-voice"),
+					resource.TestCheckResourceAttr(name, "tts.split_on", "paragraphs"),
+					resource.TestCheckResourceAttr(name, "tts.api_key", "acc-tts-key"),
+					resource.TestCheckResourceAttr(name, "tts.openai_params_json", "{ \"speed\":  1.25 }"),
+					resource.TestCheckResourceAttr(name, "tts.engine", original.TTS.Engine),
+					resource.TestCheckResourceAttr(name, "stt.engine", original.STT.Engine),
+				),
+			},
+			{Config: ttsOnly, PlanOnly: true},
+			{
+				Config: sttOnly,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "stt.supported_content_types.#", "0"),
+					resource.TestCheckResourceAttr(name, "stt.allowed_extensions.#", "2"),
+					resource.TestCheckResourceAttr(name, "stt.allowed_extensions.1", "wav"),
+					resource.TestCheckResourceAttr(name, "stt.azure_max_speakers", "2"),
+					resource.TestCheckResourceAttr(name, "stt.azure_locales", "en-US,de-DE"),
+					resource.TestCheckResourceAttr(name, "stt.deepgram_api_key", "acc-dg-key"),
+					resource.TestCheckResourceAttr(name, "stt.mistral_use_chat_completions", "true"),
+					resource.TestCheckResourceAttr(name, "stt.openai_api_request_format", "json"),
+					resource.TestCheckResourceAttr(name, "stt.whisper_model", original.STT.WhisperModel),
+					// tts was removed from the configuration: values persist.
+					resource.TestCheckResourceAttr(name, "tts.voice", "acc-voice"),
+					resource.TestCheckResourceAttr(name, "tts.openai_params_json", "{ \"speed\":  1.25 }"),
+				),
+			},
+			{Config: sttOnly, PlanOnly: true},
+			{
+				Config: sttLists,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "stt.supported_content_types.#", "2"),
+					resource.TestCheckResourceAttr(name, "stt.supported_content_types.0", "audio/*"),
+					resource.TestCheckResourceAttr(name, "stt.allowed_extensions.#", "0"),
+					resource.TestCheckResourceAttr(name, "stt.deepgram_api_key", "acc-dg-key"),
+				),
+			},
+			{Config: sttLists, PlanOnly: true},
 		},
 	})
 }
