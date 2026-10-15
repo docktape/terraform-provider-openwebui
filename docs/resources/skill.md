@@ -3,16 +3,19 @@
 page_title: "openwebui_skill Resource - openwebui"
 subcategory: ""
 description: |-
-  Manages a Skill in Open WebUI: a reusable, admin-managed instructional object exposed to language models, structurally similar to openwebui_tool but without executable Python code or valves. Skill names must be unique across the instance.
-  Updates replace every field of the skill: removing description, is_active or tags from the configuration clears the description, re-enables the skill and empties the tags. To revoke group access set read_groups / write_groups to [] explicitly; omitting them keeps the current grants.
+  Manages a Skill in Open WebUI: a reusable instructional object exposed to language models (admins and users with the workspace.skills permission can create them), structurally similar to openwebui_tool but without executable Python code or valves. Skill names must be unique across the instance.
+  Updates replace every field of the skill: removing description, is_active or tags from the configuration clears the description, re-enables the skill and empties the tags. To revoke group access set read_groups / write_groups to [] explicitly; omitting them keeps the current grants. Every group in write_groups must also be listed in read_groups, because Open WebUI does not treat write access as read access.
+  Only group grants are managed. Public (*) and per-user grants added in the Open WebUI interface are dropped on the next update. A non-admin token without the access_grants.allow_groups permission has group grants silently stripped by the server.
   ~> Note: the skill content is read back from the skill itself, falling back to the export endpoint. A non-admin token without the workspace.skills_export permission cannot use that fallback and keeps the configured value instead.
 ---
 
 # openwebui_skill (Resource)
 
-Manages a Skill in Open WebUI: a reusable, admin-managed instructional object exposed to language models, structurally similar to `openwebui_tool` but without executable Python code or valves. Skill names must be unique across the instance.
+Manages a Skill in Open WebUI: a reusable instructional object exposed to language models (admins and users with the `workspace.skills` permission can create them), structurally similar to `openwebui_tool` but without executable Python code or valves. Skill names must be unique across the instance.
 
-Updates replace every field of the skill: removing `description`, `is_active` or `tags` from the configuration clears the description, re-enables the skill and empties the tags. To revoke group access set `read_groups` / `write_groups` to `[]` explicitly; omitting them keeps the current grants.
+Updates replace every field of the skill: removing `description`, `is_active` or `tags` from the configuration clears the description, re-enables the skill and empties the tags. To revoke group access set `read_groups` / `write_groups` to `[]` explicitly; omitting them keeps the current grants. Every group in `write_groups` must also be listed in `read_groups`, because Open WebUI does not treat write access as read access.
+
+Only group grants are managed. Public (`*`) and per-user grants added in the Open WebUI interface are dropped on the next update. A non-admin token without the `access_grants.allow_groups` permission has group grants silently stripped by the server.
 
 ~> **Note:** the skill `content` is read back from the skill itself, falling back to the export endpoint. A non-admin token without the `workspace.skills_export` permission cannot use that fallback and keeps the configured value instead.
 
@@ -45,9 +48,9 @@ resource "openwebui_skill" "example" {
 
 - `description` (String) Short description shown in the Open WebUI interface.
 - `is_active` (Boolean) Whether the skill is enabled. Defaults to `true`.
-- `read_groups` (List of String) List of group names or IDs granted read access. Leave unset or empty for a skill visible only to its owner.
+- `read_groups` (List of String) Names of groups granted read access, spelled exactly as stored in Open WebUI (state always holds the stored group name, so an ID or a different letter case shows up as a difference). Set to `[]` for an owner-only skill; leaving it unset keeps the current grants.
 - `tags` (List of String) Tags used to categorise the skill (stored as `meta.tags`). Defaults to an empty list.
-- `write_groups` (List of String) List of group names or IDs granted write access.
+- `write_groups` (List of String) Names of groups granted write access, spelled exactly as stored in Open WebUI. Every group listed here must also be listed in `read_groups`. Set to `[]` to revoke write access; leaving it unset keeps the current grants.
 
 ### Read-Only
 

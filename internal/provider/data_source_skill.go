@@ -53,7 +53,8 @@ func (d *skillDataSource) Metadata(_ context.Context, req datasource.MetadataReq
 // Schema defines the skill data source schema.
 func (d *skillDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Looks up an existing skill by its `skill_id` or by its (instance-unique) `name`. Exactly one of the two must be set.",
+		MarkdownDescription: "Looks up an existing skill by its `skill_id` or by its (instance-unique) `name`. Exactly one of the two must be set.\n\n" +
+			"~> **Note:** lookup by `name` lists skills through `GET /skills/`, which, when `BYPASS_ADMIN_ACCESS_CONTROL` is disabled on the server, only returns skills the token owns or was granted access to. Lookup by `skill_id` always works for admins.",
 		Attributes: map[string]schema.Attribute{
 			"skill_id": schema.StringAttribute{
 				Optional:            true,
@@ -169,7 +170,9 @@ func (d *skillDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 	}
 
 	skillID := config.SkillID.ValueString()
+	lookupAttr := path.Root("skill_id")
 	if hasName {
+		lookupAttr = path.Root("name")
 		skills, err := d.client.ListSkills(ctx)
 		if err != nil {
 			resp.Diagnostics.AddError("List skills failed", err.Error())
@@ -199,9 +202,9 @@ func (d *skillDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 	if err != nil {
 		if errors.Is(err, client.ErrNotFound) {
 			resp.Diagnostics.AddAttributeError(
-				path.Root("skill_id"),
+				lookupAttr,
 				"Skill not found",
-				"No Open WebUI skill was found with the supplied skill_id.",
+				fmt.Sprintf("No Open WebUI skill was found with the supplied %s.", lookupAttr),
 			)
 			return
 		}

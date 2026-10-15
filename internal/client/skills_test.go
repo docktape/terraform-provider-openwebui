@@ -78,6 +78,13 @@ func TestCreateSkillSendsLiteralWireKeys(t *testing.T) {
 	if !ok || len(grants) != 1 {
 		t.Fatalf("expected one access grant, got %+v", sent["access_grants"])
 	}
+	grant, ok := grants[0].(map[string]any)
+	if !ok || grant["principal_type"] != "group" || grant["principal_id"] != "g1" || grant["permission"] != "read" {
+		t.Fatalf("expected grant {principal_type:group principal_id:g1 permission:read}, got %+v", grants[0])
+	}
+	if len(grant) != 3 {
+		t.Fatalf("unexpected extra keys in grant: %+v", grant)
+	}
 	if _, present := sent["access_control"]; present {
 		t.Fatalf("access_control must not be sent: %+v", sent)
 	}
@@ -231,6 +238,29 @@ func TestDeleteSkill(t *testing.T) {
 	}
 	if gotMethod != http.MethodDelete || gotPath != "/api/v1/skills/id/s1/delete" {
 		t.Fatalf("unexpected request %s %s", gotMethod, gotPath)
+	}
+}
+
+func TestDeleteSkillFalseBodyIsError(t *testing.T) {
+	for body, wantErr := range map[string]bool{"true": false, "false": true} {
+		c := newSkillTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte(body))
+		})
+		err := c.DeleteSkill(context.Background(), "s1")
+		if wantErr && (err == nil || errors.Is(err, ErrNotFound)) {
+			t.Fatalf("body %s: expected a delete-failed error, got %v", body, err)
+		}
+		if !wantErr && err != nil {
+			t.Fatalf("body %s: unexpected error %v", body, err)
+		}
+	}
+
+	// 404 is still ErrNotFound so the resource can treat it as already deleted.
+	c := newSkillTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	})
+	if err := c.DeleteSkill(context.Background(), "s1"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
 }
 
