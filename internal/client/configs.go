@@ -768,3 +768,127 @@ func (c *Client) SetOAuthConfig(ctx context.Context, form OAuthConfigForm) (*OAu
 	}
 	return &resp, nil
 }
+
+// ImagesConfigForm mirrors the ImagesConfig Pydantic model served by GET
+// /images/config and accepted by POST /images/config/update
+// (backend/open_webui/routers/images.py; identical shape from v0.9.6 through
+// v0.11.0). Every one of the 33 fields is required by the model (none has a
+// default), so the POST is a full-object write: the body must carry every key
+// and nothing is omitted. Callers that only want to change some settings must
+// read the current config first and send it back with their changes.
+//
+// Nullable fields (str | None, int | None) are pointers sent as explicit null
+// when nil. IMAGE_SIZE and IMAGE_STEPS are nullable in the model, but the
+// handler compares them with re.match / "< 0" before storing, so null makes it
+// fail; send a value. The two dict | str | None params fields and the
+// list[dict] node lists are kept as raw JSON so whatever the server stores
+// (object, legacy JSON string, null) round-trips unchanged.
+// AUTOMATIC1111_API_AUTH is also dict | str | None in the model, but the
+// backend only ever uses it as a "user:password" string, so it is a *string
+// here (an unexpected dict is decoded as its raw JSON text).
+type ImagesConfigForm struct {
+	EnableImageGeneration          bool            `json:"ENABLE_IMAGE_GENERATION"`
+	EnableImagePromptGeneration    bool            `json:"ENABLE_IMAGE_PROMPT_GENERATION"`
+	ImageGenerationEngine          string          `json:"IMAGE_GENERATION_ENGINE"`
+	ImageGenerationModel           string          `json:"IMAGE_GENERATION_MODEL"`
+	ImageSize                      *string         `json:"IMAGE_SIZE"`
+	ImageSteps                     *int64          `json:"IMAGE_STEPS"`
+	ImagesOpenAIAPIBaseURL         string          `json:"IMAGES_OPENAI_API_BASE_URL"`
+	ImagesOpenAIAPIKey             string          `json:"IMAGES_OPENAI_API_KEY"`
+	ImagesOpenAIAPIVersion         string          `json:"IMAGES_OPENAI_API_VERSION"`
+	ImagesOpenAIAPIParams          json.RawMessage `json:"IMAGES_OPENAI_API_PARAMS"`
+	Automatic1111BaseURL           string          `json:"AUTOMATIC1111_BASE_URL"`
+	Automatic1111APIAuth           *string         `json:"AUTOMATIC1111_API_AUTH"`
+	Automatic1111Params            json.RawMessage `json:"AUTOMATIC1111_PARAMS"`
+	ComfyUIBaseURL                 string          `json:"COMFYUI_BASE_URL"`
+	ComfyUIAPIKey                  string          `json:"COMFYUI_API_KEY"`
+	ComfyUIWorkflow                string          `json:"COMFYUI_WORKFLOW"`
+	ComfyUIWorkflowNodes           json.RawMessage `json:"COMFYUI_WORKFLOW_NODES"`
+	ImagesGeminiAPIBaseURL         string          `json:"IMAGES_GEMINI_API_BASE_URL"`
+	ImagesGeminiAPIKey             string          `json:"IMAGES_GEMINI_API_KEY"`
+	ImagesGeminiEndpointMethod     string          `json:"IMAGES_GEMINI_ENDPOINT_METHOD"`
+	EnableImageEdit                bool            `json:"ENABLE_IMAGE_EDIT"`
+	ImageEditEngine                string          `json:"IMAGE_EDIT_ENGINE"`
+	ImageEditModel                 string          `json:"IMAGE_EDIT_MODEL"`
+	ImageEditSize                  *string         `json:"IMAGE_EDIT_SIZE"`
+	ImagesEditOpenAIAPIBaseURL     string          `json:"IMAGES_EDIT_OPENAI_API_BASE_URL"`
+	ImagesEditOpenAIAPIKey         string          `json:"IMAGES_EDIT_OPENAI_API_KEY"`
+	ImagesEditOpenAIAPIVersion     string          `json:"IMAGES_EDIT_OPENAI_API_VERSION"`
+	ImagesEditGeminiAPIBaseURL     string          `json:"IMAGES_EDIT_GEMINI_API_BASE_URL"`
+	ImagesEditGeminiAPIKey         string          `json:"IMAGES_EDIT_GEMINI_API_KEY"`
+	ImagesEditComfyUIBaseURL       string          `json:"IMAGES_EDIT_COMFYUI_BASE_URL"`
+	ImagesEditComfyUIAPIKey        string          `json:"IMAGES_EDIT_COMFYUI_API_KEY"`
+	ImagesEditComfyUIWorkflow      string          `json:"IMAGES_EDIT_COMFYUI_WORKFLOW"`
+	ImagesEditComfyUIWorkflowNodes json.RawMessage `json:"IMAGES_EDIT_COMFYUI_WORKFLOW_NODES"`
+}
+
+// MarshalJSON sends every key. Nil raw node lists become [] because the
+// list[dict] fields are not nullable; nil raw params become null.
+func (f ImagesConfigForm) MarshalJSON() ([]byte, error) {
+	type alias ImagesConfigForm
+	a := alias(f)
+	emptyList := json.RawMessage(`[]`)
+	null := json.RawMessage(`null`)
+	if len(a.ComfyUIWorkflowNodes) == 0 {
+		a.ComfyUIWorkflowNodes = emptyList
+	}
+	if len(a.ImagesEditComfyUIWorkflowNodes) == 0 {
+		a.ImagesEditComfyUIWorkflowNodes = emptyList
+	}
+	if len(a.ImagesOpenAIAPIParams) == 0 {
+		a.ImagesOpenAIAPIParams = null
+	}
+	if len(a.Automatic1111Params) == 0 {
+		a.Automatic1111Params = null
+	}
+	return json.Marshal(a)
+}
+
+// UnmarshalJSON decodes IMAGE_STEPS leniently (number, numeric string, or
+// ""/null as nil) and AUTOMATIC1111_API_AUTH as a string (null as nil, any
+// other JSON value as its raw text).
+func (f *ImagesConfigForm) UnmarshalJSON(data []byte) error {
+	type alias ImagesConfigForm
+	aux := struct {
+		*alias
+		ImageSteps           json.RawMessage `json:"IMAGE_STEPS"`
+		Automatic1111APIAuth json.RawMessage `json:"AUTOMATIC1111_API_AUTH"`
+	}{alias: (*alias)(f)}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	var err error
+	if f.ImageSteps, err = decodeIntOrEmptyString(aux.ImageSteps); err != nil {
+		return fmt.Errorf("IMAGE_STEPS: %w", err)
+	}
+	f.Automatic1111APIAuth = nil
+	if raw := aux.Automatic1111APIAuth; len(raw) > 0 && string(raw) != "null" {
+		var s string
+		if err := json.Unmarshal(raw, &s); err != nil {
+			s = string(raw)
+		}
+		f.Automatic1111APIAuth = &s
+	}
+	return nil
+}
+
+// GetImagesConfig retrieves the image generation and editing configuration.
+// API keys are returned in plain text.
+func (c *Client) GetImagesConfig(ctx context.Context) (*ImagesConfigForm, error) {
+	var resp ImagesConfigForm
+	if err := c.do(ctx, http.MethodGet, "images/config", nil, nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// SetImagesConfig replaces the whole image configuration (full-object write;
+// see ImagesConfigForm) and returns the stored result.
+func (c *Client) SetImagesConfig(ctx context.Context, form ImagesConfigForm) (*ImagesConfigForm, error) {
+	var resp ImagesConfigForm
+	if err := c.do(ctx, http.MethodPost, "images/config/update", nil, form, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
