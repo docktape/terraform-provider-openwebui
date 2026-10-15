@@ -67,10 +67,12 @@ func (r *ldapServerConfigResource) Schema(_ context.Context, _ resource.SchemaRe
 		return schema.StringAttribute{Required: true, Description: desc, MarkdownDescription: desc, Validators: []validator.String{stringvalidator.LengthAtLeast(1)}}
 	}
 	const v011 = " Added in Open WebUI v0.11.0; older releases ignore it and read it back as null, so setting it against an older server fails the apply with an inconsistent-result error."
-	appPasswordDesc := "Password used to bind as `app_dn`. When unset, keeps the current server value. Open WebUI returns this value in plain text from its read endpoint, so it is also kept in Terraform state."
+	const keep = " When unset, keeps the current server value on first apply and the last-read (state) value afterwards; a never-configured Open WebUI has "
+	const portDesc = "LDAP server port." + keep + "`389`. Once it holds a value it cannot be set back to null from Terraform."
+	appPasswordDesc := "Password used to bind as `app_dn`." + keep + "an empty string. Open WebUI returns this value in plain text from its read endpoint, so it is also kept in Terraform state."
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Manages Open WebUI's LDAP server connection settings (`/api/v1/auths/admin/config/ldap/server`). This is a singleton resource; use `openwebui_ldap_config` to enable or disable LDAP authentication itself.\n\n" +
-			"~> Open WebUI replaces its whole LDAP server configuration on every write, so each apply first reads the current configuration and sends it back with your configured values applied. An optional attribute you do not set keeps its current server value on first apply and its last-read (state) value afterwards; it is never reset to a default. Removing a previously-set attribute from your configuration therefore leaves the old value in place: to clear or reset it, set an explicit value (for example `app_dn = \"\"` and `app_dn_password = \"\"` for an anonymous bind). The nullable `port`, `certificate_path` and `ciphers` cannot be set back to null from Terraform once they hold a value.\n\n" +
+			"~> Open WebUI replaces its whole LDAP server configuration on every write, so each apply first reads the current configuration and sends it back with your configured values applied. An optional attribute you do not set keeps its current server value on first apply and its last-read (state) value afterwards; it is never reset to a default. Removing a previously-set attribute from your configuration therefore leaves the old value in place: to clear or reset it, set an explicit value (for example `app_dn = \"\"` and `app_dn_password = \"\"` for an anonymous bind). The nullable `port`, `certificate_path` and `ciphers` cannot be set back to null from Terraform once they hold a value. With `-refresh=false` the state can be out of date, so a value changed outside Terraform for an attribute you do not set is written back to its state value. The \"never-configured\" values quoted on each attribute are what an Open WebUI that has never saved LDAP settings (and has no `LDAP_*` environment variables) reports.\n\n" +
 			"~> `app_dn_password` is stored in Terraform state. Protect your state accordingly.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -83,13 +85,13 @@ func (r *ldapServerConfigResource) Schema(_ context.Context, _ resource.SchemaRe
 			"host":  required("Hostname or IP address of the LDAP server. Must not be empty."),
 			"port": schema.Int64Attribute{
 				Optional: true, Computed: true,
-				Description:         "LDAP server port. When unset, keeps the current server value (null if never set).",
-				MarkdownDescription: "LDAP server port. When unset, keeps the current server value (null if never set).",
+				Description:         portDesc,
+				MarkdownDescription: portDesc,
 				PlanModifiers:       []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
 			},
-			"attribute_for_mail":     str("LDAP attribute that holds the user's email address. Must not be empty. Server default: `mail`.", stringvalidator.LengthAtLeast(1)),
-			"attribute_for_username": str("LDAP attribute that holds the username. Must not be empty. Server default: `uid`.", stringvalidator.LengthAtLeast(1)),
-			"app_dn":                 str("Distinguished name of the application (bind) account. An empty string means anonymous bind. When unset, keeps the current server value."),
+			"attribute_for_mail":     str("LDAP attribute that holds the user's email address. Must not be empty."+keep+"`mail`.", stringvalidator.LengthAtLeast(1)),
+			"attribute_for_username": str("LDAP attribute that holds the username. Must not be empty."+keep+"`uid`.", stringvalidator.LengthAtLeast(1)),
+			"app_dn":                 str("Distinguished name of the application (bind) account. An empty string means anonymous bind." + keep + "an empty string."),
 			"app_dn_password": schema.StringAttribute{
 				Optional: true, Computed: true, Sensitive: true,
 				Description:         appPasswordDesc,
@@ -97,14 +99,14 @@ func (r *ldapServerConfigResource) Schema(_ context.Context, _ resource.SchemaRe
 				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"search_base":             required("Base DN under which users are searched. Must not be empty."),
-			"search_filters":          str("LDAP search filter applied when looking up users. Server default: empty string."),
-			"use_tls":                 b("Whether to connect using TLS. Server default: `true`."),
-			"certificate_path":        str("Path, on the Open WebUI server, to a CA certificate file used to verify the LDAP server. Null if never set."),
-			"validate_cert":           b("Whether to validate the LDAP server's TLS certificate. Server default: `true`."),
-			"ciphers":                 str("TLS cipher suite string. Server default: `ALL`."),
-			"enable_group_management": b("Whether LDAP group membership is synchronised into Open WebUI groups. Requires a non-blank `attribute_for_groups`. Server default: `false`." + v011),
-			"enable_group_creation":   b("Whether groups found in LDAP are created in Open WebUI when they do not exist. Server default: `false`." + v011),
-			"attribute_for_groups":    str("LDAP attribute that lists a user's group memberships. Must not be blank when `enable_group_management` is `true`. Server default: `memberOf`." + v011),
+			"search_filters":          str("LDAP search filter applied when looking up users." + keep + "an empty string."),
+			"use_tls":                 b("Whether to connect using TLS." + keep + "`true`."),
+			"certificate_path":        str("Path, on the Open WebUI server, to a CA certificate file used to verify the LDAP server. An empty string means none." + keep + "an empty string. Once it holds a value it cannot be set back to null from Terraform; use an empty string instead."),
+			"validate_cert":           b("Whether to validate the LDAP server's TLS certificate." + keep + "`true`."),
+			"ciphers":                 str("TLS cipher suite string." + keep + "`ALL`."),
+			"enable_group_management": b("Whether LDAP group membership is synchronised into Open WebUI groups. Requires a non-blank `attribute_for_groups`: when both are configured, a blank attribute is rejected at plan time; when `attribute_for_groups` is left unset and the value it would keep (from the server or state) is blank, the apply fails with an error before anything is written. Set `attribute_for_groups` explicitly whenever you enable this." + keep + "`false`." + v011),
+			"enable_group_creation":   b("Whether groups found in LDAP are created in Open WebUI when they do not exist." + keep + "`false`." + v011),
+			"attribute_for_groups":    str("LDAP attribute that lists a user's group memberships. Must not be blank when `enable_group_management` is `true` (see that attribute for when this is checked). Open WebUI stores a blank value while group management is off." + keep + "`memberOf`." + v011),
 		},
 	}
 }
@@ -197,7 +199,12 @@ func applyLDAPServerConfig(ctx context.Context, apiClient *client.Client, plan l
 		return ldapServerConfigModel{}, diags
 	}
 
-	updated, err := apiClient.SetLDAPServerConfig(ctx, overlayLDAPServerConfigPlan(*current, plan))
+	form := overlayLDAPServerConfigPlan(*current, plan)
+	if diags.Append(checkLDAPServerGroupAttribute(form)...); diags.HasError() {
+		return ldapServerConfigModel{}, diags
+	}
+
+	updated, err := apiClient.SetLDAPServerConfig(ctx, form)
 	if err != nil {
 		diags.AddError("Update LDAP server config failed", err.Error())
 		return ldapServerConfigModel{}, diags
@@ -274,6 +281,24 @@ func overlayLDAPServerConfigPlan(current client.LDAPServerConfigForm, m ldapServ
 	setBoolPtr(&f.EnableGroupCreation, m.EnableGroupCreation)
 	setStringPtr(&f.AttributeForGroups, m.AttributeForGroups)
 	return f
+}
+
+// checkLDAPServerGroupAttribute rejects a merged form that enables group
+// management with a blank attribute_for_groups, before it is POSTed.
+// ValidateConfig only sees the configuration, so it cannot catch a blank value
+// kept from the server or from state (Open WebUI stores one while group
+// management is off); without this check it would surface as an HTTP 400. A
+// nil value means a pre-v0.11.0 server without group settings, which is left
+// to the documented inconsistent-result error.
+func checkLDAPServerGroupAttribute(form client.LDAPServerConfigForm) diag.Diagnostics {
+	var diags diag.Diagnostics
+	if form.EnableGroupManagement != nil && *form.EnableGroupManagement &&
+		form.AttributeForGroups != nil && strings.TrimSpace(*form.AttributeForGroups) == "" {
+		diags.AddAttributeError(path.Root("attribute_for_groups"),
+			"Blank attribute_for_groups",
+			"enable_group_management would be true, but attribute_for_groups is not set in the configuration and the value it would keep (from the server or from state) is blank. Open WebUI rejects that combination, so nothing was written. Set attribute_for_groups explicitly (for example \"memberOf\").")
+	}
+	return diags
 }
 
 func ldapServerConfigModelFromForm(f client.LDAPServerConfigForm) ldapServerConfigModel {

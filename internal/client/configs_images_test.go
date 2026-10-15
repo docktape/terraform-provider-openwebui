@@ -35,7 +35,7 @@ func TestGetImagesConfig(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(stockImagesResponse))
 	})
-	c, server := newLDAPConfigTestClient(handler)
+	c, server := newConfigTestClient(handler)
 	defer server.Close()
 
 	got, err := c.GetImagesConfig(context.Background())
@@ -115,7 +115,7 @@ func TestGetImagesConfigNullableShapes(t *testing.T) {
 				w.Header().Set("Content-Type", "application/json")
 				_, _ = w.Write([]byte(tc.body))
 			})
-			c, server := newLDAPConfigTestClient(handler)
+			c, server := newConfigTestClient(handler)
 			defer server.Close()
 			got, err := c.GetImagesConfig(context.Background())
 			if err != nil {
@@ -143,7 +143,7 @@ func TestSetImagesConfigEveryWireKey(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(stockImagesResponse))
 	})
-	c, server := newLDAPConfigTestClient(handler)
+	c, server := newConfigTestClient(handler)
 	defer server.Close()
 
 	s := func(v string) *string { return &v }
@@ -218,7 +218,7 @@ func TestSetImagesConfigNilStructuredFields(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{}`))
 	})
-	c, server := newLDAPConfigTestClient(handler)
+	c, server := newConfigTestClient(handler)
 	defer server.Close()
 
 	if _, err := c.SetImagesConfig(context.Background(), ImagesConfigForm{}); err != nil {
@@ -233,5 +233,64 @@ func TestSetImagesConfigNilStructuredFields(t *testing.T) {
 		if v, ok := body[k]; !ok || v != nil {
 			t.Errorf("%s: expected explicit null, got %#v (present=%v)", k, v, ok)
 		}
+	}
+}
+
+// TestImagesConfigDictAuthKeepsType: a dict-valued AUTOMATIC1111_API_AUTH read
+// from the server is written back as the same JSON object while the text is
+// unchanged, and as a plain string once the caller replaces it.
+func TestImagesConfigDictAuthKeepsType(t *testing.T) {
+	var posted []map[string]json.RawMessage
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			var body map[string]json.RawMessage
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Fatalf("decode request: %v", err)
+			}
+			posted = append(posted, body)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"AUTOMATIC1111_API_AUTH": {"u": "p"}}`))
+	})
+	c, server := newConfigTestClient(handler)
+	defer server.Close()
+
+	current, err := c.GetImagesConfig(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.Automatic1111APIAuth == nil || *current.Automatic1111APIAuth != `{"u": "p"}` {
+		t.Fatalf("expected the dict as its raw JSON text, got %v", current.Automatic1111APIAuth)
+	}
+
+	// Unchanged: sent back as the original object.
+	if _, err := c.SetImagesConfig(context.Background(), *current); err != nil {
+		t.Fatal(err)
+	}
+	// Changed: sent as a string.
+	changed := *current
+	auth := "user:pass"
+	changed.Automatic1111APIAuth = &auth
+	if _, err := c.SetImagesConfig(context.Background(), changed); err != nil {
+		t.Fatal(err)
+	}
+	// A string that happens to look like JSON on a form that never held a
+	// dict stays a string.
+	plain := ImagesConfigForm{Automatic1111APIAuth: current.Automatic1111APIAuth}
+	if _, err := c.SetImagesConfig(context.Background(), plain); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(posted) != 3 {
+		t.Fatalf("expected 3 POSTs, got %d", len(posted))
+	}
+	if got := string(posted[0]["AUTOMATIC1111_API_AUTH"]); got != `{"u":"p"}` {
+		t.Errorf("unchanged dict auth: expected the JSON object, got %s", got)
+	}
+	if got := string(posted[1]["AUTOMATIC1111_API_AUTH"]); got != `"user:pass"` {
+		t.Errorf("changed auth: expected a JSON string, got %s", got)
+	}
+	if got := string(posted[2]["AUTOMATIC1111_API_AUTH"]); got != `"{\"u\": \"p\"}"` {
+		t.Errorf("plain form: expected a JSON string, got %s", got)
 	}
 }

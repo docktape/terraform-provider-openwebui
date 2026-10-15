@@ -34,7 +34,7 @@ func TestGetOAuthConfig(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(fullOAuthResponse))
 	})
-	c, server := newLDAPConfigTestClient(handler)
+	c, server := newConfigTestClient(handler)
 	defer server.Close()
 
 	got, err := c.GetOAuthConfig(context.Background())
@@ -73,7 +73,7 @@ func TestGetOAuthConfigUnionShapes(t *testing.T) {
 				w.Header().Set("Content-Type", "application/json")
 				_, _ = w.Write([]byte(tc.body))
 			})
-			c, server := newLDAPConfigTestClient(handler)
+			c, server := newConfigTestClient(handler)
 			defer server.Close()
 			got, err := c.GetOAuthConfig(context.Background())
 			if err != nil {
@@ -95,7 +95,7 @@ func TestGetOAuthConfigV0100Shape(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"ENABLE_OAUTH_SIGNUP": true}`))
 	})
-	c, server := newLDAPConfigTestClient(handler)
+	c, server := newConfigTestClient(handler)
 	defer server.Close()
 	got, err := c.GetOAuthConfig(context.Background())
 	if err != nil {
@@ -121,7 +121,7 @@ func TestSetOAuthConfigPartialBody(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(fullOAuthResponse))
 	})
-	c, server := newLDAPConfigTestClient(handler)
+	c, server := newConfigTestClient(handler)
 	defer server.Close()
 
 	name := "Corp SSO"
@@ -153,7 +153,7 @@ func TestSetOAuthConfigEveryWireKey(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{}`))
 	})
-	c, server := newLDAPConfigTestClient(handler)
+	c, server := newConfigTestClient(handler)
 	defer server.Close()
 
 	tr := true
@@ -208,7 +208,7 @@ func TestSetOAuthConfigShareBoolEncoding(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{}`))
 		})
-		c, server := newLDAPConfigTestClient(handler)
+		c, server := newConfigTestClient(handler)
 		v := share
 		if _, err := c.SetOAuthConfig(context.Background(), OAuthConfigForm{OAuthGroupDefaultShare: &v}); err != nil {
 			t.Fatal(err)
@@ -217,5 +217,38 @@ func TestSetOAuthConfigShareBoolEncoding(t *testing.T) {
 		if body["OAUTH_GROUP_DEFAULT_SHARE"] != want {
 			t.Errorf("share %q: expected wire value %#v, got %#v", share, want, body["OAUTH_GROUP_DEFAULT_SHARE"])
 		}
+	}
+}
+
+// TestSetOAuthConfigTimeoutBeyondInt64 confirms that a timeout too large for
+// int64 is sent as a JSON string (Pydantic's int|str smart union stores it as
+// that string) and that the string read back decodes to the same text, so the
+// unbounded secondsValidator regex cannot cause drift.
+func TestSetOAuthConfigTimeoutBeyondInt64(t *testing.T) {
+	const huge = "99999999999999999999"
+	var body map[string]json.RawMessage
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"OAUTH_TIMEOUT": "` + huge + `", "OAUTH_CLIENT_TIMEOUT": 9223372036854775807}`))
+	})
+	c, server := newConfigTestClient(handler)
+	defer server.Close()
+
+	timeout, maxInt := huge, "9223372036854775807"
+	got, err := c.SetOAuthConfig(context.Background(), OAuthConfigForm{OAuthTimeout: &timeout, OAuthClientTimeout: &maxInt})
+	if err != nil {
+		t.Fatalf("SetOAuthConfig failed: %v", err)
+	}
+	if string(body["OAUTH_TIMEOUT"]) != `"`+huge+`"` {
+		t.Errorf("expected the oversized timeout as a JSON string, got %s", body["OAUTH_TIMEOUT"])
+	}
+	if string(body["OAUTH_CLIENT_TIMEOUT"]) != maxInt {
+		t.Errorf("expected the int64 maximum as a JSON number, got %s", body["OAUTH_CLIENT_TIMEOUT"])
+	}
+	if got.OAuthTimeout == nil || *got.OAuthTimeout != huge || got.OAuthClientTimeout == nil || *got.OAuthClientTimeout != maxInt {
+		t.Errorf("timeouts did not round-trip: %v / %v", got.OAuthTimeout, got.OAuthClientTimeout)
 	}
 }

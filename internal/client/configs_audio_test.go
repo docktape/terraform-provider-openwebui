@@ -49,7 +49,7 @@ func TestGetAudioConfig(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(stockAudioResponse))
 	})
-	c, server := newLDAPConfigTestClient(handler)
+	c, server := newConfigTestClient(handler)
 	defer server.Close()
 
 	got, err := c.GetAudioConfig(context.Background())
@@ -83,7 +83,7 @@ func TestGetAudioConfigOlderAndLenientShapes(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"tts": {"OPENAI_PARAMS": null}, "stt": {"AZURE_MAX_SPEAKERS": 4, "SUPPORTED_CONTENT_TYPES": ["audio/*"]}}`))
 	})
-	c, server := newLDAPConfigTestClient(handler)
+	c, server := newConfigTestClient(handler)
 	defer server.Close()
 
 	got, err := c.GetAudioConfig(context.Background())
@@ -116,7 +116,7 @@ func TestSetAudioConfigEveryWireKey(t *testing.T) {
 		}
 		_, _ = w.Write([]byte(stockAudioResponse))
 	})
-	c, server := newLDAPConfigTestClient(handler)
+	c, server := newConfigTestClient(handler)
 	defer server.Close()
 
 	format := "json"
@@ -184,7 +184,7 @@ func TestSetAudioConfigZeroValues(t *testing.T) {
 		}
 		_, _ = w.Write([]byte(stockAudioResponse))
 	})
-	c, server := newLDAPConfigTestClient(handler)
+	c, server := newConfigTestClient(handler)
 	defer server.Close()
 
 	if _, err := c.SetAudioConfig(context.Background(), AudioConfigForm{}); err != nil {

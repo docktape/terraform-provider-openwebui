@@ -39,7 +39,7 @@ func (d *terminalServerVerifyDataSource) Metadata(_ context.Context, req datasou
 
 func (d *terminalServerVerifyDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	const urlDesc = "Base URL of the terminal server to verify."
-	const keyDesc = "Bearer token sent when `auth_type` is `bearer`. Sensitive."
+	const keyDesc = "Bearer token sent when `auth_type` is `bearer`."
 	const authDesc = "Authentication type: `bearer` (default, sends `key`), `none`, `session` or `system_oauth`. Open WebUI only sends credentials for `bearer` when verifying."
 	const verifiedDesc = "`true` if the server answered. A failed verification is an error instead."
 	const typeDesc = "Detected server type: `orchestrator` when `<url>/api/v1/policies` answers, otherwise `terminal` when `<url>/api/config` answers."

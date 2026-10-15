@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"math/big"
 	"strconv"
 	"strings"
@@ -180,7 +181,11 @@ func jsonValuesEqual(a, b any) bool {
 
 // maxComparableExponent bounds the decimal exponent jsonNumbersEqual expands
 // exactly. Larger exponents (e.g. `1e999999999`) would make big.Rat allocate
-// an enormous power of ten, so such numbers are compared by their text.
+// an enormous power of ten, so such numbers are compared by their text. This
+// is deliberately conservative: equal values written differently with such an
+// exponent (`1e1001` and `10e1000`) compare unequal. The plan-time JSON
+// validators reject these literals (see pythonRoundTripNumberError), so they
+// only reach this comparison from server-side values.
 const maxComparableExponent = 1000
 
 // jsonNumbersEqual compares two JSON number literals by exact value.
@@ -225,7 +230,9 @@ func preserveEquivalentJSON(preferred, fresh types.String) types.String {
 }
 
 // jsonShapeValidator checks at plan time that a string attribute holds JSON
-// text of the expected top-level shape: an object, or an array of objects.
+// text of the expected top-level shape (an object, or an array of objects)
+// whose number literals survive Open WebUI's Python round trip (see
+// pythonRoundTripNumberError).
 type jsonShapeValidator struct {
 	arrayOfObjects bool
 }
@@ -245,25 +252,91 @@ func (v jsonShapeValidator) ValidateString(ctx context.Context, req validator.St
 	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
 		return
 	}
-	raw := []byte(req.ConfigValue.ValueString())
-	var ok bool
-	if v.arrayOfObjects {
-		var list []map[string]any
-		ok = json.Unmarshal(raw, &list) == nil && list != nil
-		if ok {
-			for _, item := range list {
-				if item == nil {
-					ok = false
-				}
+	value, err := decodeJSONWithNumbers(req.ConfigValue.ValueString())
+	ok := err == nil
+	if ok && v.arrayOfObjects {
+		list, isList := value.([]any)
+		ok = isList
+		for _, item := range list {
+			if _, isObject := item.(map[string]any); !isObject {
+				ok = false
 			}
 		}
-	} else {
-		var object map[string]any
-		ok = json.Unmarshal(raw, &object) == nil && object != nil
+	} else if ok {
+		_, ok = value.(map[string]any)
 	}
 	if !ok {
 		resp.Diagnostics.AddAttributeError(req.Path, "Invalid JSON value", fmt.Sprintf("Attribute %s: %s, got %q.", req.Path.String(), v.Description(ctx), req.ConfigValue.ValueString()))
+		return
 	}
+	if msg := firstUnroundTrippableNumber(value); msg != "" {
+		resp.Diagnostics.AddAttributeError(req.Path, "Invalid JSON number", fmt.Sprintf("Attribute %s: %s", req.Path.String(), msg))
+	}
+}
+
+// firstUnroundTrippableNumber walks a value produced by decodeJSONWithNumbers
+// and returns the error message for the first number literal that
+// pythonRoundTripNumberError rejects, or "".
+func firstUnroundTrippableNumber(value any) string {
+	switch v := value.(type) {
+	case map[string]any:
+		for _, item := range v {
+			if msg := firstUnroundTrippableNumber(item); msg != "" {
+				return msg
+			}
+		}
+	case []any:
+		for _, item := range v {
+			if msg := firstUnroundTrippableNumber(item); msg != "" {
+				return msg
+			}
+		}
+	case json.Number:
+		return pythonRoundTripNumberError(v)
+	}
+	return ""
+}
+
+// pythonMaxIntDigits is CPython's default limit (sys.int_info.default_max_str_digits,
+// Python 3.11+) on the number of digits json.loads accepts in an integer.
+const pythonMaxIntDigits = 4300
+
+// pythonRoundTripNumberError reports why a JSON number literal would not come
+// back from Open WebUI with the same value, or "" when it would. Open WebUI
+// parses JSON with Python's json module: an integer literal (no fraction or
+// exponent) becomes an exact Python int, while any other literal becomes a
+// float64 and is written back as its shortest repr. So:
+//   - integer literals are accepted at any size up to pythonMaxIntDigits;
+//   - a fraction or exponent literal is accepted only when its exact value
+//     equals the float64 Python would store (1.5, 0.25, 1e2 and 0.1 pass,
+//     because repr(0.1) is "0.1"; 9007199254740993.0 does not, because the
+//     float stores 9007199254740992);
+//   - a literal that overflows to infinity (1e400) is rejected, because
+//     Python would write it back as the invalid token Infinity;
+//   - a fraction or exponent literal whose exponent is beyond
+//     maxComparableExponent is rejected, because equivalentJSON cannot compare
+//     it with the server's value.
+func pythonRoundTripNumberError(n json.Number) string {
+	s := string(n)
+	if !strings.ContainsAny(s, ".eE") {
+		if digits := strings.TrimPrefix(s, "-"); len(digits) > pythonMaxIntDigits {
+			return fmt.Sprintf("integer literal with %d digits exceeds the %d-digit limit of Open WebUI's JSON parser.", len(digits), pythonMaxIntDigits)
+		}
+		return ""
+	}
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil && math.IsInf(f, 0) {
+		return fmt.Sprintf("number %s is outside the range of a 64-bit float; Open WebUI would store it as Infinity, which is not valid JSON.", s)
+	}
+	exact, ok := jsonNumberRat(n)
+	if !ok {
+		return fmt.Sprintf("number %s has an exponent beyond ±%d, which this provider cannot compare with the value Open WebUI stores; write it without the exponent or as a plain integer.", s, maxComparableExponent)
+	}
+	stored := strconv.FormatFloat(f, 'g', -1, 64)
+	if storedRat, ok := new(big.Rat).SetString(stored); !ok || storedRat.Cmp(exact) != 0 {
+		return fmt.Sprintf("number %s cannot be stored exactly: Open WebUI parses it as a 64-bit float and would store %s. Write %s instead, or use an integer literal without a fraction or exponent for exact large values.", s, stored, stored)
+	}
+	return ""
 }
 
 // jsonObjectValidator requires a JSON object such as `{}` or `{"a":1}`.
@@ -273,3 +346,7 @@ func jsonObjectValidator() validator.String { return jsonShapeValidator{} }
 func jsonArrayOfObjectsValidator() validator.String {
 	return jsonShapeValidator{arrayOfObjects: true}
 }
+
+// jsonNumberNote is appended to the description of every attribute validated
+// by jsonObjectValidator or jsonArrayOfObjectsValidator.
+const jsonNumberNote = " Number literals must survive Open WebUI's Python JSON round trip: integers are exact (up to Python's 4300-digit limit), but a fraction or exponent that a 64-bit float cannot hold exactly (for example `9007199254740993.0`) or that overflows it (`1e400`) is rejected at plan time."

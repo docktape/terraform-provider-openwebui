@@ -2,8 +2,11 @@ package provider
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
+	"strings"
 	"sync"
 	"testing"
 
@@ -253,6 +256,10 @@ func (f *fakeLDAPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			next[k] = v
 		}
+		if next["enable_group_management"] == true && strings.TrimSpace(fmt.Sprint(next["attribute_for_groups"])) == "" {
+			http.Error(w, `{"detail":"attribute_for_groups is required"}`, http.StatusBadRequest)
+			return
+		}
 		f.store = next
 		f.posts++
 	}
@@ -323,5 +330,74 @@ func TestLDAPServerConfigAgainstFakeServer(t *testing.T) {
 
 	if fake.store["app_dn_password"] != "" || fake.store["ciphers"] != "HIGH" || fake.store["attribute_for_mail"] != "email" {
 		t.Errorf("unexpected final server state %v", fake.store)
+	}
+}
+
+// TestLDAPServerGroupAttributeCheck covers the apply-time check: a blank
+// attribute_for_groups that comes from the server (L2) or from a plan value
+// copied from state (L3) is rejected before the POST.
+func TestLDAPServerGroupAttributeCheck(t *testing.T) {
+	blank, set, on, off := "", "memberOf", true, false
+	current := client.LDAPServerConfigForm{Label: "x", Host: "h", SearchBase: "b", EnableGroupManagement: &off, AttributeForGroups: &blank}
+	plan := ldapServerConfigModelFromForm(current)
+
+	// From the server: management enabled in config, attribute unset (unknown).
+	m := plan
+	m.EnableGroupManagement = types.BoolValue(true)
+	m.AttributeForGroups = types.StringUnknown()
+	if diags := checkLDAPServerGroupAttribute(overlayLDAPServerConfigPlan(current, m)); !diags.HasError() {
+		t.Errorf("blank server attribute_for_groups must be rejected")
+	}
+
+	// From state: the server now holds a value, but the plan carries the
+	// blank state value (UseStateForUnknown under -refresh=false).
+	current.AttributeForGroups = &set
+	m.AttributeForGroups = types.StringValue("  ")
+	if diags := checkLDAPServerGroupAttribute(overlayLDAPServerConfigPlan(current, m)); !diags.HasError() {
+		t.Errorf("blank state attribute_for_groups must be rejected")
+	}
+
+	// Accepted: a non-blank value, management off, or an older server
+	// without group settings (nil).
+	m.AttributeForGroups = types.StringValue("groups")
+	if diags := checkLDAPServerGroupAttribute(overlayLDAPServerConfigPlan(current, m)); diags.HasError() {
+		t.Errorf("non-blank attribute_for_groups rejected: %v", diags)
+	}
+	if diags := checkLDAPServerGroupAttribute(client.LDAPServerConfigForm{EnableGroupManagement: &off, AttributeForGroups: &blank}); diags.HasError() {
+		t.Errorf("blank attribute with management off rejected: %v", diags)
+	}
+	if diags := checkLDAPServerGroupAttribute(client.LDAPServerConfigForm{EnableGroupManagement: &on}); diags.HasError() {
+		t.Errorf("older server (nil attribute) rejected: %v", diags)
+	}
+}
+
+// TestLDAPServerGroupAttributeFromServerFailsBeforePost runs the provider
+// against a fake that holds a blank attribute_for_groups with group
+// management off: enabling management without setting the attribute fails
+// with a clear diagnostic and nothing is POSTed.
+func TestLDAPServerGroupAttributeFromServerFailsBeforePost(t *testing.T) {
+	fake := &fakeLDAPServer{store: map[string]any{
+		"label": "Old", "host": "old.example.com", "port": 389, "attribute_for_mail": "mail",
+		"attribute_for_username": "uid", "app_dn": "", "app_dn_password": "",
+		"search_base": "ou=old", "search_filters": "", "use_tls": true, "certificate_path": "",
+		"validate_cert": true, "ciphers": "ALL", "enable_group_management": false, "enable_group_creation": false,
+		"attribute_for_groups": "",
+	}}
+	server := httptest.NewServer(fake)
+	defer server.Close()
+	t.Setenv("OPENWEBUI_ENDPOINT", server.URL)
+	t.Setenv("OPENWEBUI_TOKEN", "test-token")
+
+	tfresource.UnitTest(t, tfresource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []tfresource.TestStep{
+			{
+				Config:      ldapServerHCL(`  enable_group_management = true`),
+				ExpectError: regexp.MustCompile(`Blank attribute_for_groups`),
+			},
+		},
+	})
+	if fake.posts != 0 {
+		t.Errorf("expected no POST, got %d", fake.posts)
 	}
 }

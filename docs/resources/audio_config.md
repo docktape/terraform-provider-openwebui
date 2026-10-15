@@ -4,7 +4,7 @@ page_title: "openwebui_audio_config Resource - openwebui"
 subcategory: ""
 description: |-
   Manages Open WebUI's audio settings: text-to-speech (tts) and speech-to-text (stt) engines, models, voices and per-engine connection details.
-  ~> Open WebUI's update endpoint replaces the whole audio configuration (both tts and stt) at once. This resource reads the current configuration first and sends it back with only the attributes set in your configuration changed, so omitted attributes (and an omitted tts or stt block) keep their last-read (state) values (the current server values on first apply). Removing an attribute from your configuration therefore does not reset it; set it to the value you want instead.
+  ~> Open WebUI's update endpoint replaces the whole audio configuration (both tts and stt) at once. This resource reads the current configuration first and sends it back with the attributes set in your configuration applied and every other attribute (including an omitted tts or stt block) set to its last-read (state) value (the current server value on first apply). With -refresh=false the state can be out of date, so a value changed outside Terraform for an attribute you do not set is written back to its state value. Removing an attribute from your configuration therefore does not reset it; set it to the value you want instead.
   ~> The API keys are stored in Terraform state because Open WebUI returns them in plain text. Protect your state accordingly.
   -> When stt.engine is empty (local Whisper), every apply of this resource makes Open WebUI load stt.whisper_model before it responds, and download it from Hugging Face if it is not in the server's model cache (this can take minutes). An unknown model name makes the update fail with an HTTP 500 after the new settings have already been stored. Setting any other engine unloads the local model.
 ---
@@ -13,7 +13,7 @@ description: |-
 
 Manages Open WebUI's audio settings: text-to-speech (`tts`) and speech-to-text (`stt`) engines, models, voices and per-engine connection details.
 
-~> Open WebUI's update endpoint replaces the whole audio configuration (both `tts` and `stt`) at once. This resource reads the current configuration first and sends it back with only the attributes set in your configuration changed, so omitted attributes (and an omitted `tts` or `stt` block) keep their last-read (state) values (the current server values on first apply). Removing an attribute from your configuration therefore does not reset it; set it to the value you want instead.
+~> Open WebUI's update endpoint replaces the whole audio configuration (both `tts` and `stt`) at once. This resource reads the current configuration first and sends it back with the attributes set in your configuration applied and every other attribute (including an omitted `tts` or `stt` block) set to its last-read (state) value (the current server value on first apply). With `-refresh=false` the state can be out of date, so a value changed outside Terraform for an attribute you do not set is written back to its state value. Removing an attribute from your configuration therefore does not reset it; set it to the value you want instead.
 
 ~> The API keys are stored in Terraform state because Open WebUI returns them in plain text. Protect your state accordingly.
 
@@ -81,7 +81,7 @@ Optional:
 - `model` (String) Speech-to-text model for the remote engines, for example `whisper-1`.
 - `openai_api_base_url` (String) Base URL of the OpenAI-compatible transcription API. Server default: the `OPENAI_API_BASE_URL` setting.
 - `openai_api_key` (String, Sensitive) API key for the OpenAI-compatible transcription API.
-- `openai_api_request_format` (String) How audio is sent to the OpenAI-compatible transcription API: `multipart` (file upload) or `json` (base64 in a JSON body). Server default: `multipart`. Added in Open WebUI v0.10.2; setting it against an older server is an error.
+- `openai_api_request_format` (String) How audio is sent to the OpenAI-compatible transcription API: `multipart` (file upload) or `json` (base64 in a JSON body). Server default: `multipart`. Added in Open WebUI v0.10.2; setting it against an older server fails the apply (the check runs at apply time, after the current configuration is read and before anything is written).
 - `supported_content_types` (List of String) MIME types accepted for transcription, for example `["audio/*"]`. An empty list means Open WebUI's built-in default (`audio/*` and `video/webm`). Server default: `[]`.
 - `whisper_model` (String) Local faster-whisper model (for example `base` or `small`) used when `engine` is empty. Server default: `base`. Loaded (and downloaded if not cached) on every apply while `engine` is empty; see the resource notes.
 
@@ -101,6 +101,6 @@ Optional:
 - `model` (String) Text-to-speech model. Server default: `tts-1`.
 - `openai_api_base_url` (String) Base URL of the OpenAI-compatible speech API. Server default: the `OPENAI_API_BASE_URL` setting.
 - `openai_api_key` (String, Sensitive) API key for the OpenAI-compatible speech API.
-- `openai_params_json` (String) JSON object of extra parameters merged into OpenAI speech requests, for example `jsonencode({ speed = 1.25 })`. Use `{}` for none. Server default: `{}`. Compared semantically: key order and whitespace differences are not drift.
+- `openai_params_json` (String) JSON object of extra parameters merged into OpenAI speech requests, for example `jsonencode({ speed = 1.25 })`. Use `{}` for none. Server default: `{}`. Compared semantically: key order and whitespace differences are not drift. Number literals must survive Open WebUI's Python JSON round trip: integers are exact (up to Python's 4300-digit limit), but a fraction or exponent that a 64-bit float cannot hold exactly (for example `9007199254740993.0`) or that overflows it (`1e400`) is rejected at plan time. A stored value that is not a JSON object (for example a JSON list set through the `AUDIO_TTS_OPENAI_PARAMS` environment variable) is shown as null and replaced with null on the next apply, because Open WebUI's update endpoint only accepts an object or null.
 - `split_on` (String) How responses are split into chunks for speech: `punctuation`, `paragraphs` or `none`. Server default: `punctuation`.
 - `voice` (String) Voice used for speech output. Server default: `alloy`.
