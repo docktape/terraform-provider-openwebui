@@ -323,33 +323,3 @@ func applyCodeExecutionConfig(ctx context.Context, apiClient *client.Client, pla
 
 	return state, diags
 }
-
-func stringPtr(value types.String) *string {
-	if value.IsNull() || value.IsUnknown() {
-		return nil
-	}
-	result := value.ValueString()
-	return &result
-}
-
-func int64Ptr(value types.Int64) *int64 {
-	if value.IsNull() || value.IsUnknown() {
-		return nil
-	}
-	result := value.ValueInt64()
-	return &result
-}
-
-func stringValueOrNull(value *string) types.String {
-	if value == nil {
-		return types.StringNull()
-	}
-	return types.StringValue(*value)
-}
-
-func int64ValueOrNull(value *int64) types.Int64 {
-	if value == nil {
-		return types.Int64Null()
-	}
-	return types.Int64Value(*value)
-}

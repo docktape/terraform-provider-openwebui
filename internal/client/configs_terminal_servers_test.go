@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -41,10 +42,11 @@ func TestGetTerminalServersConfig(t *testing.T) {
 		*a.Key != "secret" || *a.AuthType != "bearer" || *a.ServerType != "orchestrator" || *a.PolicyID != "p1" {
 		t.Errorf("unexpected first connection %+v", a)
 	}
-	if _, ok := a.Config["access_grants"]; !ok {
-		t.Errorf("config not decoded: %v", a.Config)
+	var config map[string]any
+	if err := json.Unmarshal(a.Config, &config); err != nil || config["access_grants"] == nil {
+		t.Errorf("config not decoded: %s", a.Config)
 	}
-	if *b.Enabled || b.Path != nil || b.Config != nil || b.ServerType != nil || b.PolicyID != nil || *b.AuthType != "none" {
+	if *b.Enabled || b.Path != nil || string(b.Config) != "null" || b.ServerType != nil || b.PolicyID != nil || *b.AuthType != "none" {
 		t.Errorf("unexpected second connection %+v", b)
 	}
 }
@@ -84,7 +86,7 @@ func TestSetTerminalServersConfigEveryWireKey(t *testing.T) {
 	form := TerminalServersConfigForm{Connections: []TerminalServerConnection{
 		{
 			ID: s("t1"), Name: s("Dev"), Enabled: &enabled, URL: "http://term:8000", Path: s("/openapi.json"),
-			Key: s("secret"), AuthType: s("bearer"), Config: map[string]any{"a": 1.0},
+			Key: s("secret"), AuthType: s("bearer"), Config: json.RawMessage(`{"a":1}`),
 			ServerType: s("orchestrator"), PolicyID: s("p1"),
 		},
 		{URL: "http://bare"},
@@ -126,6 +128,44 @@ func TestSetTerminalServersConfigEveryWireKey(t *testing.T) {
 	}
 	if second["url"] != "http://bare" || second["path"] != nil || second["config"] != nil {
 		t.Errorf("unexpected zero-value entry %v", second)
+	}
+}
+
+// config is passed through as raw JSON: an integer beyond float64 precision
+// and a trailing-zero decimal reach the wire as written, and come back as
+// the server wrote them.
+func TestTerminalServersConfigKeepsNumberLiterals(t *testing.T) {
+	var raw []byte
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ = io.ReadAll(r.Body)
+		_, _ = w.Write([]byte(`{"TERMINAL_SERVER_CONNECTIONS": [{"url": "http://t", "config": {"big": 9007199254740993, "speed": 1.5}}]}`))
+	})
+	c, server := newLDAPConfigTestClient(handler)
+	defer server.Close()
+
+	got, err := c.SetTerminalServersConfig(context.Background(), TerminalServersConfigForm{Connections: []TerminalServerConnection{
+		{URL: "http://t", Config: json.RawMessage(`{"big":9007199254740993,"speed":1.50}`)},
+	}})
+	if err != nil {
+		t.Fatalf("SetTerminalServersConfig failed: %v", err)
+	}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	var body map[string]any
+	if err := decoder.Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	list, _ := body["TERMINAL_SERVER_CONNECTIONS"].([]any)
+	if len(list) != 1 {
+		t.Fatalf("unexpected body %s", raw)
+	}
+	entry, _ := list[0].(map[string]any)
+	config, _ := entry["config"].(map[string]any)
+	if config["big"] != json.Number("9007199254740993") || config["speed"] != json.Number("1.50") {
+		t.Errorf("number literals changed on the wire: %s", raw)
+	}
+	if string(got.Connections[0].Config) != `{"big": 9007199254740993, "speed": 1.5}` {
+		t.Errorf("response config not kept verbatim: %s", got.Connections[0].Config)
 	}
 }
 

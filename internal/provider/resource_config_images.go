@@ -103,7 +103,7 @@ func (r *imagesConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 	const jsonNote = " Compared semantically: key order and whitespace differences are not drift."
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Manages Open WebUI's image generation and image editing settings (engines, models, sizes and per-engine connection details for OpenAI, Gemini, ComfyUI and AUTOMATIC1111).\n\n" +
-			"~> Open WebUI's update endpoint replaces the whole image configuration at once. This resource reads the current configuration first and sends it back with only the attributes set in your configuration changed, so attributes you leave out keep their current server values. Removing an attribute from your configuration therefore does not reset it; set it to the value you want instead.\n\n" +
+			"~> Open WebUI's update endpoint replaces the whole image configuration at once. This resource reads the current configuration first and sends it back with only the attributes set in your configuration changed, so attributes you leave out keep their last-read (state) values (the current server values on first apply). Removing an attribute from your configuration therefore does not reset it; set it to the value you want instead.\n\n" +
 			"~> The API keys and `automatic1111_api_auth` are stored in Terraform state because Open WebUI returns them in plain text. Protect your state accordingly.\n\n" +
 			"-> Saving the configuration with `image_generation_engine` set to `automatic1111` (or empty) makes Open WebUI contact `automatic1111_base_url` to switch the checkpoint to `image_generation_model`; connection errors are ignored by the server.",
 		Attributes: map[string]schema.Attribute{
@@ -117,7 +117,7 @@ func (r *imagesConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 			"enable_image_prompt_generation": b("Whether a task model rewrites the user's request into an image prompt before generation. Server default: `true`."),
 			"image_generation_engine":        str("Image generation engine: `openai`, `gemini`, `comfyui` or `automatic1111` (an empty string is treated as `automatic1111`). Server default: `openai`."),
 			"image_generation_model":         str("Model used for image generation. Empty means the engine's default."),
-			"image_size":                     str("Generated image size as `WIDTHxHEIGHT` (for example `512x512`), `auto`, or an empty string. Open WebUI only accepts `auto` when `image_generation_model` matches its `IMAGE_AUTO_SIZE_MODELS_REGEX_PATTERN` (default `^gpt-image`). Server default: `512x512`.", imageSizeValidator),
+			"image_size":                     str("Generated image size as `WIDTHxHEIGHT` (for example `512x512`), `auto`, or an empty string. Open WebUI only accepts `auto` when `image_generation_model` matches its `IMAGE_AUTO_SIZE_MODELS_REGEX_PATTERN` (default `^gpt-image`). On Open WebUI v0.9.6 the server writes the generation toggles, engine and model before it rejects `auto` for a non-matching model with HTTP 400, so such a failed apply can still leave those values changed. Server default: `512x512`.", imageSizeValidator),
 			"image_steps": schema.Int64Attribute{
 				Optional:            true,
 				Computed:            true,
@@ -127,30 +127,30 @@ func (r *imagesConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 				Validators:          []validator.Int64{int64validator.AtLeast(0)},
 			},
 			"images_openai_api_base_url":              str("Base URL of the OpenAI-compatible image generation API. Server default: the `OPENAI_API_BASE_URL` setting."),
-			"images_openai_api_key":                   secret("API key for the OpenAI-compatible image generation API. Sensitive."),
+			"images_openai_api_key":                   secret("API key for the OpenAI-compatible image generation API."),
 			"images_openai_api_version":               str("API version sent to the OpenAI-compatible endpoint (for example for Azure OpenAI). Empty means none."),
 			"images_openai_api_params_json":           str("JSON object of extra parameters merged into OpenAI image generation requests, for example `jsonencode({ quality = \"hd\" })`. Use `{}` for none. Server default: `{}`."+jsonNote, jsonObjectValidator()),
 			"automatic1111_base_url":                  str("Base URL of the AUTOMATIC1111 API."),
-			"automatic1111_api_auth":                  secret("AUTOMATIC1111 API credentials as `username:password`, sent as HTTP basic auth. Sensitive."),
+			"automatic1111_api_auth":                  secret("AUTOMATIC1111 API credentials as `username:password`, sent as HTTP basic auth."),
 			"automatic1111_params_json":               str("JSON object of extra parameters merged into AUTOMATIC1111 txt2img requests, for example `jsonencode({ cfg_scale = 7 })`. Use `{}` for none. Server default: `{}`."+jsonNote, jsonObjectValidator()),
 			"comfyui_base_url":                        str("Base URL of the ComfyUI API, without leading or trailing slashes (Open WebUI strips them).", noEdgeSlashValidator),
-			"comfyui_api_key":                         secret("Bearer token for the ComfyUI API. Sensitive."),
+			"comfyui_api_key":                         secret("Bearer token for the ComfyUI API."),
 			"comfyui_workflow":                        str("ComfyUI workflow (API format) as JSON text. Stored verbatim as a string by Open WebUI, so it is compared exactly. Server default: Open WebUI's built-in text-to-image workflow."),
 			"comfyui_workflow_nodes_json":             str("JSON array of objects mapping workflow inputs to node IDs, for example `jsonencode([{ type = \"prompt\", key = \"text\", node_ids = [\"6\"] }])`. Use `[]` for none. Server default: `[]`."+jsonNote, jsonArrayOfObjectsValidator()),
 			"images_gemini_api_base_url":              str("Base URL of the Gemini image generation API. Server default: the `GEMINI_API_BASE_URL` setting."),
-			"images_gemini_api_key":                   secret("API key for the Gemini image generation API. Sensitive."),
+			"images_gemini_api_key":                   secret("API key for the Gemini image generation API."),
 			"images_gemini_endpoint_method":           str("Gemini endpoint method, for example `predict` or `generateContent`. Empty lets Open WebUI choose."),
 			"enable_image_edit":                       b("Whether image editing is enabled. Server default: `false`."),
 			"image_edit_engine":                       str("Image editing engine: `openai`, `gemini` or `comfyui`. Server default: `openai`."),
 			"image_edit_model":                        str("Model used for image editing. Empty means the engine's default."),
 			"image_edit_size":                         str("Edited image size, for example `1024x1024`. Empty keeps the input size. Server default: empty string."),
 			"images_edit_openai_api_base_url":         str("Base URL of the OpenAI-compatible image editing API. Server default: the `OPENAI_API_BASE_URL` setting."),
-			"images_edit_openai_api_key":              secret("API key for the OpenAI-compatible image editing API. Sensitive."),
+			"images_edit_openai_api_key":              secret("API key for the OpenAI-compatible image editing API."),
 			"images_edit_openai_api_version":          str("API version sent to the OpenAI-compatible image editing endpoint. Empty means none."),
 			"images_edit_gemini_api_base_url":         str("Base URL of the Gemini image editing API. Server default: the `GEMINI_API_BASE_URL` setting."),
-			"images_edit_gemini_api_key":              secret("API key for the Gemini image editing API. Sensitive."),
+			"images_edit_gemini_api_key":              secret("API key for the Gemini image editing API."),
 			"images_edit_comfyui_base_url":            str("Base URL of the ComfyUI API used for image editing, without leading or trailing slashes (Open WebUI strips them).", noEdgeSlashValidator),
-			"images_edit_comfyui_api_key":             secret("Bearer token for the ComfyUI image editing API. Sensitive."),
+			"images_edit_comfyui_api_key":             secret("Bearer token for the ComfyUI image editing API."),
 			"images_edit_comfyui_workflow":            str("ComfyUI image editing workflow (API format) as JSON text, stored verbatim. Server default: empty string."),
 			"images_edit_comfyui_workflow_nodes_json": str("JSON array of objects mapping image editing workflow inputs to node IDs. Use `[]` for none. Server default: `[]`."+jsonNote, jsonArrayOfObjectsValidator()),
 		},
@@ -347,27 +347,6 @@ func overlayImagesConfigPlan(current client.ImagesConfigForm, m imagesConfigMode
 	setJSON(&f.ImagesEditComfyUIWorkflowNodes, m.ImagesEditComfyUIWorkflowNodesJSON, "images_edit_comfyui_workflow_nodes_json")
 
 	return f, diags
-}
-
-// rawJSONToState renders a raw server JSON value as a canonical JSON string.
-// null/absent becomes a null attribute. A JSON string (a legacy shape of the
-// dict | str | None params fields) is shown as its content, canonicalised when
-// that content is itself JSON.
-func rawJSONToState(raw json.RawMessage) types.String {
-	if len(raw) == 0 || string(raw) == "null" {
-		return types.StringNull()
-	}
-	var text string
-	if err := json.Unmarshal(raw, &text); err == nil {
-		if canonical, err := canonicalJSON([]byte(text)); err == nil {
-			return types.StringValue(canonical)
-		}
-		return types.StringValue(text)
-	}
-	if canonical, err := canonicalJSON(raw); err == nil {
-		return types.StringValue(canonical)
-	}
-	return types.StringValue(string(raw))
 }
 
 func imagesConfigModelFromForm(f client.ImagesConfigForm) imagesConfigModel {

@@ -142,3 +142,56 @@ func TestEncodeOptionalJSONValue_Number(t *testing.T) {
 		t.Fatalf("expected 42, got %s", result.ValueString())
 	}
 }
+
+func TestEquivalentJSON(t *testing.T) {
+	cases := []struct {
+		name string
+		a, b string
+		want bool
+	}{
+		{"identical", `{"a":1}`, `{"a":1}`, true},
+		{"key order and whitespace", `{ "b": 1,  "a": 2 }`, `{"a":2,"b":1}`, true},
+		{"trailing zero decimal", `{"speed": 1.50}`, `{"speed":1.5}`, true},
+		{"exponent vs decimal", `{"n": 1e2}`, `{"n": 100.0}`, true},
+		{"integer vs float form", `{"n": 100}`, `{"n": 1E+2}`, true},
+		{"negative exponent", `{"n": 15e-1}`, `{"n": 1.5}`, true},
+		{"negative zero", `{"n": -0.0}`, `{"n": 0}`, true},
+		{"different numbers", `{"speed": 1.5}`, `{"speed": 1.51}`, false},
+		{"number vs string", `{"n": 1}`, `{"n": "1"}`, false},
+		{"nested equal", `{"a": {"b": [1.0, {"c": 2.50}]}}`, `{"a":{"b":[1,{"c":2.5}]}}`, true},
+		{"nested unequal", `{"a": {"b": [1.0, {"c": 2.50}]}}`, `{"a":{"b":[1,{"c":2.6}]}}`, false},
+		{"array order matters", `[1, 2]`, `[2, 1]`, false},
+		{"array length", `[1, 2]`, `[1, 2, 3]`, false},
+		{"extra key", `{"a":1}`, `{"a":1,"b":null}`, false},
+		{"bool and null", `{"a":true,"b":null}`, `{"b":null,"a":true}`, true},
+		{"huge ints beyond float64 precision stay distinct", `{"n": 9007199254740993}`, `{"n": 9007199254740992}`, false},
+		{"huge ints equal by value", `{"n": 9007199254740993}`, `{"n": 9007199254740993.0}`, true},
+		{"absurd exponent compared as text", `{"n": 1e999999999}`, `{"n": 1e999999999}`, true},
+		{"absurd exponent never expanded", `{"n": 1e999999999}`, `{"n": 10e999999998}`, false},
+		{"absurd negative exponent", `{"n": 1e-999999999}`, `{"n": 0}`, false},
+		{"invalid JSON compared verbatim", `{`, `{`, true},
+		{"invalid vs valid", `{`, `{}`, false},
+		{"trailing data is invalid", `{} {}`, `{}`, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := equivalentJSON(tc.a, tc.b); got != tc.want {
+				t.Errorf("equivalentJSON(%s, %s) = %v, want %v", tc.a, tc.b, got, tc.want)
+			}
+			if got := equivalentJSON(tc.b, tc.a); got != tc.want {
+				t.Errorf("equivalentJSON(%s, %s) = %v, want %v (reversed)", tc.b, tc.a, got, tc.want)
+			}
+		})
+	}
+}
+
+// canonicalJSON is what goes on the wire: numbers stay verbatim.
+func TestCanonicalJSONKeepsNumberLiterals(t *testing.T) {
+	got, err := canonicalJSON([]byte(`{ "speed": 1.50, "big": 9007199254740993 }`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != `{"big":9007199254740993,"speed":1.50}` {
+		t.Errorf("unexpected canonical form %s", got)
+	}
+}

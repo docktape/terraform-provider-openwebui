@@ -1,11 +1,13 @@
 package provider
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 
@@ -86,14 +88,14 @@ func TestFlattenTerminalServerConnections(t *testing.T) {
 	on := true
 	got := flattenTerminalServerConnections([]client.TerminalServerConnection{
 		{ID: s("a"), Name: s("A"), Enabled: &on, URL: "http://a", Path: s("/p"), Key: s("k"), AuthType: s("none"),
-			Config: map[string]any{"x": 1.0}, ServerType: s("terminal"), PolicyID: s("")},
+			Config: json.RawMessage(`{"x": 1.0}`), ServerType: s("terminal"), PolicyID: s("")},
 		{URL: "http://b"},
 	})
 	if len(got) != 2 {
 		t.Fatalf("expected 2 entries, got %d", len(got))
 	}
 	a, b := got[0], got[1]
-	if a.ID.ValueString() != "a" || !a.Enabled.ValueBool() || a.Key.ValueString() != "k" || a.ConfigJSON.ValueString() != `{"x":1}` ||
+	if a.ID.ValueString() != "a" || !a.Enabled.ValueBool() || a.Key.ValueString() != "k" || a.ConfigJSON.ValueString() != `{"x":1.0}` ||
 		a.ServerType.ValueString() != "terminal" || a.PolicyID.IsNull() || a.PolicyID.ValueString() != "" {
 		t.Errorf("unexpected first entry %+v", a)
 	}
@@ -145,9 +147,14 @@ func (f *fakeTerminalServers) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		var body struct {
 			Connections []any `json:"TERMINAL_SERVER_CONNECTIONS"`
 		}
-		if err := json.Unmarshal(raw, &body); err != nil || body.Connections == nil {
+		decoder := json.NewDecoder(bytes.NewReader(raw))
+		decoder.UseNumber()
+		if err := decoder.Decode(&body); err != nil || body.Connections == nil {
 			http.Error(w, `{"detail":"invalid"}`, http.StatusUnprocessableEntity)
 			return
+		}
+		for i, c := range body.Connections {
+			body.Connections[i] = pythonNumbers(c)
 		}
 		f.store = body.Connections
 		for _, c := range body.Connections {
@@ -158,6 +165,28 @@ func (f *fakeTerminalServers) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{"TERMINAL_SERVER_CONNECTIONS": f.store})
+}
+
+// pythonNumbers mimics how Open WebUI re-serialises JSON numbers: integers
+// keep full precision (Python int), anything with a fraction or exponent
+// becomes a float (so `1.50` comes back as `1.5`).
+func pythonNumbers(v any) any {
+	switch x := v.(type) {
+	case map[string]any:
+		for k, e := range x {
+			x[k] = pythonNumbers(e)
+		}
+	case []any:
+		for i, e := range x {
+			x[i] = pythonNumbers(e)
+		}
+	case json.Number:
+		if strings.ContainsAny(string(x), ".eE") {
+			f, _ := x.Float64()
+			return f
+		}
+	}
+	return v
 }
 
 func TestTerminalServersConfigAgainstFakeServer(t *testing.T) {
@@ -189,6 +218,10 @@ func TestTerminalServersConfigAgainstFakeServer(t *testing.T) {
       path = "/custom.json"
     },
   ]`)
+	numbers := terminalHCL(`  connections = [{
+    url         = "http://t4:8000"
+    config_json = "{\"big\": 9007199254740993, \"speed\": 1.50, \"nested\": [1e2]}"
+  }]`)
 	reordered := terminalHCL(`  connections = [
     { id = "c", url = "http://t3:8000" },
     { id = "b", url = "http://t2:8000" },
@@ -243,6 +276,12 @@ func TestTerminalServersConfigAgainstFakeServer(t *testing.T) {
 				),
 			},
 			{Config: reordered, PlanOnly: true},
+			{
+				Config: numbers,
+				Check: tfresource.TestCheckResourceAttr(name, "connections.0.config_json",
+					`{"big": 9007199254740993, "speed": 1.50, "nested": [1e2]}`),
+			},
+			{Config: numbers, PlanOnly: true},
 			{Config: empty, Check: tfresource.TestCheckResourceAttr(name, "connections.#", "0")},
 			{Config: empty, PlanOnly: true},
 		},
@@ -257,6 +296,19 @@ func TestTerminalServersConfigAgainstFakeServer(t *testing.T) {
 				t.Errorf("unexpected wire form of minimal entry: %v", p)
 			}
 		}
+	}
+	var sawBig bool
+	for _, p := range fake.posts {
+		if p["url"] == "http://t4:8000" {
+			sawBig = true
+			config, _ := p["config"].(map[string]any)
+			if config["big"] != json.Number("9007199254740993") {
+				t.Errorf("large integer lost precision on the wire: %v", p)
+			}
+		}
+	}
+	if !sawBig {
+		t.Errorf("number entry never posted")
 	}
 	if !sawMinimal {
 		t.Errorf("minimal entry never posted")

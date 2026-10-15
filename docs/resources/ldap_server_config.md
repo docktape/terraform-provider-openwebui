@@ -4,7 +4,7 @@ page_title: "openwebui_ldap_server_config Resource - openwebui"
 subcategory: ""
 description: |-
   Manages Open WebUI's LDAP server connection settings (/api/v1/auths/admin/config/ldap/server). This is a singleton resource; use openwebui_ldap_config to enable or disable LDAP authentication itself.
-  ~> This resource does a full-object update: Open WebUI replaces its whole LDAP server configuration on every apply. An optional attribute that is never set in your configuration is sent as the server default on first apply and kept from state afterwards, but removing a previously-set optional attribute does not reset it to its default. app_dn and app_dn_password are always written, and are written as empty strings (anonymous bind) when unset.
+  ~> Open WebUI replaces its whole LDAP server configuration on every write, so each apply first reads the current configuration and sends it back with your configured values applied. An optional attribute you do not set keeps its current server value on first apply and its last-read (state) value afterwards; it is never reset to a default. Removing a previously-set attribute from your configuration therefore leaves the old value in place: to clear or reset it, set an explicit value (for example app_dn = "" and app_dn_password = "" for an anonymous bind). The nullable port, certificate_path and ciphers cannot be set back to null from Terraform once they hold a value.
   ~> app_dn_password is stored in Terraform state. Protect your state accordingly.
 ---
 
@@ -12,7 +12,7 @@ description: |-
 
 Manages Open WebUI's LDAP server connection settings (`/api/v1/auths/admin/config/ldap/server`). This is a singleton resource; use `openwebui_ldap_config` to enable or disable LDAP authentication itself.
 
-~> This resource does a full-object update: Open WebUI replaces its whole LDAP server configuration on every apply. An optional attribute that is never set in your configuration is sent as the server default on first apply and kept from state afterwards, but removing a previously-set optional attribute does not reset it to its default. `app_dn` and `app_dn_password` are always written, and are written as empty strings (anonymous bind) when unset.
+~> Open WebUI replaces its whole LDAP server configuration on every write, so each apply first reads the current configuration and sends it back with your configured values applied. An optional attribute you do not set keeps its current server value on first apply and its last-read (state) value afterwards; it is never reset to a default. Removing a previously-set attribute from your configuration therefore leaves the old value in place: to clear or reset it, set an explicit value (for example `app_dn = ""` and `app_dn_password = ""` for an anonymous bind). The nullable `port`, `certificate_path` and `ciphers` cannot be set back to null from Terraform once they hold a value.
 
 ~> `app_dn_password` is stored in Terraform state. Protect your state accordingly.
 
@@ -55,16 +55,16 @@ resource "openwebui_ldap_server_config" "example" {
 
 ### Optional
 
-- `app_dn` (String) Distinguished name of the application (bind) account. An empty string means anonymous bind.
-- `app_dn_password` (String, Sensitive) Password used to bind as `app_dn`. Sensitive. Open WebUI returns this value in plain text from its read endpoint, so it is also kept in Terraform state.
-- `attribute_for_groups` (String) LDAP attribute that lists a user's group memberships. Must not be blank when `enable_group_management` is `true`. Server default: `memberOf`. Added in Open WebUI v0.11.0; ignored by older releases, where the value is read back as null.
+- `app_dn` (String) Distinguished name of the application (bind) account. An empty string means anonymous bind. When unset, keeps the current server value.
+- `app_dn_password` (String, Sensitive) Password used to bind as `app_dn`. When unset, keeps the current server value. Open WebUI returns this value in plain text from its read endpoint, so it is also kept in Terraform state.
+- `attribute_for_groups` (String) LDAP attribute that lists a user's group memberships. Must not be blank when `enable_group_management` is `true`. Server default: `memberOf`. Added in Open WebUI v0.11.0; older releases ignore it and read it back as null, so setting it against an older server fails the apply with an inconsistent-result error.
 - `attribute_for_mail` (String) LDAP attribute that holds the user's email address. Must not be empty. Server default: `mail`.
 - `attribute_for_username` (String) LDAP attribute that holds the username. Must not be empty. Server default: `uid`.
-- `certificate_path` (String) Path, on the Open WebUI server, to a CA certificate file used to verify the LDAP server. Null when unset.
+- `certificate_path` (String) Path, on the Open WebUI server, to a CA certificate file used to verify the LDAP server. Null if never set.
 - `ciphers` (String) TLS cipher suite string. Server default: `ALL`.
-- `enable_group_creation` (Boolean) Whether groups found in LDAP are created in Open WebUI when they do not exist. Server default: `false`. Added in Open WebUI v0.11.0; ignored by older releases, where the value is read back as null.
-- `enable_group_management` (Boolean) Whether LDAP group membership is synchronised into Open WebUI groups. Requires a non-blank `attribute_for_groups`. Server default: `false`. Added in Open WebUI v0.11.0; ignored by older releases, where the value is read back as null.
-- `port` (Number) LDAP server port. When unset the port is left unset on the server (null).
+- `enable_group_creation` (Boolean) Whether groups found in LDAP are created in Open WebUI when they do not exist. Server default: `false`. Added in Open WebUI v0.11.0; older releases ignore it and read it back as null, so setting it against an older server fails the apply with an inconsistent-result error.
+- `enable_group_management` (Boolean) Whether LDAP group membership is synchronised into Open WebUI groups. Requires a non-blank `attribute_for_groups`. Server default: `false`. Added in Open WebUI v0.11.0; older releases ignore it and read it back as null, so setting it against an older server fails the apply with an inconsistent-result error.
+- `port` (Number) LDAP server port. When unset, keeps the current server value (null if never set).
 - `search_filters` (String) LDAP search filter applied when looking up users. Server default: empty string.
 - `use_tls` (Boolean) Whether to connect using TLS. Server default: `true`.
 - `validate_cert` (Boolean) Whether to validate the LDAP server's TLS certificate. Server default: `true`.

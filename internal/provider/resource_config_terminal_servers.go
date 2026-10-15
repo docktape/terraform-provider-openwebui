@@ -2,6 +2,8 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -190,21 +192,6 @@ func (r *terminalServersConfigResource) ImportState(ctx context.Context, req res
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-func optionalStringPtr(v types.String) *string {
-	if v.IsNull() || v.IsUnknown() {
-		return nil
-	}
-	s := v.ValueString()
-	return &s
-}
-
-func stringOrNull(p *string) types.String {
-	if p == nil {
-		return types.StringNull()
-	}
-	return types.StringValue(*p)
-}
-
 func stringOrEmpty(p *string) types.String {
 	if p == nil {
 		return types.StringValue("")
@@ -212,24 +199,31 @@ func stringOrEmpty(p *string) types.String {
 	return types.StringValue(*p)
 }
 
-// expandTerminalServerConnection builds the wire form of one planned connection.
+// expandTerminalServerConnection builds the wire form of one planned
+// connection. config_json is sent in canonical form with its number literals
+// kept verbatim, so large integers and decimals reach Open WebUI unchanged.
 func expandTerminalServerConnection(item terminalServerConnectionModel, index int, diags *diag.Diagnostics) client.TerminalServerConnection {
-	var enabled *bool
-	if !item.Enabled.IsNull() && !item.Enabled.IsUnknown() {
-		v := item.Enabled.ValueBool()
-		enabled = &v
+	var config json.RawMessage
+	if !item.ConfigJSON.IsNull() && !item.ConfigJSON.IsUnknown() {
+		canonical, err := canonicalJSON([]byte(item.ConfigJSON.ValueString()))
+		if err != nil {
+			diags.AddAttributeError(path.Root("connections").AtListIndex(index).AtName("config_json"), "Invalid JSON value",
+				fmt.Sprintf("Expected config_json to contain valid JSON object text: %v", err))
+		} else {
+			config = json.RawMessage(canonical)
+		}
 	}
 	return client.TerminalServerConnection{
-		ID:         optionalStringPtr(item.ID),
-		Name:       optionalStringPtr(item.Name),
-		Enabled:    enabled,
+		ID:         stringPtr(item.ID),
+		Name:       stringPtr(item.Name),
+		Enabled:    boolPtr(item.Enabled),
 		URL:        item.URL.ValueString(),
-		Path:       optionalStringPtr(item.Path),
-		Key:        optionalStringPtr(item.Key),
-		AuthType:   optionalStringPtr(item.AuthType),
-		Config:     decodeOptionalJSON(item.ConfigJSON, path.Root("connections").AtListIndex(index).AtName("config_json"), diags),
-		ServerType: optionalStringPtr(item.ServerType),
-		PolicyID:   optionalStringPtr(item.PolicyID),
+		Path:       stringPtr(item.Path),
+		Key:        stringPtr(item.Key),
+		AuthType:   stringPtr(item.AuthType),
+		Config:     config,
+		ServerType: stringPtr(item.ServerType),
+		PolicyID:   stringPtr(item.PolicyID),
 	}
 }
 
@@ -261,7 +255,6 @@ func applyTerminalServersConfig(ctx context.Context, apiClient *client.Client, p
 func flattenTerminalServerConnections(connections []client.TerminalServerConnection) []terminalServerConnectionModel {
 	result := make([]terminalServerConnectionModel, 0, len(connections))
 	for _, conn := range connections {
-		configJSON, _ := encodeOptionalJSON(conn.Config)
 		// Open WebUI treats a stored null `enabled` as disabled
 		// (dict.get returns None, not the default).
 		enabled := conn.Enabled != nil && *conn.Enabled
@@ -273,9 +266,9 @@ func flattenTerminalServerConnections(connections []client.TerminalServerConnect
 			Path:       stringOrEmpty(conn.Path),
 			Key:        stringOrEmpty(conn.Key),
 			AuthType:   stringOrEmpty(conn.AuthType),
-			ConfigJSON: configJSON,
-			ServerType: stringOrNull(conn.ServerType),
-			PolicyID:   stringOrNull(conn.PolicyID),
+			ConfigJSON: rawJSONToState(conn.Config),
+			ServerType: stringValueOrNull(conn.ServerType),
+			PolicyID:   stringValueOrNull(conn.PolicyID),
 		})
 	}
 	return result

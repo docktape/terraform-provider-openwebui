@@ -70,7 +70,9 @@ func TestGetLDAPServerConfigOlderServer(t *testing.T) {
 }
 
 // TestSetLDAPServerConfig pins the literal lowercase wire keys: optional
-// fields that are set are present, optional fields left nil are omitted.
+// fields that are set are present; non-nullable optional fields left nil are
+// omitted, while the nullable ones (certificate_path, ciphers) go out as an
+// explicit null.
 func TestSetLDAPServerConfig(t *testing.T) {
 	var body map[string]any
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -110,9 +112,14 @@ func TestSetLDAPServerConfig(t *testing.T) {
 			t.Errorf("wire key %q: expected %v, got %v", k, v, body[k])
 		}
 	}
-	for _, k := range []string{"attribute_for_mail", "attribute_for_username", "search_filters", "use_tls", "certificate_path", "validate_cert", "ciphers", "enable_group_creation"} {
+	for _, k := range []string{"attribute_for_mail", "attribute_for_username", "search_filters", "use_tls", "validate_cert", "enable_group_creation"} {
 		if _, present := body[k]; present {
 			t.Errorf("expected unset key %q to be omitted, body: %v", k, body)
+		}
+	}
+	for _, k := range []string{"certificate_path", "ciphers"} {
+		if v, present := body[k]; !present || v != nil {
+			t.Errorf("expected nullable key %q sent as null, got %v (present=%v)", k, v, present)
 		}
 	}
 	if resp.Port == nil || *resp.Port != 389 || resp.EnableGroupManagement == nil || !*resp.EnableGroupManagement {
@@ -144,5 +151,8 @@ func TestSetLDAPServerConfigExplicitFalseSent(t *testing.T) {
 	}
 	if v, ok := body["app_dn"]; !ok || v != "" {
 		t.Errorf("expected required app_dn always sent, got %v", v)
+	}
+	if v, ok := body["port"]; !ok || v != nil {
+		t.Errorf("expected nil port sent as null, got %v (present=%v)", v, ok)
 	}
 }
