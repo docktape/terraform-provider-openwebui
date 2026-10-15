@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -217,10 +218,19 @@ func (c *Client) UpdateSkill(ctx context.Context, id string, form SkillForm) (*S
 	return &resp, nil
 }
 
-// DeleteSkill removes a skill by ID.
+// DeleteSkill removes a skill by ID. The backend answers HTTP 200 with the body
+// `false` when the database delete fails, which is reported as an error.
 func (c *Client) DeleteSkill(ctx context.Context, id string) error {
+	deleted := true
 	path := "skills/id/" + url.PathEscape(id) + "/delete"
-	return c.do(ctx, http.MethodDelete, path, nil, nil, nil)
+	if err := c.do(ctx, http.MethodDelete, path, nil, nil, &deleted); err != nil {
+		return err
+	}
+	if !deleted {
+		return fmt.Errorf("open webui reported that skill %q could not be deleted", id)
+	}
+
+	return nil
 }
 
 // ListSkills returns every skill visible to the caller (GET /skills/).

@@ -4,11 +4,14 @@ page_title: "openwebui_skill Data Source - openwebui"
 subcategory: ""
 description: |-
   Looks up an existing skill by its skill_id or by its (instance-unique) name. Exactly one of the two must be set.
+  ~> Note: lookup by name lists skills through GET /skills/, which, when BYPASS_ADMIN_ACCESS_CONTROL is disabled on the server, only returns skills the token owns or was granted access to. Lookup by skill_id always works for admins.
 ---
 
 # openwebui_skill (Data Source)
 
 Looks up an existing skill by its `skill_id` or by its (instance-unique) `name`. Exactly one of the two must be set.
+
+~> **Note:** lookup by `name` lists skills through `GET /skills/`, which, when `BYPASS_ADMIN_ACCESS_CONTROL` is disabled on the server, only returns skills the token owns or was granted access to. Lookup by `skill_id` always works for admins.
 
 ## Example Usage
 

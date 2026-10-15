@@ -153,13 +153,19 @@ func TestAccSkillDataSource(t *testing.T) {
 
 func TestAccSkillResourceAccessGroups(t *testing.T) {
 	skillID := acctest.RandomWithPrefix("tfaccskill")
-	groupName := acctest.RandomWithPrefix("tf-acc-skill-group")
+	groupA := acctest.RandomWithPrefix("tf-acc-skill-ga")
+	groupB := acctest.RandomWithPrefix("tf-acc-skill-gb")
 
 	config := func(groups string) string {
 		return fmt.Sprintf(`%s
-resource "openwebui_group" "g" {
+resource "openwebui_group" "a" {
   name        = %q
-  description = "skill access test"
+  description = "skill access test A"
+}
+
+resource "openwebui_group" "b" {
+  name        = %q
+  description = "skill access test B"
 }
 
 resource "openwebui_skill" "test" {
@@ -168,7 +174,7 @@ resource "openwebui_skill" "test" {
   content  = "grouped skill"
 %s
 }
-`, testAccProviderConfig(), groupName, skillID, skillID, groups)
+`, testAccProviderConfig(), groupA, groupB, skillID, skillID, groups)
 	}
 
 	resource.Test(t, resource.TestCase{
@@ -176,15 +182,54 @@ resource "openwebui_skill" "test" {
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
 		Steps: []resource.TestStep{
 			{
+				// A write group that is not also a read group is rejected at plan time
+				// (the server would return it as a read group as well).
 				Config: config(`
-  read_groups  = [openwebui_group.g.name]
-  write_groups = [openwebui_group.g.name]
+  read_groups  = [openwebui_group.a.name]
+  write_groups = [openwebui_group.b.name]
+`),
+				PlanOnly:    true,
+				ExpectError: regexp.MustCompile(`(?s)write_groups must also be listed in\s+read_groups`),
+			},
+			{
+				// Distinct read and write groups (read is a superset of write).
+				Config: config(`
+  read_groups  = [openwebui_group.a.name, openwebui_group.b.name]
+  write_groups = [openwebui_group.b.name]
 `),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("openwebui_skill.test", "read_groups.#", "1"),
-					resource.TestCheckResourceAttr("openwebui_skill.test", "read_groups.0", groupName),
+					resource.TestCheckResourceAttr("openwebui_skill.test", "read_groups.#", "2"),
+					resource.TestCheckTypeSetElemAttr("openwebui_skill.test", "read_groups.*", groupA),
+					resource.TestCheckTypeSetElemAttr("openwebui_skill.test", "read_groups.*", groupB),
 					resource.TestCheckResourceAttr("openwebui_skill.test", "write_groups.#", "1"),
-					resource.TestCheckResourceAttr("openwebui_skill.test", "write_groups.0", groupName),
+					resource.TestCheckResourceAttr("openwebui_skill.test", "write_groups.0", groupB),
+				),
+			},
+			{
+				ResourceName:      "openwebui_skill.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+			{
+				// Revoke write access only.
+				Config: config(`
+  read_groups  = [openwebui_group.a.name, openwebui_group.b.name]
+  write_groups = []
+`),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("openwebui_skill.test", "read_groups.#", "2"),
+					resource.TestCheckResourceAttr("openwebui_skill.test", "write_groups.#", "0"),
+				),
+			},
+			{
+				// Revoke everything: owner-only.
+				Config: config(`
+  read_groups  = []
+  write_groups = []
+`),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("openwebui_skill.test", "read_groups.#", "0"),
+					resource.TestCheckResourceAttr("openwebui_skill.test", "write_groups.#", "0"),
 				),
 			},
 			{
