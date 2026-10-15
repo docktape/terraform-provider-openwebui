@@ -492,3 +492,86 @@ resource "openwebui_ldap_config" "test" {
 		},
 	})
 }
+
+// TestAccLDAPServerConfigResource applies the LDAP server config twice: first
+// with only the required attributes (checking server defaults and null/unset
+// round-tripping), then with every attribute set including group management
+// and the sensitive bind password, followed by a PlanOnly idempotency step.
+func TestAccLDAPServerConfigResource(t *testing.T) {
+	const name = "openwebui_ldap_server_config.test"
+	full := testAccProviderConfig() + `
+resource "openwebui_ldap_server_config" "test" {
+  label                   = "Acc LDAP"
+  host                    = "ldap.acc.example.com"
+  port                    = 636
+  attribute_for_mail      = "mail"
+  attribute_for_username  = "sAMAccountName"
+  app_dn                  = "cn=svc,dc=example,dc=com"
+  app_dn_password         = "acc-test-password"
+  search_base             = "ou=people,dc=example,dc=com"
+  search_filters          = "(objectClass=person)"
+  use_tls                 = false
+  certificate_path        = "/etc/ssl/certs/ldap-ca.pem"
+  validate_cert           = false
+  ciphers                 = "HIGH"
+  enable_group_management = true
+  enable_group_creation   = true
+  attribute_for_groups    = "memberOf"
+}`
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + `
+resource "openwebui_ldap_server_config" "test" {
+  label       = "Acc LDAP minimal"
+  host        = "ldap.acc.example.com"
+  search_base = "ou=people,dc=example,dc=com"
+}`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "id", "ldap_server"),
+					resource.TestCheckResourceAttr(name, "label", "Acc LDAP minimal"),
+					resource.TestCheckResourceAttr(name, "attribute_for_mail", "mail"),
+					resource.TestCheckResourceAttr(name, "attribute_for_username", "uid"),
+					resource.TestCheckResourceAttr(name, "use_tls", "true"),
+					resource.TestCheckResourceAttr(name, "validate_cert", "true"),
+					resource.TestCheckResourceAttr(name, "ciphers", "ALL"),
+					resource.TestCheckResourceAttr(name, "app_dn", ""),
+					resource.TestCheckResourceAttr(name, "app_dn_password", ""),
+					resource.TestCheckResourceAttr(name, "enable_group_management", "false"),
+					resource.TestCheckResourceAttr(name, "attribute_for_groups", "memberOf"),
+				),
+			},
+			{
+				Config: testAccProviderConfig() + `
+resource "openwebui_ldap_server_config" "test" {
+  label       = "Acc LDAP minimal"
+  host        = "ldap.acc.example.com"
+  search_base = "ou=people,dc=example,dc=com"
+}`,
+				PlanOnly: true,
+			},
+			{
+				Config: full,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "label", "Acc LDAP"),
+					resource.TestCheckResourceAttr(name, "port", "636"),
+					resource.TestCheckResourceAttr(name, "attribute_for_username", "sAMAccountName"),
+					resource.TestCheckResourceAttr(name, "app_dn_password", "acc-test-password"),
+					resource.TestCheckResourceAttr(name, "use_tls", "false"),
+					resource.TestCheckResourceAttr(name, "validate_cert", "false"),
+					resource.TestCheckResourceAttr(name, "certificate_path", "/etc/ssl/certs/ldap-ca.pem"),
+					resource.TestCheckResourceAttr(name, "ciphers", "HIGH"),
+					resource.TestCheckResourceAttr(name, "enable_group_management", "true"),
+					resource.TestCheckResourceAttr(name, "enable_group_creation", "true"),
+				),
+			},
+			{
+				// Idempotency: re-plan with same config, expect no diff
+				Config:   full,
+				PlanOnly: true,
+			},
+		},
+	})
+}

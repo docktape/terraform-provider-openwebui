@@ -555,3 +555,52 @@ func (c *Client) SetLDAPConfig(ctx context.Context, form LDAPConfigForm) (*LDAPC
 	}
 	return &resp, nil
 }
+
+// LDAPServerConfigForm captures the LDAP connection/server settings served by
+// GET and accepted by POST /auths/admin/config/ldap/server. The backend's
+// LdapServerConfig Pydantic model (backend/open_webui/routers/auths.py) uses
+// lowercase snake_case keys in both directions.
+//
+// Fields that have a server-side default are pointers tagged omitempty so an
+// unset value is omitted from the request body and the server default applies
+// (sending the Go zero value would instead blank the field, or fail the
+// backend's non-empty validation). Label, Host, AppDN, AppDNPassword and
+// SearchBase are required by the model and always sent.
+type LDAPServerConfigForm struct {
+	Label                 string  `json:"label"`
+	Host                  string  `json:"host"`
+	Port                  *int64  `json:"port,omitempty"`
+	AttributeForMail      *string `json:"attribute_for_mail,omitempty"`
+	AttributeForUsername  *string `json:"attribute_for_username,omitempty"`
+	AppDN                 string  `json:"app_dn"`
+	AppDNPassword         string  `json:"app_dn_password"`
+	SearchBase            string  `json:"search_base"`
+	SearchFilters         *string `json:"search_filters,omitempty"`
+	UseTLS                *bool   `json:"use_tls,omitempty"`
+	CertificatePath       *string `json:"certificate_path,omitempty"`
+	ValidateCert          *bool   `json:"validate_cert,omitempty"`
+	Ciphers               *string `json:"ciphers,omitempty"`
+	EnableGroupManagement *bool   `json:"enable_group_management,omitempty"`
+	EnableGroupCreation   *bool   `json:"enable_group_creation,omitempty"`
+	AttributeForGroups    *string `json:"attribute_for_groups,omitempty"`
+}
+
+// GetLDAPServerConfig retrieves the LDAP server configuration.
+func (c *Client) GetLDAPServerConfig(ctx context.Context) (*LDAPServerConfigForm, error) {
+	var resp LDAPServerConfigForm
+	if err := c.do(ctx, http.MethodGet, "auths/admin/config/ldap/server", nil, nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// SetLDAPServerConfig replaces the LDAP server configuration. The backend
+// treats the POST as a full-object write, so every field the form omits is
+// reset to its server-side default.
+func (c *Client) SetLDAPServerConfig(ctx context.Context, form LDAPServerConfigForm) (*LDAPServerConfigForm, error) {
+	var resp LDAPServerConfigForm
+	if err := c.do(ctx, http.MethodPost, "auths/admin/config/ldap/server", nil, form, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
