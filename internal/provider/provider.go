@@ -52,6 +52,7 @@ func (p *openWebUIProvider) Schema(_ context.Context, _ provider.SchemaRequest, 
 			"- `openwebui_prompt` — reusable prompt commands\n" +
 			"- `openwebui_group` — user groups with permissions\n" +
 			"- `openwebui_tool` / `openwebui_tool_valves` — Python tools and their settings\n" +
+			"- `openwebui_skill` — reusable instructional skills exposed to models\n" +
 			"- `openwebui_pipeline` / `openwebui_pipeline_valves` — pipeline registrations and settings\n" +
 			"- `openwebui_file` / `openwebui_knowledge_file` — uploaded files and knowledge attachments\n" +
 			"- `openwebui_function` / `openwebui_function_valves` — Python functions and their settings\n" +
@@ -75,7 +76,7 @@ func (p *openWebUIProvider) Schema(_ context.Context, _ provider.SchemaRequest, 
 			"- `openwebui_terminal_servers_config` — admin-configured terminal server (Open Terminal / orchestrator) connections\n" +
 			"- `openwebui_oauth_client` — OAuth client registrations\n\n" +
 			"## Data Sources\n\n" +
-			"- `openwebui_model`, `openwebui_knowledge`, `openwebui_prompt`, `openwebui_group`, `openwebui_tool`, `openwebui_pipeline` — look up existing objects by name or ID\n" +
+			"- `openwebui_model`, `openwebui_knowledge`, `openwebui_prompt`, `openwebui_group`, `openwebui_tool`, `openwebui_skill`, `openwebui_pipeline` — look up existing objects by name or ID\n" +
 			"- `openwebui_file`, `openwebui_files` — look up uploaded files\n" +
 			"- `openwebui_config_export` — export the current Open WebUI configuration\n" +
 			"- `openwebui_user` — look up a user by email or ID\n" +
@@ -176,6 +177,7 @@ func (p *openWebUIProvider) Resources(_ context.Context) []func() resource.Resou
 		NewGroupResource,
 		NewToolResource,
 		NewToolValvesResource,
+		NewSkillResource,
 		NewPipelineResource,
 		NewPipelineValvesResource,
 		NewFileResource,
@@ -214,6 +216,7 @@ func (p *openWebUIProvider) DataSources(_ context.Context) []func() datasource.D
 		NewGroupDataSource,
 		NewPromptDataSource,
 		NewToolDataSource,
+		NewSkillDataSource,
 		NewPipelineDataSource,
 		NewFileDataSource,
 		NewFilesDataSource,
