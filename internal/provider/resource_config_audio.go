@@ -136,7 +136,7 @@ func (r *audioConfigResource) Schema(_ context.Context, _ resource.SchemaRequest
 
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Manages Open WebUI's audio settings: text-to-speech (`tts`) and speech-to-text (`stt`) engines, models, voices and per-engine connection details.\n\n" +
-			"~> Open WebUI's update endpoint replaces the whole audio configuration (both `tts` and `stt`) at once. This resource reads the current configuration first and sends it back with only the attributes set in your configuration changed, so omitted attributes (and an omitted `tts` or `stt` block) keep their last-read server values. Removing an attribute from your configuration therefore does not reset it; set it to the value you want instead.\n\n" +
+			"~> Open WebUI's update endpoint replaces the whole audio configuration (both `tts` and `stt`) at once. This resource reads the current configuration first and sends it back with only the attributes set in your configuration changed, so omitted attributes (and an omitted `tts` or `stt` block) keep their last-read (state) values (the current server values on first apply). Removing an attribute from your configuration therefore does not reset it; set it to the value you want instead.\n\n" +
 			"~> The API keys are stored in Terraform state because Open WebUI returns them in plain text. Protect your state accordingly.\n\n" +
 			"-> " + whisperNote,
 		Attributes: map[string]schema.Attribute{
@@ -146,11 +146,11 @@ func (r *audioConfigResource) Schema(_ context.Context, _ resource.SchemaRequest
 				MarkdownDescription: "Singleton identifier.",
 				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
-			"tts": nested("Text-to-speech settings. Omit the block, or any attribute in it, to keep the current server values.", map[string]schema.Attribute{
+			"tts": nested("Text-to-speech settings. Omit the block, or any attribute in it, to keep the last-read (state) values.", map[string]schema.Attribute{
 				"openai_api_base_url":        str("Base URL of the OpenAI-compatible speech API. Server default: the `OPENAI_API_BASE_URL` setting."),
-				"openai_api_key":             secret("API key for the OpenAI-compatible speech API. Sensitive."),
+				"openai_api_key":             secret("API key for the OpenAI-compatible speech API."),
 				"openai_params_json":         str("JSON object of extra parameters merged into OpenAI speech requests, for example `jsonencode({ speed = 1.25 })`. Use `{}` for none. Server default: `{}`. Compared semantically: key order and whitespace differences are not drift.", jsonObjectValidator()),
-				"api_key":                    secret("API key for the ElevenLabs and Azure AI Speech engines. Sensitive."),
+				"api_key":                    secret("API key for the ElevenLabs and Azure AI Speech engines."),
 				"engine":                     str("Text-to-speech engine: empty for the browser's Web API, `transformers` (local), `openai`, `elevenlabs`, `azure` or `mistral`. Server default: empty."),
 				"model":                      str("Text-to-speech model. Server default: `tts-1`."),
 				"voice":                      str("Voice used for speech output. Server default: `alloy`."),
@@ -158,25 +158,25 @@ func (r *audioConfigResource) Schema(_ context.Context, _ resource.SchemaRequest
 				"azure_speech_region":        str("Azure AI Speech region, for example `eastus`."),
 				"azure_speech_base_url":      str("Azure AI Speech base URL; overrides the region-derived endpoint when set."),
 				"azure_speech_output_format": str("Azure AI Speech output format. Server default: `audio-24khz-160kbitrate-mono-mp3`."),
-				"mistral_api_key":            secret("API key for the Mistral text-to-speech engine. Sensitive."),
+				"mistral_api_key":            secret("API key for the Mistral text-to-speech engine."),
 				"mistral_api_base_url":       str("Base URL of the Mistral API for text-to-speech. Server default: `https://api.mistral.ai/v1`."),
 			}),
-			"stt": nested("Speech-to-text settings. Omit the block, or any attribute in it, to keep the current server values.", map[string]schema.Attribute{
+			"stt": nested("Speech-to-text settings. Omit the block, or any attribute in it, to keep the last-read (state) values.", map[string]schema.Attribute{
 				"openai_api_base_url":       str("Base URL of the OpenAI-compatible transcription API. Server default: the `OPENAI_API_BASE_URL` setting."),
-				"openai_api_key":            secret("API key for the OpenAI-compatible transcription API. Sensitive."),
+				"openai_api_key":            secret("API key for the OpenAI-compatible transcription API."),
 				"openai_api_request_format": str("How audio is sent to the OpenAI-compatible transcription API: `multipart` (file upload) or `json` (base64 in a JSON body). Server default: `multipart`. Added in Open WebUI v0.10.2; setting it against an older server is an error."),
 				"engine":                    str("Speech-to-text engine: empty for local Whisper, `openai`, `web` (browser), `deepgram`, `azure` or `mistral`. Server default: empty. Leaving it empty makes every apply reload `whisper_model` (see the resource notes)."),
 				"model":                     str("Speech-to-text model for the remote engines, for example `whisper-1`."),
 				"supported_content_types":   list("MIME types accepted for transcription, for example `[\"audio/*\"]`. An empty list means Open WebUI's built-in default (`audio/*` and `video/webm`). Server default: `[]`."),
 				"allowed_extensions":        list("File extensions accepted for transcription. An empty list allows any extension. Server default: `[\"mp3\", \"wav\", \"m4a\", \"webm\", \"ogg\", \"flac\", \"mp4\", \"mpga\", \"mpeg\"]`. Open WebUI's admin UI does not send this field, so saving the audio settings there resets it to `[]`."),
 				"whisper_model":             str("Local faster-whisper model (for example `base` or `small`) used when `engine` is empty. Server default: `base`. Loaded (and downloaded if not cached) on every apply while `engine` is empty; see the resource notes."),
-				"deepgram_api_key":          secret("API key for the Deepgram engine. Sensitive."),
-				"azure_api_key":             secret("API key for the Azure AI Speech transcription engine. Sensitive."),
+				"deepgram_api_key":          secret("API key for the Deepgram engine."),
+				"azure_api_key":             secret("API key for the Azure AI Speech transcription engine."),
 				"azure_region":              str("Azure AI Speech region for transcription, for example `eastus`."),
 				"azure_locales":             str("Comma-separated Azure AI Speech locales for transcription, for example `en-US,de-DE`. Empty lets Azure detect the language."),
 				"azure_base_url":            str("Azure AI Speech base URL for transcription; overrides the region-derived endpoint when set."),
 				"azure_max_speakers":        str("Maximum number of speakers for Azure diarization, as a string (for example `3`). Empty means Open WebUI's default of 3."),
-				"mistral_api_key":           secret("API key for the Mistral transcription engine. Sensitive."),
+				"mistral_api_key":           secret("API key for the Mistral transcription engine."),
 				"mistral_api_base_url":      str("Base URL of the Mistral API for transcription. Server default: `https://api.mistral.ai/v1`."),
 				"mistral_use_chat_completions": schema.BoolAttribute{
 					Optional:            true,
@@ -314,13 +314,17 @@ func (r *audioConfigResource) ImportState(ctx context.Context, req resource.Impo
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-func knownObject(v types.Object) bool { return !v.IsNull() && !v.IsUnknown() }
-
 // overlayAudioConfigPlan returns current with every known plan value applied.
 // Null or unknown sub-objects and attributes keep the current server value.
 func overlayAudioConfigPlan(ctx context.Context, current client.AudioConfigForm, m audioConfigModel) (client.AudioConfigForm, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	f := current
+	// OPENAI_PARAMS is Optional[dict] on write, but the GET has no response
+	// model, so a stored non-object value (e.g. a string) would be echoed back
+	// and rejected with HTTP 422. Send null instead.
+	if !isJSONObject(f.TTS.OpenAIParams) {
+		f.TTS.OpenAIParams = nil
+	}
 
 	setString := func(dst *string, v types.String) {
 		if !v.IsNull() && !v.IsUnknown() {
@@ -336,7 +340,9 @@ func overlayAudioConfigPlan(ctx context.Context, current client.AudioConfigForm,
 		}
 		setString(&f.TTS.OpenAIAPIBaseURL, tts.OpenAIAPIBaseURL)
 		setString(&f.TTS.OpenAIAPIKey, tts.OpenAIAPIKey)
-		if v := tts.OpenAIParamsJSON; !v.IsNull() && !v.IsUnknown() {
+		// A non-object value can only come from prior state (the validator
+		// rejects it in configuration); it is not sent back.
+		if v := tts.OpenAIParamsJSON; !v.IsNull() && !v.IsUnknown() && isJSONObject(json.RawMessage(v.ValueString())) {
 			// Keep the server's raw value when it already means the same thing.
 			if existing := rawJSONToState(f.TTS.OpenAIParams); existing.IsNull() || !equivalentJSON(existing.ValueString(), v.ValueString()) {
 				canonical, err := canonicalJSON([]byte(v.ValueString()))

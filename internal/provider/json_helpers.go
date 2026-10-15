@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/big"
+	"strconv"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -85,15 +87,127 @@ func canonicalJSON(raw []byte) (string, error) {
 	return string(encoded), nil
 }
 
-// equivalentJSON reports whether two JSON texts are semantically equal. Texts
-// that are not valid JSON are compared verbatim.
+// rawJSONToState renders a raw server JSON value as a canonical JSON string.
+// null/absent becomes a null attribute. A JSON string (a legacy shape of the
+// dict | str | None params fields) is shown as its content, canonicalised when
+// that content is itself JSON.
+func rawJSONToState(raw json.RawMessage) types.String {
+	if len(raw) == 0 || string(raw) == "null" {
+		return types.StringNull()
+	}
+	var text string
+	if err := json.Unmarshal(raw, &text); err == nil {
+		if canonical, err := canonicalJSON([]byte(text)); err == nil {
+			return types.StringValue(canonical)
+		}
+		return types.StringValue(text)
+	}
+	if canonical, err := canonicalJSON(raw); err == nil {
+		return types.StringValue(canonical)
+	}
+	return types.StringValue(string(raw))
+}
+
+// isJSONObject reports whether raw is JSON object text. null, absent and
+// every other JSON shape report false.
+func isJSONObject(raw json.RawMessage) bool {
+	var object map[string]json.RawMessage
+	return json.Unmarshal(raw, &object) == nil && object != nil
+}
+
+// decodeJSONWithNumbers decodes one JSON value, keeping numbers as their
+// literal json.Number text.
+func decodeJSONWithNumbers(text string) (any, error) {
+	decoder := json.NewDecoder(strings.NewReader(text))
+	decoder.UseNumber()
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		return nil, err
+	}
+	if decoder.More() {
+		return nil, fmt.Errorf("unexpected data after the top-level JSON value")
+	}
+	return value, nil
+}
+
+// equivalentJSON reports whether two JSON texts are semantically equal: key
+// order and whitespace are ignored and numbers compare by value, so `1.50`
+// equals `1.5` and `1e2` equals `100.0` (Open WebUI re-serialises numbers
+// through Python floats). Texts that are not valid JSON are compared verbatim.
 func equivalentJSON(a, b string) bool {
 	if a == b {
 		return true
 	}
-	ca, errA := canonicalJSON([]byte(a))
-	cb, errB := canonicalJSON([]byte(b))
-	return errA == nil && errB == nil && ca == cb
+	va, errA := decodeJSONWithNumbers(a)
+	vb, errB := decodeJSONWithNumbers(b)
+	return errA == nil && errB == nil && jsonValuesEqual(va, vb)
+}
+
+// jsonValuesEqual compares two values produced by decodeJSONWithNumbers.
+func jsonValuesEqual(a, b any) bool {
+	switch av := a.(type) {
+	case map[string]any:
+		bv, ok := b.(map[string]any)
+		if !ok || len(av) != len(bv) {
+			return false
+		}
+		for k, x := range av {
+			y, present := bv[k]
+			if !present || !jsonValuesEqual(x, y) {
+				return false
+			}
+		}
+		return true
+	case []any:
+		bv, ok := b.([]any)
+		if !ok || len(av) != len(bv) {
+			return false
+		}
+		for i := range av {
+			if !jsonValuesEqual(av[i], bv[i]) {
+				return false
+			}
+		}
+		return true
+	case json.Number:
+		bv, ok := b.(json.Number)
+		return ok && jsonNumbersEqual(av, bv)
+	default:
+		// string, bool or nil.
+		return a == b
+	}
+}
+
+// maxComparableExponent bounds the decimal exponent jsonNumbersEqual expands
+// exactly. Larger exponents (e.g. `1e999999999`) would make big.Rat allocate
+// an enormous power of ten, so such numbers are compared by their text.
+const maxComparableExponent = 1000
+
+// jsonNumbersEqual compares two JSON number literals by exact value.
+func jsonNumbersEqual(a, b json.Number) bool {
+	if a == b {
+		return true
+	}
+	ra, okA := jsonNumberRat(a)
+	rb, okB := jsonNumberRat(b)
+	if !okA || !okB {
+		return false
+	}
+	return ra.Cmp(rb) == 0
+}
+
+// jsonNumberRat parses a JSON number literal into an exact rational. It
+// reports false for an exponent beyond maxComparableExponent.
+func jsonNumberRat(n json.Number) (*big.Rat, bool) {
+	s := string(n)
+	if i := strings.IndexAny(s, "eE"); i >= 0 {
+		exp, err := strconv.ParseInt(s[i+1:], 10, 64)
+		if err != nil || exp > maxComparableExponent || exp < -maxComparableExponent {
+			return nil, false
+		}
+	}
+	r, ok := new(big.Rat).SetString(s)
+	return r, ok
 }
 
 // preserveEquivalentJSON returns preferred (the plan or prior state value)

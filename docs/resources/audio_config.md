@@ -4,7 +4,7 @@ page_title: "openwebui_audio_config Resource - openwebui"
 subcategory: ""
 description: |-
   Manages Open WebUI's audio settings: text-to-speech (tts) and speech-to-text (stt) engines, models, voices and per-engine connection details.
-  ~> Open WebUI's update endpoint replaces the whole audio configuration (both tts and stt) at once. This resource reads the current configuration first and sends it back with only the attributes set in your configuration changed, so omitted attributes (and an omitted tts or stt block) keep their last-read server values. Removing an attribute from your configuration therefore does not reset it; set it to the value you want instead.
+  ~> Open WebUI's update endpoint replaces the whole audio configuration (both tts and stt) at once. This resource reads the current configuration first and sends it back with only the attributes set in your configuration changed, so omitted attributes (and an omitted tts or stt block) keep their last-read (state) values (the current server values on first apply). Removing an attribute from your configuration therefore does not reset it; set it to the value you want instead.
   ~> The API keys are stored in Terraform state because Open WebUI returns them in plain text. Protect your state accordingly.
   -> When stt.engine is empty (local Whisper), every apply of this resource makes Open WebUI load stt.whisper_model before it responds, and download it from Hugging Face if it is not in the server's model cache (this can take minutes). An unknown model name makes the update fail with an HTTP 500 after the new settings have already been stored. Setting any other engine unloads the local model.
 ---
@@ -13,7 +13,7 @@ description: |-
 
 Manages Open WebUI's audio settings: text-to-speech (`tts`) and speech-to-text (`stt`) engines, models, voices and per-engine connection details.
 
-~> Open WebUI's update endpoint replaces the whole audio configuration (both `tts` and `stt`) at once. This resource reads the current configuration first and sends it back with only the attributes set in your configuration changed, so omitted attributes (and an omitted `tts` or `stt` block) keep their last-read server values. Removing an attribute from your configuration therefore does not reset it; set it to the value you want instead.
+~> Open WebUI's update endpoint replaces the whole audio configuration (both `tts` and `stt`) at once. This resource reads the current configuration first and sends it back with only the attributes set in your configuration changed, so omitted attributes (and an omitted `tts` or `stt` block) keep their last-read (state) values (the current server values on first apply). Removing an attribute from your configuration therefore does not reset it; set it to the value you want instead.
 
 ~> The API keys are stored in Terraform state because Open WebUI returns them in plain text. Protect your state accordingly.
 
@@ -55,8 +55,8 @@ resource "openwebui_audio_config" "example" {
 
 ### Optional
 
-- `stt` (Attributes) Speech-to-text settings. Omit the block, or any attribute in it, to keep the current server values. (see [below for nested schema](#nestedatt--stt))
-- `tts` (Attributes) Text-to-speech settings. Omit the block, or any attribute in it, to keep the current server values. (see [below for nested schema](#nestedatt--tts))
+- `stt` (Attributes) Speech-to-text settings. Omit the block, or any attribute in it, to keep the last-read (state) values. (see [below for nested schema](#nestedatt--stt))
+- `tts` (Attributes) Text-to-speech settings. Omit the block, or any attribute in it, to keep the last-read (state) values. (see [below for nested schema](#nestedatt--tts))
 
 ### Read-Only
 
@@ -68,19 +68,19 @@ resource "openwebui_audio_config" "example" {
 Optional:
 
 - `allowed_extensions` (List of String) File extensions accepted for transcription. An empty list allows any extension. Server default: `["mp3", "wav", "m4a", "webm", "ogg", "flac", "mp4", "mpga", "mpeg"]`. Open WebUI's admin UI does not send this field, so saving the audio settings there resets it to `[]`.
-- `azure_api_key` (String, Sensitive) API key for the Azure AI Speech transcription engine. Sensitive.
+- `azure_api_key` (String, Sensitive) API key for the Azure AI Speech transcription engine.
 - `azure_base_url` (String) Azure AI Speech base URL for transcription; overrides the region-derived endpoint when set.
 - `azure_locales` (String) Comma-separated Azure AI Speech locales for transcription, for example `en-US,de-DE`. Empty lets Azure detect the language.
 - `azure_max_speakers` (String) Maximum number of speakers for Azure diarization, as a string (for example `3`). Empty means Open WebUI's default of 3.
 - `azure_region` (String) Azure AI Speech region for transcription, for example `eastus`.
-- `deepgram_api_key` (String, Sensitive) API key for the Deepgram engine. Sensitive.
+- `deepgram_api_key` (String, Sensitive) API key for the Deepgram engine.
 - `engine` (String) Speech-to-text engine: empty for local Whisper, `openai`, `web` (browser), `deepgram`, `azure` or `mistral`. Server default: empty. Leaving it empty makes every apply reload `whisper_model` (see the resource notes).
 - `mistral_api_base_url` (String) Base URL of the Mistral API for transcription. Server default: `https://api.mistral.ai/v1`.
-- `mistral_api_key` (String, Sensitive) API key for the Mistral transcription engine. Sensitive.
+- `mistral_api_key` (String, Sensitive) API key for the Mistral transcription engine.
 - `mistral_use_chat_completions` (Boolean) Whether Mistral transcription uses the chat completions endpoint instead of the dedicated transcription endpoint. Server default: `false`.
 - `model` (String) Speech-to-text model for the remote engines, for example `whisper-1`.
 - `openai_api_base_url` (String) Base URL of the OpenAI-compatible transcription API. Server default: the `OPENAI_API_BASE_URL` setting.
-- `openai_api_key` (String, Sensitive) API key for the OpenAI-compatible transcription API. Sensitive.
+- `openai_api_key` (String, Sensitive) API key for the OpenAI-compatible transcription API.
 - `openai_api_request_format` (String) How audio is sent to the OpenAI-compatible transcription API: `multipart` (file upload) or `json` (base64 in a JSON body). Server default: `multipart`. Added in Open WebUI v0.10.2; setting it against an older server is an error.
 - `supported_content_types` (List of String) MIME types accepted for transcription, for example `["audio/*"]`. An empty list means Open WebUI's built-in default (`audio/*` and `video/webm`). Server default: `[]`.
 - `whisper_model` (String) Local faster-whisper model (for example `base` or `small`) used when `engine` is empty. Server default: `base`. Loaded (and downloaded if not cached) on every apply while `engine` is empty; see the resource notes.
@@ -91,16 +91,16 @@ Optional:
 
 Optional:
 
-- `api_key` (String, Sensitive) API key for the ElevenLabs and Azure AI Speech engines. Sensitive.
+- `api_key` (String, Sensitive) API key for the ElevenLabs and Azure AI Speech engines.
 - `azure_speech_base_url` (String) Azure AI Speech base URL; overrides the region-derived endpoint when set.
 - `azure_speech_output_format` (String) Azure AI Speech output format. Server default: `audio-24khz-160kbitrate-mono-mp3`.
 - `azure_speech_region` (String) Azure AI Speech region, for example `eastus`.
 - `engine` (String) Text-to-speech engine: empty for the browser's Web API, `transformers` (local), `openai`, `elevenlabs`, `azure` or `mistral`. Server default: empty.
 - `mistral_api_base_url` (String) Base URL of the Mistral API for text-to-speech. Server default: `https://api.mistral.ai/v1`.
-- `mistral_api_key` (String, Sensitive) API key for the Mistral text-to-speech engine. Sensitive.
+- `mistral_api_key` (String, Sensitive) API key for the Mistral text-to-speech engine.
 - `model` (String) Text-to-speech model. Server default: `tts-1`.
 - `openai_api_base_url` (String) Base URL of the OpenAI-compatible speech API. Server default: the `OPENAI_API_BASE_URL` setting.
-- `openai_api_key` (String, Sensitive) API key for the OpenAI-compatible speech API. Sensitive.
+- `openai_api_key` (String, Sensitive) API key for the OpenAI-compatible speech API.
 - `openai_params_json` (String) JSON object of extra parameters merged into OpenAI speech requests, for example `jsonencode({ speed = 1.25 })`. Use `{}` for none. Server default: `{}`. Compared semantically: key order and whitespace differences are not drift.
 - `split_on` (String) How responses are split into chunks for speech: `punctuation`, `paragraphs` or `none`. Server default: `punctuation`.
 - `voice` (String) Voice used for speech output. Server default: `alloy`.

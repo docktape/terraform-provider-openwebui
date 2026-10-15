@@ -3,12 +3,24 @@ package provider
 import (
 	"context"
 	"os"
+	"strconv"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 
 	"github.com/docktape/terraform-provider-openwebui/internal/client"
 )
+
+// testAccAPIClient builds a client from the acceptance-test environment, for
+// capturing a config before a test and restoring it on cleanup.
+func testAccAPIClient(t *testing.T) *client.Client {
+	t.Helper()
+	apiClient, err := client.NewClient(os.Getenv("OPENWEBUI_ENDPOINT"), os.Getenv("OPENWEBUI_TOKEN"), os.Getenv("OPENWEBUI_INSECURE") != "")
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	return apiClient
+}
 
 // TestAccConnectionsConfigResource applies a known connections config and
 // verifies idempotency. Mutates the target Open WebUI instance.
@@ -498,11 +510,48 @@ resource "openwebui_ldap_config" "test" {
 }
 
 // TestAccLDAPServerConfigResource applies the LDAP server config twice: first
-// with only the required attributes (checking server defaults and null/unset
-// round-tripping), then with every attribute set including group management
-// and the sensitive bind password, followed by a PlanOnly idempotency step.
+// with only the required attributes (every unset attribute must keep the
+// value the server already had), then with every attribute set including
+// group management and the sensitive bind password, each followed by a
+// PlanOnly idempotency step. The pre-test configuration is captured and
+// POSTed back on cleanup, so the instance is left as found.
 func TestAccLDAPServerConfigResource(t *testing.T) {
+	testAccPreCheck(t)
 	const name = "openwebui_ldap_server_config.test"
+
+	apiClient := testAccAPIClient(t)
+	original, err := apiClient.GetLDAPServerConfig(context.Background())
+	if err != nil {
+		t.Fatalf("capture pre-test LDAP server config: %v", err)
+	}
+	t.Cleanup(func() {
+		// A never-configured instance has blank required fields, which the
+		// backend refuses to accept back (HTTP 400 for an empty label, host
+		// or search_base); nothing can be restored through the API then.
+		if original.Label == "" || original.Host == "" || original.SearchBase == "" {
+			t.Logf("pre-test LDAP server config has blank required fields; it cannot be POSTed back, leaving the test values in place")
+			return
+		}
+		if _, err := apiClient.SetLDAPServerConfig(context.Background(), *original); err != nil {
+			t.Errorf("restore pre-test LDAP server config: %v", err)
+		}
+	})
+	stringOrNoAttr := func(attr string, v *string) resource.TestCheckFunc {
+		if v == nil {
+			return resource.TestCheckNoResourceAttr(name, attr)
+		}
+		return resource.TestCheckResourceAttr(name, attr, *v)
+	}
+	boolOrNoAttr := func(attr string, v *bool) resource.TestCheckFunc {
+		if v == nil {
+			return resource.TestCheckNoResourceAttr(name, attr)
+		}
+		return resource.TestCheckResourceAttr(name, attr, strconv.FormatBool(*v))
+	}
+	portCheck := resource.TestCheckNoResourceAttr(name, "port")
+	if original.Port != nil {
+		portCheck = resource.TestCheckResourceAttr(name, "port", strconv.FormatInt(*original.Port, 10))
+	}
 	full := testAccProviderConfig() + `
 resource "openwebui_ldap_server_config" "test" {
   label                   = "Acc LDAP"
@@ -536,15 +585,20 @@ resource "openwebui_ldap_server_config" "test" {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "id", "ldap_server"),
 					resource.TestCheckResourceAttr(name, "label", "Acc LDAP minimal"),
-					resource.TestCheckResourceAttr(name, "attribute_for_mail", "mail"),
-					resource.TestCheckResourceAttr(name, "attribute_for_username", "uid"),
-					resource.TestCheckResourceAttr(name, "use_tls", "true"),
-					resource.TestCheckResourceAttr(name, "validate_cert", "true"),
-					resource.TestCheckResourceAttr(name, "ciphers", "ALL"),
-					resource.TestCheckResourceAttr(name, "app_dn", ""),
-					resource.TestCheckResourceAttr(name, "app_dn_password", ""),
-					resource.TestCheckResourceAttr(name, "enable_group_management", "false"),
-					resource.TestCheckResourceAttr(name, "attribute_for_groups", "memberOf"),
+					// Unset attributes keep the pre-test server values.
+					portCheck,
+					stringOrNoAttr("attribute_for_mail", original.AttributeForMail),
+					stringOrNoAttr("attribute_for_username", original.AttributeForUsername),
+					resource.TestCheckResourceAttr(name, "app_dn", original.AppDN),
+					resource.TestCheckResourceAttr(name, "app_dn_password", original.AppDNPassword),
+					stringOrNoAttr("search_filters", original.SearchFilters),
+					boolOrNoAttr("use_tls", original.UseTLS),
+					stringOrNoAttr("certificate_path", original.CertificatePath),
+					boolOrNoAttr("validate_cert", original.ValidateCert),
+					stringOrNoAttr("ciphers", original.Ciphers),
+					boolOrNoAttr("enable_group_management", original.EnableGroupManagement),
+					boolOrNoAttr("enable_group_creation", original.EnableGroupCreation),
+					stringOrNoAttr("attribute_for_groups", original.AttributeForGroups),
 				),
 			},
 			{
@@ -581,13 +635,29 @@ resource "openwebui_ldap_server_config" "test" {
 }
 
 // TestAccOAuthConfigResource covers the generic OIDC config: an empty apply
-// (server defaults, null/"" round-tripping), a PlanOnly idempotency step, a
+// (server values, null/"" round-tripping), a PlanOnly idempotency step, a
 // full apply with every kind of value including the sensitive secret and the
-// union-typed string attributes, and finally a restore to the stock defaults so
-// the shared instance is left as it was found. Nothing here can lock the admin
-// out: auto-redirect stays false and no provider URL is configured.
+// union-typed string attributes, and finally a reset to the stock defaults
+// (exercising "" round-tripping), each followed by a PlanOnly step. The
+// pre-test configuration is captured and POSTed back on cleanup, so the
+// instance is left as found. Nothing here can lock the admin out:
+// auto-redirect stays false and no provider URL is configured.
 func TestAccOAuthConfigResource(t *testing.T) {
+	testAccPreCheck(t)
 	const name = "openwebui_oauth_config.test"
+
+	apiClient := testAccAPIClient(t)
+	original, err := apiClient.GetOAuthConfig(context.Background())
+	if err != nil {
+		t.Fatalf("capture pre-test OAuth config: %v", err)
+	}
+	t.Cleanup(func() {
+		// The POST is a partial update; sending every field read back
+		// restores each one that was non-null before the test.
+		if _, err := apiClient.SetOAuthConfig(context.Background(), *original); err != nil {
+			t.Errorf("restore pre-test OAuth config: %v", err)
+		}
+	})
 	const empty = `
 resource "openwebui_oauth_config" "test" {
 }`
@@ -621,7 +691,7 @@ resource "openwebui_oauth_config" "test" {
   oauth_update_picture_on_login     = true
   oauth_refresh_token_include_scope = true
 }`
-	restore := testAccProviderConfig() + `
+	reset := testAccProviderConfig() + `
 resource "openwebui_oauth_config" "test" {
   oauth_auto_redirect               = false
   oauth_allowed_domains             = "*"
@@ -688,7 +758,7 @@ resource "openwebui_oauth_config" "test" {
 				PlanOnly: true,
 			},
 			{
-				Config: restore,
+				Config: reset,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "oauth_allowed_domains", "*"),
 					resource.TestCheckResourceAttr(name, "oauth_group_default_share", "true"),
@@ -699,7 +769,7 @@ resource "openwebui_oauth_config" "test" {
 				),
 			},
 			{
-				Config:   restore,
+				Config:   reset,
 				PlanOnly: true,
 			},
 		},
@@ -711,11 +781,25 @@ resource "openwebui_oauth_config" "test" {
 // server), a PlanOnly idempotency step, an apply touching every kind of value
 // (secrets, nullable size/steps, JSON object and node-list attributes written
 // with non-canonical key order and whitespace to prove semantic comparison,
-// verbatim workflow text) and a restore to the stock values so the shared
-// instance is left as found. The engine stays "openai" and generation stays
-// disabled, so the server never contacts the placeholder engine URLs.
+// verbatim workflow text) and a reset to the stock values, each followed by a
+// PlanOnly step. The pre-test configuration is captured and POSTed back on
+// cleanup, so the instance is left as found. The engine stays "openai" and
+// generation stays disabled, so the server never contacts the placeholder
+// engine URLs.
 func TestAccImagesConfigResource(t *testing.T) {
+	testAccPreCheck(t)
 	const name = "openwebui_images_config.test"
+
+	apiClient := testAccAPIClient(t)
+	original, err := apiClient.GetImagesConfig(context.Background())
+	if err != nil {
+		t.Fatalf("capture pre-test images config: %v", err)
+	}
+	t.Cleanup(func() {
+		if _, err := apiClient.SetImagesConfig(context.Background(), *original); err != nil {
+			t.Errorf("restore pre-test images config: %v", err)
+		}
+	})
 	const empty = `
 resource "openwebui_images_config" "test" {
 }`
@@ -740,7 +824,7 @@ resource "openwebui_images_config" "test" {
 
   images_edit_comfyui_workflow_nodes_json = "[ ]"
 }`
-	restore := testAccProviderConfig() + `
+	reset := testAccProviderConfig() + `
 resource "openwebui_images_config" "test" {
   enable_image_generation        = false
   enable_image_prompt_generation = true
@@ -803,7 +887,7 @@ resource "openwebui_images_config" "test" {
 				PlanOnly: true,
 			},
 			{
-				Config: restore,
+				Config: reset,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "image_size", "512x512"),
 					resource.TestCheckResourceAttr(name, "image_steps", "50"),
@@ -814,7 +898,7 @@ resource "openwebui_images_config" "test" {
 				),
 			},
 			{
-				Config:   restore,
+				Config:   reset,
 				PlanOnly: true,
 			},
 		},
@@ -834,10 +918,7 @@ func TestAccAudioConfigResource(t *testing.T) {
 	testAccPreCheck(t)
 	const name = "openwebui_audio_config.test"
 
-	apiClient, err := client.NewClient(os.Getenv("OPENWEBUI_ENDPOINT"), os.Getenv("OPENWEBUI_TOKEN"), os.Getenv("OPENWEBUI_INSECURE") != "")
-	if err != nil {
-		t.Fatalf("NewClient: %v", err)
-	}
+	apiClient := testAccAPIClient(t)
 	original, err := apiClient.GetAudioConfig(context.Background())
 	if err != nil {
 		t.Fatalf("capture pre-test audio config: %v", err)
@@ -949,10 +1030,7 @@ func TestAccTerminalServersConfigResource(t *testing.T) {
 	testAccPreCheck(t)
 	const name = "openwebui_terminal_servers_config.test"
 
-	apiClient, err := client.NewClient(os.Getenv("OPENWEBUI_ENDPOINT"), os.Getenv("OPENWEBUI_TOKEN"), os.Getenv("OPENWEBUI_INSECURE") != "")
-	if err != nil {
-		t.Fatalf("NewClient: %v", err)
-	}
+	apiClient := testAccAPIClient(t)
 	original, err := apiClient.GetTerminalServersConfig(context.Background())
 	if err != nil {
 		t.Fatalf("capture pre-test terminal servers config: %v", err)
@@ -974,7 +1052,7 @@ resource "openwebui_terminal_servers_config" "test" {
       key         = "acc-secret"
       auth_type   = "bearer"
       server_type = "terminal"
-      config_json = "{ \"access_grants\": [],  \"note\": \"acc\" }"
+      config_json = "{ \"access_grants\": [],  \"note\": \"acc\", \"speed\": 1.50, \"big\": 9007199254740993 }"
     },
     {
       id  = "acc-term-b"
@@ -1008,7 +1086,7 @@ resource "openwebui_terminal_servers_config" "test" {
 					resource.TestCheckResourceAttr(name, "connections.0.enabled", "false"),
 					resource.TestCheckResourceAttr(name, "connections.0.key", "acc-secret"),
 					resource.TestCheckResourceAttr(name, "connections.0.server_type", "terminal"),
-					resource.TestCheckResourceAttr(name, "connections.0.config_json", "{ \"access_grants\": [],  \"note\": \"acc\" }"),
+					resource.TestCheckResourceAttr(name, "connections.0.config_json", "{ \"access_grants\": [],  \"note\": \"acc\", \"speed\": 1.50, \"big\": 9007199254740993 }"),
 					resource.TestCheckResourceAttr(name, "connections.1.id", "acc-term-b"),
 					resource.TestCheckResourceAttr(name, "connections.1.name", ""),
 					resource.TestCheckResourceAttr(name, "connections.1.enabled", "true"),

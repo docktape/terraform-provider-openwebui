@@ -135,6 +135,35 @@ func TestAudioOverlayUnknownObjectsKeepCurrent(t *testing.T) {
 	}
 }
 
+// A stored non-object OPENAI_PARAMS (the GET has no response model) is sent
+// back as null rather than echoed into a 422; an object is kept as is.
+func TestAudioOverlayNonObjectOpenAIParamsBecomesNull(t *testing.T) {
+	for _, raw := range []string{`"speed=1"`, `[1, 2]`, `3`, `true`, `null`} {
+		current := stockAudioForm()
+		current.TTS.OpenAIParams = json.RawMessage(raw)
+		form, diags := overlayAudioConfigPlan(context.Background(), current, audioObjects(t, nil, nil))
+		if diags.HasError() {
+			t.Fatalf("%s: unexpected diags: %v", raw, diags)
+		}
+		if form.TTS.OpenAIParams != nil {
+			t.Errorf("%s: expected nil OPENAI_PARAMS, got %s", raw, form.TTS.OpenAIParams)
+		}
+		// A non-object value coming from prior state is not sent either.
+		tts := unknownTTS()
+		tts.OpenAIParamsJSON = types.StringValue("speed=1")
+		form, diags = overlayAudioConfigPlan(context.Background(), current, audioObjects(t, &tts, nil))
+		if diags.HasError() || form.TTS.OpenAIParams != nil {
+			t.Errorf("%s: state-derived non-object params must not be sent: %v %s", raw, diags, form.TTS.OpenAIParams)
+		}
+	}
+	current := stockAudioForm()
+	current.TTS.OpenAIParams = json.RawMessage(`{"speed": 1.50}`)
+	form, _ := overlayAudioConfigPlan(context.Background(), current, audioObjects(t, nil, nil))
+	if string(form.TTS.OpenAIParams) != `{"speed": 1.50}` {
+		t.Errorf("object params must be kept verbatim, got %s", form.TTS.OpenAIParams)
+	}
+}
+
 // Only tts configured: tts values change, stt is sent back untouched.
 func TestAudioOverlayOnlyTTS(t *testing.T) {
 	tts := unknownTTS()

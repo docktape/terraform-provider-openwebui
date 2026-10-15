@@ -58,7 +58,7 @@ resource "openwebui_oauth_config" "example" {
 
 ### Optional
 
-- `enable_oauth` (Boolean) Master switch for OAuth login. Server default: `true`. Added in Open WebUI v0.11.0; on v0.10.x the attribute is read back as null and writes are ignored.
+- `enable_oauth` (Boolean) Master switch for OAuth login. Server default: `true`. Added in Open WebUI v0.11.0; v0.10.x ignores it and reads it back as null, so setting it against a v0.10.x server fails the apply with an inconsistent-result error.
 - `enable_oauth_group_creation` (Boolean) Whether groups found in the claim are created when missing. Server default: `false`.
 - `enable_oauth_group_management` (Boolean) Whether group membership is synchronised from the provider's group claim. Server default: `false`.
 - `enable_oauth_role_management` (Boolean) Whether roles are mapped from the provider's roles claim. Server default: `false`.
@@ -70,7 +70,7 @@ resource "openwebui_oauth_config" "example" {
 - `oauth_auto_redirect` (Boolean) Whether the sign-in page redirects straight to the OAuth provider. Enabling it can lock password-based admins out of the UI. Server default: `false`.
 - `oauth_blocked_groups` (String) Blocked OAuth groups, stored as a string (the server default is the JSON list text `[]`).
 - `oauth_client_id` (String) OAuth client ID of the generic OIDC provider.
-- `oauth_client_secret` (String, Sensitive) OAuth client secret of the generic OIDC provider. Sensitive. Open WebUI returns it in plain text from its read endpoint, so it is also kept in Terraform state.
+- `oauth_client_secret` (String, Sensitive) OAuth client secret of the generic OIDC provider. Open WebUI returns it in plain text from its read endpoint, so it is also kept in Terraform state.
 - `oauth_client_timeout` (String) HTTP client timeout in seconds, as a whole-number string without leading zeros, or an empty string for none. Server default: empty string.
 - `oauth_code_challenge_method` (String) PKCE code challenge method. Only `S256` is supported by Open WebUI; an empty string disables PKCE. Null until set.
 - `oauth_email_claim` (String) Claim that carries the user's email. Server default: `email`.

@@ -561,15 +561,17 @@ func (c *Client) SetLDAPConfig(ctx context.Context, form LDAPConfigForm) (*LDAPC
 // LdapServerConfig Pydantic model (backend/open_webui/routers/auths.py) uses
 // lowercase snake_case keys in both directions.
 //
-// Fields that have a server-side default are pointers tagged omitempty so an
-// unset value is omitted from the request body and the server default applies
-// (sending the Go zero value would instead blank the field, or fail the
-// backend's non-empty validation). Label, Host, AppDN, AppDNPassword and
-// SearchBase are required by the model and always sent.
+// The non-nullable fields that have a server-side default are pointers tagged
+// omitempty: a nil value (for example a group field an older server does not
+// return) is omitted and the server default applies, because the model
+// rejects null for them. The nullable fields (port, certificate_path,
+// ciphers) are always sent, so a nil value is written as null rather than
+// replaced by the server default ('ALL' for ciphers). Label, Host, AppDN,
+// AppDNPassword and SearchBase are required by the model and always sent.
 type LDAPServerConfigForm struct {
 	Label                 string  `json:"label"`
 	Host                  string  `json:"host"`
-	Port                  *int64  `json:"port,omitempty"`
+	Port                  *int64  `json:"port"`
 	AttributeForMail      *string `json:"attribute_for_mail,omitempty"`
 	AttributeForUsername  *string `json:"attribute_for_username,omitempty"`
 	AppDN                 string  `json:"app_dn"`
@@ -577,9 +579,9 @@ type LDAPServerConfigForm struct {
 	SearchBase            string  `json:"search_base"`
 	SearchFilters         *string `json:"search_filters,omitempty"`
 	UseTLS                *bool   `json:"use_tls,omitempty"`
-	CertificatePath       *string `json:"certificate_path,omitempty"`
+	CertificatePath       *string `json:"certificate_path"`
 	ValidateCert          *bool   `json:"validate_cert,omitempty"`
-	Ciphers               *string `json:"ciphers,omitempty"`
+	Ciphers               *string `json:"ciphers"`
 	EnableGroupManagement *bool   `json:"enable_group_management,omitempty"`
 	EnableGroupCreation   *bool   `json:"enable_group_creation,omitempty"`
 	AttributeForGroups    *string `json:"attribute_for_groups,omitempty"`
@@ -596,7 +598,8 @@ func (c *Client) GetLDAPServerConfig(ctx context.Context) (*LDAPServerConfigForm
 
 // SetLDAPServerConfig replaces the LDAP server configuration. The backend
 // treats the POST as a full-object write, so every field the form omits is
-// reset to its server-side default.
+// reset to its server-side default; callers should start from
+// GetLDAPServerConfig and change only what they mean to.
 func (c *Client) SetLDAPServerConfig(ctx context.Context, form LDAPServerConfigForm) (*LDAPServerConfigForm, error) {
 	var resp LDAPServerConfigForm
 	if err := c.do(ctx, http.MethodPost, "auths/admin/config/ldap/server", nil, form, &resp); err != nil {
@@ -1023,17 +1026,19 @@ func (c *Client) SetAudioConfig(ctx context.Context, form AudioConfigForm) (*Aud
 // carried here. Every key is always sent: all of them are nullable in the
 // backend except `url`, but a null `path`, `auth_type` or `enabled` defeats the
 // server-side defaults, so callers should send concrete values for those.
+// Config is kept as raw JSON (nil is sent as null) so number literals such as
+// large integers or `1.50` pass through without a float64 round trip.
 type TerminalServerConnection struct {
-	ID         *string        `json:"id"`
-	Name       *string        `json:"name"`
-	Enabled    *bool          `json:"enabled"`
-	URL        string         `json:"url"`
-	Path       *string        `json:"path"`
-	Key        *string        `json:"key"`
-	AuthType   *string        `json:"auth_type"`
-	Config     map[string]any `json:"config"`
-	ServerType *string        `json:"server_type"`
-	PolicyID   *string        `json:"policy_id"`
+	ID         *string         `json:"id"`
+	Name       *string         `json:"name"`
+	Enabled    *bool           `json:"enabled"`
+	URL        string          `json:"url"`
+	Path       *string         `json:"path"`
+	Key        *string         `json:"key"`
+	AuthType   *string         `json:"auth_type"`
+	Config     json.RawMessage `json:"config"`
+	ServerType *string         `json:"server_type"`
+	PolicyID   *string         `json:"policy_id"`
 }
 
 // TerminalServersConfigForm captures the terminal server connection list. The

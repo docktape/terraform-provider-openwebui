@@ -96,7 +96,7 @@ func (d *terminalServerVerifyDataSource) Read(ctx context.Context, req datasourc
 	}
 	result, err := d.client.VerifyTerminalServer(ctx, client.TerminalServerConnection{
 		URL:      config.URL.ValueString(),
-		Key:      optionalStringPtr(config.Key),
+		Key:      stringPtr(config.Key),
 		AuthType: &authType,
 	})
 	if err != nil {

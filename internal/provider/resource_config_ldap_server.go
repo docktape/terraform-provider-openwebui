@@ -66,11 +66,11 @@ func (r *ldapServerConfigResource) Schema(_ context.Context, _ resource.SchemaRe
 	required := func(desc string) schema.StringAttribute {
 		return schema.StringAttribute{Required: true, Description: desc, MarkdownDescription: desc, Validators: []validator.String{stringvalidator.LengthAtLeast(1)}}
 	}
-	const v011 = " Added in Open WebUI v0.11.0; ignored by older releases, where the value is read back as null."
-	appPasswordDesc := "Password used to bind as `app_dn`. Sensitive. Open WebUI returns this value in plain text from its read endpoint, so it is also kept in Terraform state."
+	const v011 = " Added in Open WebUI v0.11.0; older releases ignore it and read it back as null, so setting it against an older server fails the apply with an inconsistent-result error."
+	appPasswordDesc := "Password used to bind as `app_dn`. When unset, keeps the current server value. Open WebUI returns this value in plain text from its read endpoint, so it is also kept in Terraform state."
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Manages Open WebUI's LDAP server connection settings (`/api/v1/auths/admin/config/ldap/server`). This is a singleton resource; use `openwebui_ldap_config` to enable or disable LDAP authentication itself.\n\n" +
-			"~> This resource does a full-object update: Open WebUI replaces its whole LDAP server configuration on every apply. An optional attribute that is never set in your configuration is sent as the server default on first apply and kept from state afterwards, but removing a previously-set optional attribute does not reset it to its default. `app_dn` and `app_dn_password` are always written, and are written as empty strings (anonymous bind) when unset.\n\n" +
+			"~> Open WebUI replaces its whole LDAP server configuration on every write, so each apply first reads the current configuration and sends it back with your configured values applied. An optional attribute you do not set keeps its current server value on first apply and its last-read (state) value afterwards; it is never reset to a default. Removing a previously-set attribute from your configuration therefore leaves the old value in place: to clear or reset it, set an explicit value (for example `app_dn = \"\"` and `app_dn_password = \"\"` for an anonymous bind). The nullable `port`, `certificate_path` and `ciphers` cannot be set back to null from Terraform once they hold a value.\n\n" +
 			"~> `app_dn_password` is stored in Terraform state. Protect your state accordingly.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -83,13 +83,13 @@ func (r *ldapServerConfigResource) Schema(_ context.Context, _ resource.SchemaRe
 			"host":  required("Hostname or IP address of the LDAP server. Must not be empty."),
 			"port": schema.Int64Attribute{
 				Optional: true, Computed: true,
-				Description:         "LDAP server port. When unset the port is left unset on the server (null).",
-				MarkdownDescription: "LDAP server port. When unset the port is left unset on the server (null).",
+				Description:         "LDAP server port. When unset, keeps the current server value (null if never set).",
+				MarkdownDescription: "LDAP server port. When unset, keeps the current server value (null if never set).",
 				PlanModifiers:       []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
 			},
 			"attribute_for_mail":     str("LDAP attribute that holds the user's email address. Must not be empty. Server default: `mail`.", stringvalidator.LengthAtLeast(1)),
 			"attribute_for_username": str("LDAP attribute that holds the username. Must not be empty. Server default: `uid`.", stringvalidator.LengthAtLeast(1)),
-			"app_dn":                 str("Distinguished name of the application (bind) account. An empty string means anonymous bind."),
+			"app_dn":                 str("Distinguished name of the application (bind) account. An empty string means anonymous bind. When unset, keeps the current server value."),
 			"app_dn_password": schema.StringAttribute{
 				Optional: true, Computed: true, Sensitive: true,
 				Description:         appPasswordDesc,
@@ -99,7 +99,7 @@ func (r *ldapServerConfigResource) Schema(_ context.Context, _ resource.SchemaRe
 			"search_base":             required("Base DN under which users are searched. Must not be empty."),
 			"search_filters":          str("LDAP search filter applied when looking up users. Server default: empty string."),
 			"use_tls":                 b("Whether to connect using TLS. Server default: `true`."),
-			"certificate_path":        str("Path, on the Open WebUI server, to a CA certificate file used to verify the LDAP server. Null when unset."),
+			"certificate_path":        str("Path, on the Open WebUI server, to a CA certificate file used to verify the LDAP server. Null if never set."),
 			"validate_cert":           b("Whether to validate the LDAP server's TLS certificate. Server default: `true`."),
 			"ciphers":                 str("TLS cipher suite string. Server default: `ALL`."),
 			"enable_group_management": b("Whether LDAP group membership is synchronised into Open WebUI groups. Requires a non-blank `attribute_for_groups`. Server default: `false`." + v011),
@@ -183,10 +183,21 @@ func (r *ldapServerConfigResource) Update(ctx context.Context, req resource.Upda
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
+// applyLDAPServerConfig reads the current server configuration, overlays the
+// known plan values and writes the merged object back. The backend POST is a
+// full-object replace, so the read keeps every attribute the plan leaves
+// unknown (unset on first apply) at its current server value instead of
+// resetting it to the Pydantic default.
 func applyLDAPServerConfig(ctx context.Context, apiClient *client.Client, plan ldapServerConfigModel) (ldapServerConfigModel, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	updated, err := apiClient.SetLDAPServerConfig(ctx, ldapServerConfigFormFromModel(plan))
+	current, err := apiClient.GetLDAPServerConfig(ctx)
+	if err != nil {
+		diags.AddError("Read LDAP server config failed", err.Error())
+		return ldapServerConfigModel{}, diags
+	}
+
+	updated, err := apiClient.SetLDAPServerConfig(ctx, overlayLDAPServerConfigPlan(*current, plan))
 	if err != nil {
 		diags.AddError("Update LDAP server config failed", err.Error())
 		return ldapServerConfigModel{}, diags
@@ -223,25 +234,46 @@ func (r *ldapServerConfigResource) ImportState(ctx context.Context, req resource
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-func ldapServerConfigFormFromModel(m ldapServerConfigModel) client.LDAPServerConfigForm {
-	return client.LDAPServerConfigForm{
-		Label:                 m.Label.ValueString(),
-		Host:                  m.Host.ValueString(),
-		Port:                  int64Ptr(m.Port),
-		AttributeForMail:      stringPtr(m.AttributeForMail),
-		AttributeForUsername:  stringPtr(m.AttributeForUsername),
-		AppDN:                 m.AppDN.ValueString(),
-		AppDNPassword:         m.AppDNPassword.ValueString(),
-		SearchBase:            m.SearchBase.ValueString(),
-		SearchFilters:         stringPtr(m.SearchFilters),
-		UseTLS:                boolPtr(m.UseTLS),
-		CertificatePath:       stringPtr(m.CertificatePath),
-		ValidateCert:          boolPtr(m.ValidateCert),
-		Ciphers:               stringPtr(m.Ciphers),
-		EnableGroupManagement: boolPtr(m.EnableGroupManagement),
-		EnableGroupCreation:   boolPtr(m.EnableGroupCreation),
-		AttributeForGroups:    stringPtr(m.AttributeForGroups),
+// overlayLDAPServerConfigPlan returns current with every known (non-null,
+// non-unknown) plan value applied; every other field keeps the value just
+// read from the server. Fields an older server does not return stay nil and
+// are omitted from the request.
+func overlayLDAPServerConfigPlan(current client.LDAPServerConfigForm, m ldapServerConfigModel) client.LDAPServerConfigForm {
+	f := current
+	setString := func(dst *string, v types.String) {
+		if p := stringPtr(v); p != nil {
+			*dst = *p
+		}
 	}
+	setStringPtr := func(dst **string, v types.String) {
+		if p := stringPtr(v); p != nil {
+			*dst = p
+		}
+	}
+	setBoolPtr := func(dst **bool, v types.Bool) {
+		if p := boolPtr(v); p != nil {
+			*dst = p
+		}
+	}
+	setString(&f.Label, m.Label)
+	setString(&f.Host, m.Host)
+	if p := int64Ptr(m.Port); p != nil {
+		f.Port = p
+	}
+	setStringPtr(&f.AttributeForMail, m.AttributeForMail)
+	setStringPtr(&f.AttributeForUsername, m.AttributeForUsername)
+	setString(&f.AppDN, m.AppDN)
+	setString(&f.AppDNPassword, m.AppDNPassword)
+	setString(&f.SearchBase, m.SearchBase)
+	setStringPtr(&f.SearchFilters, m.SearchFilters)
+	setBoolPtr(&f.UseTLS, m.UseTLS)
+	setStringPtr(&f.CertificatePath, m.CertificatePath)
+	setBoolPtr(&f.ValidateCert, m.ValidateCert)
+	setStringPtr(&f.Ciphers, m.Ciphers)
+	setBoolPtr(&f.EnableGroupManagement, m.EnableGroupManagement)
+	setBoolPtr(&f.EnableGroupCreation, m.EnableGroupCreation)
+	setStringPtr(&f.AttributeForGroups, m.AttributeForGroups)
+	return f
 }
 
 func ldapServerConfigModelFromForm(f client.LDAPServerConfigForm) ldapServerConfigModel {
