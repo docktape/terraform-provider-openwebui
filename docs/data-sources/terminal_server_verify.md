@@ -33,7 +33,7 @@ output "terminal_server_type" {
 ### Optional
 
 - `auth_type` (String) Authentication type: `bearer` (default, sends `key`), `none`, `session` or `system_oauth`. Open WebUI only sends credentials for `bearer` when verifying.
-- `key` (String, Sensitive) Bearer token sent when `auth_type` is `bearer`. Sensitive.
+- `key` (String, Sensitive) Bearer token sent when `auth_type` is `bearer`.
 
 ### Read-Only
 

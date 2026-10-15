@@ -1,10 +1,13 @@
 package provider
 
 import (
+	"context"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -193,5 +196,78 @@ func TestCanonicalJSONKeepsNumberLiterals(t *testing.T) {
 	}
 	if got != `{"big":9007199254740993,"speed":1.50}` {
 		t.Errorf("unexpected canonical form %s", got)
+	}
+}
+
+// TestJSONShapeValidatorNumbers checks the plan-time rule that every JSON
+// number literal must come back from Open WebUI's Python json round trip with
+// the same value: integers are exact at any (reasonable) size, fractions and
+// exponents must equal the float64 Python stores.
+func TestJSONShapeValidatorNumbers(t *testing.T) {
+	ctx := context.Background()
+	hugeInt := strings.Repeat("9", 400)
+	tooLongInt := strings.Repeat("1", pythonMaxIntDigits+1)
+	cases := []struct {
+		text    string
+		wantErr bool
+	}{
+		{`{"a": 1}`, false},
+		{`{"a": 1.5, "b": 0.25, "c": -0.0, "d": 1e2, "e": 1.50}`, false},
+		{`{"a": 0.1, "b": 2.5e-3, "c": 1E+2}`, false},
+		{`{"big": 9007199254740993}`, false},
+		{`{"big": ` + hugeInt + `}`, false},
+		{`{"neg": -` + hugeInt + `}`, false},
+		{`{"a": 5e-324}`, false},
+		{`{"a": 1.7976931348623157e308}`, false},
+		{`{"nested": [{"x": [1, 2.5]}]}`, false},
+		{`{"big": 9007199254740993.0}`, true},
+		{`{"big": 9.007199254740993e15}`, true},
+		{`{"a": 0.10000000000000000001}`, true},
+		{`{"a": 1e400}`, true},
+		{`{"a": -1e400}`, true},
+		{`{"a": 1e-400}`, true},
+		{`{"a": 1e1001}`, true},
+		{`{"a": 0e2000}`, true},
+		{`{"nested": {"deep": [1, 1e400]}}`, true},
+		{`{"a": ` + tooLongInt + `}`, true},
+	}
+	for _, tc := range cases {
+		resp := &validator.StringResponse{}
+		jsonObjectValidator().ValidateString(ctx, validator.StringRequest{Path: path.Root("x"), ConfigValue: types.StringValue(tc.text)}, resp)
+		if got := resp.Diagnostics.HasError(); got != tc.wantErr {
+			t.Errorf("%.80s: error=%v, want %v (%v)", tc.text, got, tc.wantErr, resp.Diagnostics)
+		}
+	}
+
+	resp := &validator.StringResponse{}
+	jsonArrayOfObjectsValidator().ValidateString(ctx, validator.StringRequest{Path: path.Root("x"), ConfigValue: types.StringValue(`[{"a": 9007199254740993.0}]`)}, resp)
+	if !resp.Diagnostics.HasError() {
+		t.Errorf("array-of-objects validator accepted an unrepresentable fraction")
+	}
+}
+
+// TestJSONShapeValidatorShapes keeps the top-level shape checks.
+func TestJSONShapeValidatorShapes(t *testing.T) {
+	ctx := context.Background()
+	check := func(v validator.String, text string, wantErr bool) {
+		t.Helper()
+		resp := &validator.StringResponse{}
+		v.ValidateString(ctx, validator.StringRequest{Path: path.Root("x"), ConfigValue: types.StringValue(text)}, resp)
+		if got := resp.Diagnostics.HasError(); got != wantErr {
+			t.Errorf("%q: error=%v, want %v", text, got, wantErr)
+		}
+	}
+	for text, wantErr := range map[string]bool{`{}`: false, `{"a":1}`: false, `null`: true, `[]`: true, `"x"`: true, `{} {}`: true, `{`: true, `1`: true} {
+		check(jsonObjectValidator(), text, wantErr)
+	}
+	for text, wantErr := range map[string]bool{`[]`: false, `[{}]`: false, `[{"a":1},{}]`: false, `[null]`: true, `[1]`: true, `{}`: true, `null`: true} {
+		check(jsonArrayOfObjectsValidator(), text, wantErr)
+	}
+	for _, v := range []types.String{types.StringNull(), types.StringUnknown()} {
+		resp := &validator.StringResponse{}
+		jsonObjectValidator().ValidateString(ctx, validator.StringRequest{Path: path.Root("x"), ConfigValue: v}, resp)
+		if resp.Diagnostics.HasError() {
+			t.Errorf("validator rejected %s", v)
+		}
 	}
 }

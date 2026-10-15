@@ -70,7 +70,8 @@ func (r *terminalServersConfigResource) Schema(_ context.Context, _ resource.Sch
 
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Manages Open WebUI's list of admin-configured terminal servers (Open Terminal instances or orchestrators), the `TERMINAL_SERVER_CONNECTIONS` setting.\n\n" +
-			"~> Open WebUI replaces the whole connection list on every apply. Entries added in the admin UI that are not in your configuration are removed, and extra per-connection keys Open WebUI stores but this resource does not model (for example a cached `policy`) are dropped.\n\n" +
+			"~> Open WebUI replaces the whole connection list on every apply. Entries added in the admin UI that are not in your configuration are removed, and extra per-connection keys Open WebUI stores but this resource does not model are dropped, because only the modelled attributes are sent. In particular the cached orchestrator `policy`: Open WebUI v0.9.6 and v0.10.x store `policy: null` for every connection on each apply, and v0.11.0 never stores `policy` or `lifecycle` from this endpoint at all.\n\n" +
+			"-> A connection stored with a null `id`, `name`, `path` or `auth_type` (possible when it was written directly through the API) is read as an empty string, so the next plan shows a change back to your configured value or the attribute's default; applying it stores that value explicitly.\n\n" +
 			"~> Each apply makes Open WebUI contact every enabled connection to cache its OpenAPI specification. Unreachable servers do not fail the apply, but an apply against many slow or unreachable servers takes correspondingly longer.\n\n" +
 			"~> Connection keys are stored in Terraform state because Open WebUI returns them in plain text. Protect your state accordingly.\n\n" +
 			"Deleting this resource only removes it from state; the connections stay configured in Open WebUI. The endpoint is available in Open WebUI v0.9.6 and later.",
@@ -107,7 +108,7 @@ func (r *terminalServersConfigResource) Schema(_ context.Context, _ resource.Sch
 						},
 						"auth_type": str("How Open WebUI authenticates to the terminal server: `bearer` (send `key`), `none`, `session` (forward the signed-in user's token) or `system_oauth` (forward the user's OAuth token). Defaults to `bearer`.", "bearer",
 							stringvalidator.OneOf("bearer", "none", "session", "system_oauth")),
-						"config_json": optional("Extra connection configuration as a JSON object, e.g. `jsonencode({ access_grants = [...] })`. Open WebUI reads `access_grants` here to decide which users and groups may use the terminal; without grants the terminal is admin-only. Null sends no configuration.", jsonObjectValidator()),
+						"config_json": optional("Extra connection configuration as a JSON object, e.g. `jsonencode({ access_grants = [...] })`. Open WebUI reads `access_grants` here to decide which users and groups may use the terminal; without grants the terminal is admin-only. Null sends no configuration. Compared semantically: key order and whitespace differences are not drift."+jsonNumberNote+" This attribute is not marked sensitive and is stored in plain text in Terraform state and plan output, so do not put credentials in it; use `key` instead.", jsonObjectValidator()),
 						"server_type": optional("Server type: `orchestrator` for a policy-managing orchestrator or `terminal` for a plain Open Terminal. Null leaves it unset."),
 						"policy_id":   optional("Policy identifier on an orchestrator; when set, requests are routed to `<url>/p/<policy_id>`. Null leaves it unset."),
 					},

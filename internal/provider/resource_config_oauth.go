@@ -28,7 +28,7 @@ var _ resource.ResourceWithImportState = &oauthConfigResource{}
 // commas on read, so any other shape would not round-trip.
 var commaListValidator = stringvalidator.RegexMatches(
 	regexp.MustCompile(`^$|^[^,\s]([^,]*[^,\s])?(,[^,\s]([^,]*[^,\s])?)*$`),
-	"must be a comma-separated list of non-empty items without leading or trailing whitespace, or an empty string",
+	"must be a comma-separated list of non-empty items without whitespace around the commas (for example \"a,b\", not \"a, b\"), or an empty string",
 )
 
 // secondsValidator accepts a canonical non-negative integer string (no leading zeros, so it round-trips through a JSON number) or the empty string.
@@ -97,6 +97,10 @@ func (r *oauthConfigResource) Schema(_ context.Context, _ resource.SchemaRequest
 	secret := func(desc string) schema.StringAttribute {
 		return schema.StringAttribute{Optional: true, Computed: true, Sensitive: true, Description: desc, MarkdownDescription: desc, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}
 	}
+	// commaListNote explains commaListValidator's accepted format.
+	const commaListNote = " Write items separated by plain commas with no spaces around them and no empty items, for example `a,b` (not `a, b` or `a,,b`); an empty string stores an empty list. Open WebUI trims each item, drops empty ones and reads the list back joined with plain commas, so any other spelling would show up as a change on every plan and is rejected at plan time."
+	// nullNote covers the three settings whose server default is null.
+	const nullNote = " Null until set. Once set it cannot be returned to null from Terraform (Open WebUI's partial update ignores null), but an empty string is equivalent: Open WebUI only checks this setting for truthiness."
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Manages Open WebUI's single generic OIDC provider configuration and cross-cutting OAuth behavior (role/group mapping, domain allowlist, claims). Configuring per-provider (Google/Microsoft/GitHub) client credentials is done via environment variables, not this resource.\n\n" +
 			"~> **Requires Open WebUI v0.10.0+.** This endpoint did not exist in earlier releases.\n\n" +
@@ -110,16 +114,16 @@ func (r *oauthConfigResource) Schema(_ context.Context, _ resource.SchemaRequest
 				MarkdownDescription: "Singleton identifier.",
 				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
-			"enable_oauth":                      b("Master switch for OAuth login. Server default: `true`. Added in Open WebUI v0.11.0; v0.10.x ignores it and reads it back as null, so setting it against a v0.10.x server fails the apply with an inconsistent-result error."),
+			"enable_oauth":                      b("Master switch for OAuth login. Server default: `true`. Added in Open WebUI v0.11.0. Setting it against a v0.10.x server fails the apply with an error before anything is written (the provider reads the configuration first and checks that the server reports this setting); left unset, it reads back as null there."),
 			"enable_oauth_signup":               b("Whether new users may sign up through OAuth. Server default: `false`."),
 			"oauth_merge_accounts_by_email":     b("Whether an OAuth login is merged into an existing local account with the same email. Only enable this for identity providers that verify email ownership. Server default: `false`."),
 			"oauth_auto_redirect":               b("Whether the sign-in page redirects straight to the OAuth provider. Enabling it can lock password-based admins out of the UI. Server default: `false`."),
-			"oauth_allowed_domains":             str("Comma-separated list of allowed email domains; `*` allows all. Items must be non-empty with no leading or trailing whitespace, because the server trims and re-joins them with plain commas. An empty string stores an empty list. Server default: `*`.", commaListValidator),
+			"oauth_allowed_domains":             str("Comma-separated list of allowed email domains; `*` allows all."+commaListNote+" Server default: `*`.", commaListValidator),
 			"oauth_blocked_groups":              str("Blocked OAuth groups, stored as a string (the server default is the JSON list text `[]`)."),
 			"enable_oauth_role_management":      b("Whether roles are mapped from the provider's roles claim. Server default: `false`."),
 			"oauth_roles_claim":                 str("Claim that carries the user's roles. Server default: `roles`."),
-			"oauth_admin_roles":                 str("Comma-separated provider roles that map to the Open WebUI admin role. Items must be non-empty with no leading or trailing whitespace. Server default: `admin`.", commaListValidator),
-			"oauth_allowed_roles":               str("Comma-separated provider roles allowed to sign in. Items must be non-empty with no leading or trailing whitespace. Server default: `user,admin`.", commaListValidator),
+			"oauth_admin_roles":                 str("Comma-separated provider roles that map to the Open WebUI admin role."+commaListNote+" Server default: `admin`.", commaListValidator),
+			"oauth_allowed_roles":               str("Comma-separated provider roles allowed to sign in."+commaListNote+" Server default: `user,admin`.", commaListValidator),
 			"enable_oauth_group_management":     b("Whether group membership is synchronised from the provider's group claim. Server default: `false`."),
 			"enable_oauth_group_creation":       b("Whether groups found in the claim are created when missing. Server default: `false`."),
 			"oauth_group_claim":                 str("Claim that carries the user's groups. Server default: `groups`."),
@@ -130,15 +134,15 @@ func (r *oauthConfigResource) Schema(_ context.Context, _ resource.SchemaRequest
 			"oauth_client_secret":               secret("OAuth client secret of the generic OIDC provider. Open WebUI returns it in plain text from its read endpoint, so it is also kept in Terraform state."),
 			"openid_redirect_uri":               str("Redirect URI registered with the provider. Empty lets Open WebUI derive it."),
 			"oauth_scopes":                      str("Space-separated scopes requested from the provider. Server default: `openid email profile`."),
-			"oauth_code_challenge_method":       str("PKCE code challenge method. Only `S256` is supported by Open WebUI; an empty string disables PKCE. Null until set.", stringvalidator.OneOf("", "S256")),
-			"oauth_token_endpoint_auth_method":  str("Client authentication method at the token endpoint (for example `client_secret_post`). Null until set."),
+			"oauth_code_challenge_method":       str("PKCE code challenge method. Only `S256` is supported by Open WebUI; an empty string disables PKCE."+nullNote, stringvalidator.OneOf("", "S256")),
+			"oauth_token_endpoint_auth_method":  str("Client authentication method at the token endpoint (for example `client_secret_post`)." + nullNote),
 			"openid_end_session_endpoint":       str("Provider end-session (logout) endpoint. Empty means none."),
 			"oauth_timeout":                     str("HTTP timeout in seconds for provider requests, as a whole-number string without leading zeros (for example `\"30\"`), or an empty string for no explicit timeout. The server accepts an integer or a string; Terraform always sees a string. Server default: empty string.", secondsValidator),
 			"oauth_client_timeout":              str("HTTP client timeout in seconds, as a whole-number string without leading zeros, or an empty string for none. Server default: empty string.", secondsValidator),
 			"oauth_email_claim":                 str("Claim that carries the user's email. Server default: `email`."),
 			"oauth_username_claim":              str("Claim that carries the user's display name. Server default: `name`."),
 			"oauth_picture_claim":               str("Claim that carries the user's profile picture URL. Server default: `picture`."),
-			"oauth_sub_claim":                   str("Claim used as the subject identifier. Null until set (the provider default `sub` applies)."),
+			"oauth_sub_claim":                   str("Claim used as the subject identifier; when empty, the provider default (`sub` for a generic OIDC provider) applies." + nullNote),
 			"oauth_audience":                    str("Audience sent to the provider. Empty means none."),
 			"oauth_update_email_on_login":       b("Whether the user's email is refreshed from the provider on every login. Server default: `false`."),
 			"oauth_update_name_on_login":        b("Whether the user's name is refreshed on every login. Server default: `false`."),
@@ -168,8 +172,13 @@ func (r *oauthConfigResource) Create(ctx context.Context, req resource.CreateReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	var configured types.Bool
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("enable_oauth"), &configured)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	state, diags := applyOAuthConfig(ctx, r.client, plan)
+	state, diags := applyOAuthConfig(ctx, r.client, plan, !configured.IsNull() && !configured.IsUnknown())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -189,8 +198,13 @@ func (r *oauthConfigResource) Update(ctx context.Context, req resource.UpdateReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	var configured types.Bool
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("enable_oauth"), &configured)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	state, diags := applyOAuthConfig(ctx, r.client, plan)
+	state, diags := applyOAuthConfig(ctx, r.client, plan, !configured.IsNull() && !configured.IsUnknown())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -205,8 +219,28 @@ func (r *oauthConfigResource) Update(ctx context.Context, req resource.UpdateReq
 // model_dump(exclude_none=True)). The returned state is flattened from the
 // server's response, which carries every stored value including the ones the
 // plan left unknown.
-func applyOAuthConfig(ctx context.Context, apiClient *client.Client, plan oauthConfigModel) (oauthConfigModel, diag.Diagnostics) {
+//
+// When the configuration sets enable_oauth, the current configuration is read
+// first: a server that does not report ENABLE_OAUTH (v0.10.x) would ignore the
+// value and read it back as null, failing the apply only after the other
+// settings were written. The check turns that into a clear error before the
+// POST. Open WebUI v0.11.0 always reports the key (oauth.enable has a
+// built-in default).
+func applyOAuthConfig(ctx context.Context, apiClient *client.Client, plan oauthConfigModel, enableOAuthConfigured bool) (oauthConfigModel, diag.Diagnostics) {
 	var diags diag.Diagnostics
+
+	if enableOAuthConfigured {
+		current, err := apiClient.GetOAuthConfig(ctx)
+		if err != nil {
+			diags.AddError("Read OAuth config failed", err.Error())
+			return oauthConfigModel{}, diags
+		}
+		if current.EnableOAuth == nil {
+			diags.AddAttributeError(path.Root("enable_oauth"), "Unsupported by this Open WebUI version",
+				"The server does not report ENABLE_OAUTH, so it would ignore this value. The setting was added in Open WebUI v0.11.0; remove enable_oauth from the configuration or upgrade Open WebUI. Nothing was written.")
+			return oauthConfigModel{}, diags
+		}
+	}
 
 	updated, err := apiClient.SetOAuthConfig(ctx, oauthConfigFormFromModel(plan))
 	if err != nil {

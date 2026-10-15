@@ -58,3 +58,14 @@ func indexOf(haystack, needle string) int {
 	}
 	return -1
 }
+
+// newConfigTestClient returns a client pointed at a test server running
+// handler. It is shared by the config client tests; callers close the server.
+func newConfigTestClient(handler http.HandlerFunc) (*Client, *httptest.Server) {
+	server := httptest.NewServer(handler)
+	client, err := NewClient(server.URL, "test-token", false)
+	if err != nil {
+		panic(err)
+	}
+	return client, server
+}

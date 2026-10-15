@@ -100,10 +100,10 @@ func (r *imagesConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 	b := func(desc string) schema.BoolAttribute {
 		return schema.BoolAttribute{Optional: true, Computed: true, Description: desc, MarkdownDescription: desc, PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}}
 	}
-	const jsonNote = " Compared semantically: key order and whitespace differences are not drift."
+	const jsonNote = " Compared semantically: key order and whitespace differences are not drift." + jsonNumberNote
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Manages Open WebUI's image generation and image editing settings (engines, models, sizes and per-engine connection details for OpenAI, Gemini, ComfyUI and AUTOMATIC1111).\n\n" +
-			"~> Open WebUI's update endpoint replaces the whole image configuration at once. This resource reads the current configuration first and sends it back with only the attributes set in your configuration changed, so attributes you leave out keep their last-read (state) values (the current server values on first apply). Removing an attribute from your configuration therefore does not reset it; set it to the value you want instead.\n\n" +
+			"~> Open WebUI's update endpoint replaces the whole image configuration at once. This resource reads the current configuration first and sends it back with the attributes set in your configuration applied and every other attribute set to its last-read (state) value (the current server value on first apply). With `-refresh=false` the state can be out of date, so a value changed outside Terraform for an attribute you do not set is written back to its state value. Removing an attribute from your configuration therefore does not reset it; set it to the value you want instead.\n\n" +
 			"~> The API keys and `automatic1111_api_auth` are stored in Terraform state because Open WebUI returns them in plain text. Protect your state accordingly.\n\n" +
 			"-> Saving the configuration with `image_generation_engine` set to `automatic1111` (or empty) makes Open WebUI contact `automatic1111_base_url` to switch the checkpoint to `image_generation_model`; connection errors are ignored by the server.",
 		Attributes: map[string]schema.Attribute{
@@ -131,7 +131,7 @@ func (r *imagesConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 			"images_openai_api_version":               str("API version sent to the OpenAI-compatible endpoint (for example for Azure OpenAI). Empty means none."),
 			"images_openai_api_params_json":           str("JSON object of extra parameters merged into OpenAI image generation requests, for example `jsonencode({ quality = \"hd\" })`. Use `{}` for none. Server default: `{}`."+jsonNote, jsonObjectValidator()),
 			"automatic1111_base_url":                  str("Base URL of the AUTOMATIC1111 API."),
-			"automatic1111_api_auth":                  secret("AUTOMATIC1111 API credentials as `username:password`, sent as HTTP basic auth."),
+			"automatic1111_api_auth":                  secret("AUTOMATIC1111 API credentials as `username:password`, sent as HTTP basic auth. Open WebUI's model also accepts a JSON object here (which its basic-auth code cannot use); such a stored value is shown as its JSON text and, while this attribute is left unchanged, is written back as the same JSON object rather than as a string."),
 			"automatic1111_params_json":               str("JSON object of extra parameters merged into AUTOMATIC1111 txt2img requests, for example `jsonencode({ cfg_scale = 7 })`. Use `{}` for none. Server default: `{}`."+jsonNote, jsonObjectValidator()),
 			"comfyui_base_url":                        str("Base URL of the ComfyUI API, without leading or trailing slashes (Open WebUI strips them).", noEdgeSlashValidator),
 			"comfyui_api_key":                         secret("Bearer token for the ComfyUI API."),

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -27,7 +28,7 @@ func TestGetTerminalServersConfig(t *testing.T) {
 		}
 		_, _ = w.Write([]byte(terminalServersResponse))
 	})
-	c, server := newLDAPConfigTestClient(handler)
+	c, server := newConfigTestClient(handler)
 	defer server.Close()
 
 	got, err := c.GetTerminalServersConfig(context.Background())
@@ -55,7 +56,7 @@ func TestGetTerminalServersConfigNullList(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"TERMINAL_SERVER_CONNECTIONS": null}`))
 	})
-	c, server := newLDAPConfigTestClient(handler)
+	c, server := newConfigTestClient(handler)
 	defer server.Close()
 	got, err := c.GetTerminalServersConfig(context.Background())
 	if err != nil {
@@ -78,7 +79,7 @@ func TestSetTerminalServersConfigEveryWireKey(t *testing.T) {
 		}
 		_, _ = w.Write([]byte(terminalServersResponse))
 	})
-	c, server := newLDAPConfigTestClient(handler)
+	c, server := newConfigTestClient(handler)
 	defer server.Close()
 
 	s := func(v string) *string { return &v }
@@ -140,7 +141,7 @@ func TestTerminalServersConfigKeepsNumberLiterals(t *testing.T) {
 		raw, _ = io.ReadAll(r.Body)
 		_, _ = w.Write([]byte(`{"TERMINAL_SERVER_CONNECTIONS": [{"url": "http://t", "config": {"big": 9007199254740993, "speed": 1.5}}]}`))
 	})
-	c, server := newLDAPConfigTestClient(handler)
+	c, server := newConfigTestClient(handler)
 	defer server.Close()
 
 	got, err := c.SetTerminalServersConfig(context.Background(), TerminalServersConfigForm{Connections: []TerminalServerConnection{
@@ -176,7 +177,7 @@ func TestSetTerminalServersConfigNilListSendsEmptyArray(t *testing.T) {
 		raw, _ = io.ReadAll(r.Body)
 		_, _ = w.Write([]byte(`{"TERMINAL_SERVER_CONNECTIONS": []}`))
 	})
-	c, server := newLDAPConfigTestClient(handler)
+	c, server := newConfigTestClient(handler)
 	defer server.Close()
 	if _, err := c.SetTerminalServersConfig(context.Background(), TerminalServersConfigForm{}); err != nil {
 		t.Fatalf("SetTerminalServersConfig failed: %v", err)
@@ -206,7 +207,7 @@ func TestVerifyTerminalServer(t *testing.T) {
 		}
 		_, _ = w.Write([]byte(`{"detail": "Failed to connect to the terminal server"}`))
 	})
-	c, server := newLDAPConfigTestClient(handler)
+	c, server := newConfigTestClient(handler)
 	defer server.Close()
 
 	key, auth := "k", "bearer"
@@ -224,5 +225,42 @@ func TestVerifyTerminalServer(t *testing.T) {
 	status = http.StatusBadRequest
 	if _, err := c.VerifyTerminalServer(context.Background(), TerminalServerConnection{URL: "http://down"}); err == nil {
 		t.Errorf("expected an error for HTTP 400")
+	}
+}
+
+// TestTerminalServersConfigRawRoundTrip: the raw methods hit the same endpoint
+// and pass extra per-connection keys through untouched in both directions.
+func TestTerminalServersConfigRawRoundTrip(t *testing.T) {
+	const stored = `{"TERMINAL_SERVER_CONNECTIONS":[{"id":"a","url":"http://t","policy":{"cpu":2},"custom":1.50}]}`
+	var postedBody string
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/configs/terminal_servers" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		if r.Method == http.MethodPost {
+			raw, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			postedBody = strings.TrimSpace(string(raw))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(stored))
+	})
+	c, server := newConfigTestClient(handler)
+	defer server.Close()
+
+	got, err := c.GetTerminalServersConfigRaw(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != stored {
+		t.Fatalf("raw GET altered the body: %s", got)
+	}
+	if _, err := c.SetTerminalServersConfigRaw(context.Background(), got); err != nil {
+		t.Fatal(err)
+	}
+	if postedBody != stored {
+		t.Errorf("raw POST altered the body:\n got %s\nwant %s", postedBody, stored)
 	}
 }

@@ -4,7 +4,8 @@ page_title: "openwebui_terminal_servers_config Resource - openwebui"
 subcategory: ""
 description: |-
   Manages Open WebUI's list of admin-configured terminal servers (Open Terminal instances or orchestrators), the TERMINAL_SERVER_CONNECTIONS setting.
-  ~> Open WebUI replaces the whole connection list on every apply. Entries added in the admin UI that are not in your configuration are removed, and extra per-connection keys Open WebUI stores but this resource does not model (for example a cached policy) are dropped.
+  ~> Open WebUI replaces the whole connection list on every apply. Entries added in the admin UI that are not in your configuration are removed, and extra per-connection keys Open WebUI stores but this resource does not model are dropped, because only the modelled attributes are sent. In particular the cached orchestrator policy: Open WebUI v0.9.6 and v0.10.x store policy: null for every connection on each apply, and v0.11.0 never stores policy or lifecycle from this endpoint at all.
+  -> A connection stored with a null id, name, path or auth_type (possible when it was written directly through the API) is read as an empty string, so the next plan shows a change back to your configured value or the attribute's default; applying it stores that value explicitly.
   ~> Each apply makes Open WebUI contact every enabled connection to cache its OpenAPI specification. Unreachable servers do not fail the apply, but an apply against many slow or unreachable servers takes correspondingly longer.
   ~> Connection keys are stored in Terraform state because Open WebUI returns them in plain text. Protect your state accordingly.
   Deleting this resource only removes it from state; the connections stay configured in Open WebUI. The endpoint is available in Open WebUI v0.9.6 and later.
@@ -14,7 +15,9 @@ description: |-
 
 Manages Open WebUI's list of admin-configured terminal servers (Open Terminal instances or orchestrators), the `TERMINAL_SERVER_CONNECTIONS` setting.
 
-~> Open WebUI replaces the whole connection list on every apply. Entries added in the admin UI that are not in your configuration are removed, and extra per-connection keys Open WebUI stores but this resource does not model (for example a cached `policy`) are dropped.
+~> Open WebUI replaces the whole connection list on every apply. Entries added in the admin UI that are not in your configuration are removed, and extra per-connection keys Open WebUI stores but this resource does not model are dropped, because only the modelled attributes are sent. In particular the cached orchestrator `policy`: Open WebUI v0.9.6 and v0.10.x store `policy: null` for every connection on each apply, and v0.11.0 never stores `policy` or `lifecycle` from this endpoint at all.
+
+-> A connection stored with a null `id`, `name`, `path` or `auth_type` (possible when it was written directly through the API) is read as an empty string, so the next plan shows a change back to your configured value or the attribute's default; applying it stores that value explicitly.
 
 ~> Each apply makes Open WebUI contact every enabled connection to cache its OpenAPI specification. Unreachable servers do not fail the apply, but an apply against many slow or unreachable servers takes correspondingly longer.
 
@@ -81,7 +84,7 @@ Required:
 Optional:
 
 - `auth_type` (String) How Open WebUI authenticates to the terminal server: `bearer` (send `key`), `none`, `session` (forward the signed-in user's token) or `system_oauth` (forward the user's OAuth token). Defaults to `bearer`.
-- `config_json` (String) Extra connection configuration as a JSON object, e.g. `jsonencode({ access_grants = [...] })`. Open WebUI reads `access_grants` here to decide which users and groups may use the terminal; without grants the terminal is admin-only. Null sends no configuration.
+- `config_json` (String) Extra connection configuration as a JSON object, e.g. `jsonencode({ access_grants = [...] })`. Open WebUI reads `access_grants` here to decide which users and groups may use the terminal; without grants the terminal is admin-only. Null sends no configuration. Compared semantically: key order and whitespace differences are not drift. Number literals must survive Open WebUI's Python JSON round trip: integers are exact (up to Python's 4300-digit limit), but a fraction or exponent that a 64-bit float cannot hold exactly (for example `9007199254740993.0`) or that overflows it (`1e400`) is rejected at plan time. This attribute is not marked sensitive and is stored in plain text in Terraform state and plan output, so do not put credentials in it; use `key` instead.
 - `enabled` (Boolean) Whether the terminal is enabled. Defaults to `true`.
 - `id` (String) Identifier Open WebUI uses to refer to the terminal (for example in chats and automations). Open WebUI does not generate one, so set a unique value; an empty id makes the terminal unusable. Defaults to an empty string.
 - `key` (String, Sensitive) API key or bearer token sent to the terminal server when `auth_type` is `bearer`. Stored in Terraform state because Open WebUI returns it in plain text. Defaults to an empty string.

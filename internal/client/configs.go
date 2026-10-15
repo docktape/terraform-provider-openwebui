@@ -788,7 +788,10 @@ func (c *Client) SetOAuthConfig(ctx context.Context, form OAuthConfigForm) (*OAu
 // (object, legacy JSON string, null) round-trips unchanged.
 // AUTOMATIC1111_API_AUTH is also dict | str | None in the model, but the
 // backend only ever uses it as a "user:password" string, so it is a *string
-// here (an unexpected dict is decoded as its raw JSON text).
+// here. A non-string value read from the server (e.g. a dict) is exposed as
+// its raw JSON text and remembered; while Automatic1111APIAuth still holds
+// exactly that text it is sent back as the original JSON value, so a
+// read-modify-write does not silently turn it into a string.
 type ImagesConfigForm struct {
 	EnableImageGeneration          bool            `json:"ENABLE_IMAGE_GENERATION"`
 	EnableImagePromptGeneration    bool            `json:"ENABLE_IMAGE_PROMPT_GENERATION"`
@@ -823,6 +826,10 @@ type ImagesConfigForm struct {
 	ImagesEditComfyUIAPIKey        string          `json:"IMAGES_EDIT_COMFYUI_API_KEY"`
 	ImagesEditComfyUIWorkflow      string          `json:"IMAGES_EDIT_COMFYUI_WORKFLOW"`
 	ImagesEditComfyUIWorkflowNodes json.RawMessage `json:"IMAGES_EDIT_COMFYUI_WORKFLOW_NODES"`
+
+	// automatic1111APIAuthRaw holds a non-string AUTOMATIC1111_API_AUTH as
+	// read from the server; see the type comment.
+	automatic1111APIAuthRaw json.RawMessage
 }
 
 // MarshalJSON sends every key. Nil raw node lists become [] because the
@@ -843,6 +850,12 @@ func (f ImagesConfigForm) MarshalJSON() ([]byte, error) {
 	}
 	if len(a.Automatic1111Params) == 0 {
 		a.Automatic1111Params = null
+	}
+	if raw := f.automatic1111APIAuthRaw; len(raw) > 0 && f.Automatic1111APIAuth != nil && *f.Automatic1111APIAuth == string(raw) {
+		return json.Marshal(struct {
+			alias
+			Automatic1111APIAuth json.RawMessage `json:"AUTOMATIC1111_API_AUTH"`
+		}{alias: a, Automatic1111APIAuth: raw})
 	}
 	return json.Marshal(a)
 }
@@ -866,10 +879,12 @@ func (f *ImagesConfigForm) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("IMAGE_STEPS: %w", err)
 	}
 	f.Automatic1111APIAuth = nil
+	f.automatic1111APIAuthRaw = nil
 	if raw := aux.Automatic1111APIAuth; len(raw) > 0 && string(raw) != "null" {
 		var s string
 		if err := json.Unmarshal(raw, &s); err != nil {
 			s = string(raw)
+			f.automatic1111APIAuthRaw = append(json.RawMessage(nil), raw...)
 		}
 		f.Automatic1111APIAuth = &s
 	}
@@ -1067,6 +1082,29 @@ func (c *Client) SetTerminalServersConfig(ctx context.Context, form TerminalServ
 		return nil, err
 	}
 	return &resp, nil
+}
+
+// GetTerminalServersConfigRaw returns the terminal server configuration as the
+// server's raw JSON, including per-connection keys TerminalServerConnection
+// does not model (the Pydantic model allows extra keys).
+func (c *Client) GetTerminalServersConfigRaw(ctx context.Context) (json.RawMessage, error) {
+	var resp json.RawMessage
+	if err := c.do(ctx, http.MethodGet, "configs/terminal_servers", nil, nil, &resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// SetTerminalServersConfigRaw posts a raw terminal server configuration body
+// (for example one returned by GetTerminalServersConfigRaw) unchanged, so
+// extra per-connection keys are sent back. The server still applies its own
+// model: Open WebUI v0.11.0 drops `policy` and `lifecycle`.
+func (c *Client) SetTerminalServersConfigRaw(ctx context.Context, body json.RawMessage) (json.RawMessage, error) {
+	var resp json.RawMessage
+	if err := c.do(ctx, http.MethodPost, "configs/terminal_servers", nil, body, &resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 // TerminalServerVerifyResult is the response of POST /configs/terminal_servers/verify.

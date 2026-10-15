@@ -4,7 +4,7 @@ page_title: "openwebui_images_config Resource - openwebui"
 subcategory: ""
 description: |-
   Manages Open WebUI's image generation and image editing settings (engines, models, sizes and per-engine connection details for OpenAI, Gemini, ComfyUI and AUTOMATIC1111).
-  ~> Open WebUI's update endpoint replaces the whole image configuration at once. This resource reads the current configuration first and sends it back with only the attributes set in your configuration changed, so attributes you leave out keep their last-read (state) values (the current server values on first apply). Removing an attribute from your configuration therefore does not reset it; set it to the value you want instead.
+  ~> Open WebUI's update endpoint replaces the whole image configuration at once. This resource reads the current configuration first and sends it back with the attributes set in your configuration applied and every other attribute set to its last-read (state) value (the current server value on first apply). With -refresh=false the state can be out of date, so a value changed outside Terraform for an attribute you do not set is written back to its state value. Removing an attribute from your configuration therefore does not reset it; set it to the value you want instead.
   ~> The API keys and automatic1111_api_auth are stored in Terraform state because Open WebUI returns them in plain text. Protect your state accordingly.
   -> Saving the configuration with image_generation_engine set to automatic1111 (or empty) makes Open WebUI contact automatic1111_base_url to switch the checkpoint to image_generation_model; connection errors are ignored by the server.
 ---
@@ -13,7 +13,7 @@ description: |-
 
 Manages Open WebUI's image generation and image editing settings (engines, models, sizes and per-engine connection details for OpenAI, Gemini, ComfyUI and AUTOMATIC1111).
 
-~> Open WebUI's update endpoint replaces the whole image configuration at once. This resource reads the current configuration first and sends it back with only the attributes set in your configuration changed, so attributes you leave out keep their last-read (state) values (the current server values on first apply). Removing an attribute from your configuration therefore does not reset it; set it to the value you want instead.
+~> Open WebUI's update endpoint replaces the whole image configuration at once. This resource reads the current configuration first and sends it back with the attributes set in your configuration applied and every other attribute set to its last-read (state) value (the current server value on first apply). With `-refresh=false` the state can be out of date, so a value changed outside Terraform for an attribute you do not set is written back to its state value. Removing an attribute from your configuration therefore does not reset it; set it to the value you want instead.
 
 ~> The API keys and `automatic1111_api_auth` are stored in Terraform state because Open WebUI returns them in plain text. Protect your state accordingly.
 
@@ -51,13 +51,13 @@ resource "openwebui_images_config" "example" {
 
 ### Optional
 
-- `automatic1111_api_auth` (String, Sensitive) AUTOMATIC1111 API credentials as `username:password`, sent as HTTP basic auth.
+- `automatic1111_api_auth` (String, Sensitive) AUTOMATIC1111 API credentials as `username:password`, sent as HTTP basic auth. Open WebUI's model also accepts a JSON object here (which its basic-auth code cannot use); such a stored value is shown as its JSON text and, while this attribute is left unchanged, is written back as the same JSON object rather than as a string.
 - `automatic1111_base_url` (String) Base URL of the AUTOMATIC1111 API.
-- `automatic1111_params_json` (String) JSON object of extra parameters merged into AUTOMATIC1111 txt2img requests, for example `jsonencode({ cfg_scale = 7 })`. Use `{}` for none. Server default: `{}`. Compared semantically: key order and whitespace differences are not drift.
+- `automatic1111_params_json` (String) JSON object of extra parameters merged into AUTOMATIC1111 txt2img requests, for example `jsonencode({ cfg_scale = 7 })`. Use `{}` for none. Server default: `{}`. Compared semantically: key order and whitespace differences are not drift. Number literals must survive Open WebUI's Python JSON round trip: integers are exact (up to Python's 4300-digit limit), but a fraction or exponent that a 64-bit float cannot hold exactly (for example `9007199254740993.0`) or that overflows it (`1e400`) is rejected at plan time.
 - `comfyui_api_key` (String, Sensitive) Bearer token for the ComfyUI API.
 - `comfyui_base_url` (String) Base URL of the ComfyUI API, without leading or trailing slashes (Open WebUI strips them).
 - `comfyui_workflow` (String) ComfyUI workflow (API format) as JSON text. Stored verbatim as a string by Open WebUI, so it is compared exactly. Server default: Open WebUI's built-in text-to-image workflow.
-- `comfyui_workflow_nodes_json` (String) JSON array of objects mapping workflow inputs to node IDs, for example `jsonencode([{ type = "prompt", key = "text", node_ids = ["6"] }])`. Use `[]` for none. Server default: `[]`. Compared semantically: key order and whitespace differences are not drift.
+- `comfyui_workflow_nodes_json` (String) JSON array of objects mapping workflow inputs to node IDs, for example `jsonencode([{ type = "prompt", key = "text", node_ids = ["6"] }])`. Use `[]` for none. Server default: `[]`. Compared semantically: key order and whitespace differences are not drift. Number literals must survive Open WebUI's Python JSON round trip: integers are exact (up to Python's 4300-digit limit), but a fraction or exponent that a 64-bit float cannot hold exactly (for example `9007199254740993.0`) or that overflows it (`1e400`) is rejected at plan time.
 - `enable_image_edit` (Boolean) Whether image editing is enabled. Server default: `false`.
 - `enable_image_generation` (Boolean) Whether image generation is enabled. Server default: `false`.
 - `enable_image_prompt_generation` (Boolean) Whether a task model rewrites the user's request into an image prompt before generation. Server default: `true`.
@@ -71,7 +71,7 @@ resource "openwebui_images_config" "example" {
 - `images_edit_comfyui_api_key` (String, Sensitive) Bearer token for the ComfyUI image editing API.
 - `images_edit_comfyui_base_url` (String) Base URL of the ComfyUI API used for image editing, without leading or trailing slashes (Open WebUI strips them).
 - `images_edit_comfyui_workflow` (String) ComfyUI image editing workflow (API format) as JSON text, stored verbatim. Server default: empty string.
-- `images_edit_comfyui_workflow_nodes_json` (String) JSON array of objects mapping image editing workflow inputs to node IDs. Use `[]` for none. Server default: `[]`. Compared semantically: key order and whitespace differences are not drift.
+- `images_edit_comfyui_workflow_nodes_json` (String) JSON array of objects mapping image editing workflow inputs to node IDs. Use `[]` for none. Server default: `[]`. Compared semantically: key order and whitespace differences are not drift. Number literals must survive Open WebUI's Python JSON round trip: integers are exact (up to Python's 4300-digit limit), but a fraction or exponent that a 64-bit float cannot hold exactly (for example `9007199254740993.0`) or that overflows it (`1e400`) is rejected at plan time.
 - `images_edit_gemini_api_base_url` (String) Base URL of the Gemini image editing API. Server default: the `GEMINI_API_BASE_URL` setting.
 - `images_edit_gemini_api_key` (String, Sensitive) API key for the Gemini image editing API.
 - `images_edit_openai_api_base_url` (String) Base URL of the OpenAI-compatible image editing API. Server default: the `OPENAI_API_BASE_URL` setting.
@@ -82,7 +82,7 @@ resource "openwebui_images_config" "example" {
 - `images_gemini_endpoint_method` (String) Gemini endpoint method, for example `predict` or `generateContent`. Empty lets Open WebUI choose.
 - `images_openai_api_base_url` (String) Base URL of the OpenAI-compatible image generation API. Server default: the `OPENAI_API_BASE_URL` setting.
 - `images_openai_api_key` (String, Sensitive) API key for the OpenAI-compatible image generation API.
-- `images_openai_api_params_json` (String) JSON object of extra parameters merged into OpenAI image generation requests, for example `jsonencode({ quality = "hd" })`. Use `{}` for none. Server default: `{}`. Compared semantically: key order and whitespace differences are not drift.
+- `images_openai_api_params_json` (String) JSON object of extra parameters merged into OpenAI image generation requests, for example `jsonencode({ quality = "hd" })`. Use `{}` for none. Server default: `{}`. Compared semantically: key order and whitespace differences are not drift. Number literals must survive Open WebUI's Python JSON round trip: integers are exact (up to Python's 4300-digit limit), but a fraction or exponent that a 64-bit float cannot hold exactly (for example `9007199254740993.0`) or that overflows it (`1e400`) is rejected at plan time.
 - `images_openai_api_version` (String) API version sent to the OpenAI-compatible endpoint (for example for Azure OpenAI). Empty means none.
 
 ### Read-Only

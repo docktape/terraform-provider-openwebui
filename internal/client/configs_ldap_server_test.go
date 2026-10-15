@@ -25,7 +25,7 @@ func TestGetLDAPServerConfig(t *testing.T) {
 			"enable_group_management": true, "enable_group_creation": false, "attribute_for_groups": "memberOf"
 		}`))
 	})
-	client, server := newLDAPConfigTestClient(handler)
+	client, server := newConfigTestClient(handler)
 	defer server.Close()
 
 	got, err := client.GetLDAPServerConfig(context.Background())
@@ -57,7 +57,7 @@ func TestGetLDAPServerConfigOlderServer(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"label":"l","host":"h","port":null,"app_dn":"","app_dn_password":"","search_base":"b"}`))
 	})
-	client, server := newLDAPConfigTestClient(handler)
+	client, server := newConfigTestClient(handler)
 	defer server.Close()
 
 	got, err := client.GetLDAPServerConfig(context.Background())
@@ -88,7 +88,7 @@ func TestSetLDAPServerConfig(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"label":"L","host":"H","port":389,"app_dn":"dn","app_dn_password":"pw","search_base":"sb","enable_group_management":true,"attribute_for_groups":"memberOf"}`))
 	})
-	client, server := newLDAPConfigTestClient(handler)
+	client, server := newConfigTestClient(handler)
 	defer server.Close()
 
 	port := int64(389)
@@ -134,7 +134,7 @@ func TestSetLDAPServerConfigExplicitFalseSent(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"label":"L","host":"H","app_dn":"","app_dn_password":"","search_base":"sb"}`))
 	})
-	client, server := newLDAPConfigTestClient(handler)
+	client, server := newConfigTestClient(handler)
 	defer server.Close()
 
 	f := false

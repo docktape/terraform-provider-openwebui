@@ -4,13 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
 	"github.com/docktape/terraform-provider-openwebui/internal/client"
 )
@@ -112,7 +115,7 @@ func sttOf(t *testing.T, m audioConfigModel) audioSTTModel {
 // carry the current server config unchanged.
 func TestAudioOverlayUnknownObjectsKeepCurrent(t *testing.T) {
 	current := stockAudioForm()
-	form, diags := overlayAudioConfigPlan(context.Background(), current, audioObjects(t, nil, nil))
+	form, diags := overlayAudioConfigPlan(context.Background(), current, audioObjects(t, nil, nil), true)
 	if diags.HasError() {
 		t.Fatalf("unexpected diags: %v", diags)
 	}
@@ -122,14 +125,14 @@ func TestAudioOverlayUnknownObjectsKeepCurrent(t *testing.T) {
 
 	// Null objects (e.g. after import) behave the same.
 	m := audioConfigModel{ID: types.StringNull(), TTS: types.ObjectNull(audioTTSAttrTypes), STT: types.ObjectNull(audioSTTAttrTypes)}
-	form, diags = overlayAudioConfigPlan(context.Background(), current, m)
+	form, diags = overlayAudioConfigPlan(context.Background(), current, m, true)
 	if diags.HasError() || !reflect.DeepEqual(form, current) {
 		t.Fatalf("null objects must keep the current config: %v %+v", diags, form)
 	}
 
 	// Configured but empty blocks (every nested attribute unknown) too.
 	tts, stt := unknownTTS(), unknownSTT()
-	form, diags = overlayAudioConfigPlan(context.Background(), current, audioObjects(t, &tts, &stt))
+	form, diags = overlayAudioConfigPlan(context.Background(), current, audioObjects(t, &tts, &stt), true)
 	if diags.HasError() || !reflect.DeepEqual(form, current) {
 		t.Fatalf("all-unknown nested attributes must keep the current config: %v %+v", diags, form)
 	}
@@ -141,7 +144,7 @@ func TestAudioOverlayNonObjectOpenAIParamsBecomesNull(t *testing.T) {
 	for _, raw := range []string{`"speed=1"`, `[1, 2]`, `3`, `true`, `null`} {
 		current := stockAudioForm()
 		current.TTS.OpenAIParams = json.RawMessage(raw)
-		form, diags := overlayAudioConfigPlan(context.Background(), current, audioObjects(t, nil, nil))
+		form, diags := overlayAudioConfigPlan(context.Background(), current, audioObjects(t, nil, nil), true)
 		if diags.HasError() {
 			t.Fatalf("%s: unexpected diags: %v", raw, diags)
 		}
@@ -151,14 +154,14 @@ func TestAudioOverlayNonObjectOpenAIParamsBecomesNull(t *testing.T) {
 		// A non-object value coming from prior state is not sent either.
 		tts := unknownTTS()
 		tts.OpenAIParamsJSON = types.StringValue("speed=1")
-		form, diags = overlayAudioConfigPlan(context.Background(), current, audioObjects(t, &tts, nil))
+		form, diags = overlayAudioConfigPlan(context.Background(), current, audioObjects(t, &tts, nil), true)
 		if diags.HasError() || form.TTS.OpenAIParams != nil {
 			t.Errorf("%s: state-derived non-object params must not be sent: %v %s", raw, diags, form.TTS.OpenAIParams)
 		}
 	}
 	current := stockAudioForm()
 	current.TTS.OpenAIParams = json.RawMessage(`{"speed": 1.50}`)
-	form, _ := overlayAudioConfigPlan(context.Background(), current, audioObjects(t, nil, nil))
+	form, _ := overlayAudioConfigPlan(context.Background(), current, audioObjects(t, nil, nil), true)
 	if string(form.TTS.OpenAIParams) != `{"speed": 1.50}` {
 		t.Errorf("object params must be kept verbatim, got %s", form.TTS.OpenAIParams)
 	}
@@ -173,7 +176,7 @@ func TestAudioOverlayOnlyTTS(t *testing.T) {
 	tts.SplitOn = types.StringValue("none")
 
 	current := stockAudioForm()
-	form, diags := overlayAudioConfigPlan(context.Background(), current, audioObjects(t, &tts, nil))
+	form, diags := overlayAudioConfigPlan(context.Background(), current, audioObjects(t, &tts, nil), true)
 	if diags.HasError() {
 		t.Fatalf("unexpected diags: %v", diags)
 	}
@@ -201,7 +204,7 @@ func TestAudioOverlayOnlySTTLists(t *testing.T) {
 	stt.AzureMaxSpeakers = types.StringValue("2")
 
 	current := stockAudioForm()
-	form, diags := overlayAudioConfigPlan(context.Background(), current, audioObjects(t, nil, &stt))
+	form, diags := overlayAudioConfigPlan(context.Background(), current, audioObjects(t, nil, &stt), true)
 	if diags.HasError() {
 		t.Fatalf("unexpected diags: %v", diags)
 	}
@@ -219,7 +222,7 @@ func TestAudioOverlayOnlySTTLists(t *testing.T) {
 	}
 
 	stt.SupportedContentTypes = types.ListValueMust(types.StringType, []attr.Value{types.StringValue("audio/*"), types.StringValue("video/webm")})
-	form, diags = overlayAudioConfigPlan(context.Background(), current, audioObjects(t, nil, &stt))
+	form, diags = overlayAudioConfigPlan(context.Background(), current, audioObjects(t, nil, &stt), true)
 	if diags.HasError() || !reflect.DeepEqual(form.STT.SupportedContentTypes, []string{"audio/*", "video/webm"}) {
 		t.Errorf("populated list must be sent: %v %#v", diags, form.STT.SupportedContentTypes)
 	}
@@ -232,15 +235,89 @@ func TestAudioOverlayRequestFormatNeedsNewerServer(t *testing.T) {
 	stt.OpenAIAPIRequestFormat = types.StringValue("json")
 
 	current := stockAudioForm()
-	form, diags := overlayAudioConfigPlan(context.Background(), current, audioObjects(t, nil, &stt))
+	form, diags := overlayAudioConfigPlan(context.Background(), current, audioObjects(t, nil, &stt), true)
 	if diags.HasError() || form.STT.OpenAIAPIRequestFormat == nil || *form.STT.OpenAIAPIRequestFormat != "json" {
 		t.Fatalf("expected request format to be sent: %v %v", diags, form.STT.OpenAIAPIRequestFormat)
 	}
 
 	current.STT.OpenAIAPIRequestFormat = nil
-	_, diags = overlayAudioConfigPlan(context.Background(), current, audioObjects(t, nil, &stt))
+	_, diags = overlayAudioConfigPlan(context.Background(), current, audioObjects(t, nil, &stt), true)
 	if !diags.HasError() {
 		t.Fatalf("expected an error for a pre-v0.10.2 server")
+	}
+	if detail := diags.Errors()[0].Detail(); !strings.Contains(detail, "remove it from the configuration") {
+		t.Errorf("configured value: unexpected detail %q", detail)
+	}
+
+	// A value copied from state (not in the configuration) still fails before
+	// the POST, but the error points at the stale state instead.
+	_, diags = overlayAudioConfigPlan(context.Background(), current, audioObjects(t, nil, &stt), false)
+	if !diags.HasError() {
+		t.Fatalf("expected an error for a state-copied value against a pre-v0.10.2 server")
+	}
+	if detail := diags.Errors()[0].Detail(); !strings.Contains(detail, "-refresh=false") {
+		t.Errorf("state-copied value: unexpected detail %q", detail)
+	}
+}
+
+// TestAudioRequestFormatConfigured reads the flag from the raw configuration.
+func TestAudioRequestFormatConfigured(t *testing.T) {
+	ctx := context.Background()
+	schemaResp := &resource.SchemaResponse{}
+	(&audioConfigResource{}).Schema(ctx, resource.SchemaRequest{}, schemaResp)
+	objType := schemaResp.Schema.Type().TerraformType(ctx)
+	sttType := objType.(tftypes.Object).AttributeTypes["stt"] //nolint:forcetypeassert // test-only
+	ttsType := objType.(tftypes.Object).AttributeTypes["tts"] //nolint:forcetypeassert // test-only
+	sttWith := func(format tftypes.Value) tftypes.Value {
+		vals := map[string]tftypes.Value{}
+		for name, typ := range sttType.(tftypes.Object).AttributeTypes { //nolint:forcetypeassert // test-only
+			vals[name] = tftypes.NewValue(typ, nil)
+		}
+		vals["openai_api_request_format"] = format
+		return tftypes.NewValue(sttType, vals)
+	}
+	config := func(stt tftypes.Value) tfsdk.Config {
+		return tfsdk.Config{Schema: schemaResp.Schema, Raw: tftypes.NewValue(objType, map[string]tftypes.Value{
+			"id":  tftypes.NewValue(tftypes.String, nil),
+			"tts": tftypes.NewValue(ttsType, nil),
+			"stt": stt,
+		})}
+	}
+	for name, tc := range map[string]struct {
+		stt  tftypes.Value
+		want bool
+	}{
+		"no stt block":   {tftypes.NewValue(sttType, nil), false},
+		"format unset":   {sttWith(tftypes.NewValue(tftypes.String, nil)), false},
+		"format unknown": {sttWith(tftypes.NewValue(tftypes.String, tftypes.UnknownValue)), false},
+		"format set":     {sttWith(tftypes.NewValue(tftypes.String, "json")), true},
+	} {
+		got, diags := audioRequestFormatConfigured(ctx, config(tc.stt))
+		if diags.HasError() || got != tc.want {
+			t.Errorf("%s: got %v (%v), want %v", name, got, diags, tc.want)
+		}
+	}
+}
+
+// A non-object OPENAI_PARAMS read from the server is null in state, which is
+// what the overlay sends back, so state and the next apply agree.
+func TestAudioModelNonObjectParamsAreNull(t *testing.T) {
+	ctx := context.Background()
+	for _, raw := range []string{`"speed=1"`, `"{\"speed\": 1}"`, `[1, 2]`, `3`, `true`, `null`} {
+		f := stockAudioForm()
+		f.TTS.OpenAIParams = json.RawMessage(raw)
+		m, diags := audioConfigModelFromForm(ctx, f)
+		if diags.HasError() {
+			t.Fatalf("%s: unexpected diags: %v", raw, diags)
+		}
+		if got := ttsOf(t, m).OpenAIParamsJSON; !got.IsNull() {
+			t.Errorf("%s: expected null openai_params_json, got %v", raw, got)
+		}
+		// The state-derived plan sends exactly that null back.
+		form, diags := overlayAudioConfigPlan(ctx, f, m, false)
+		if diags.HasError() || form.TTS.OpenAIParams != nil {
+			t.Errorf("%s: expected nil OPENAI_PARAMS on the wire, got %s (%v)", raw, form.TTS.OpenAIParams, diags)
+		}
 	}
 }
 
@@ -301,7 +378,7 @@ func TestAudioStateRoundTrip(t *testing.T) {
 	if diags.HasError() {
 		t.Fatalf("unexpected diags: %v", diags)
 	}
-	form, diags := overlayAudioConfigPlan(context.Background(), current, m)
+	form, diags := overlayAudioConfigPlan(context.Background(), current, m, true)
 	if diags.HasError() || !reflect.DeepEqual(form, current) {
 		t.Fatalf("round trip changed the form: %v\nwant %+v\ngot  %+v", diags, current, form)
 	}

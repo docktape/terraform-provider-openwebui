@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"strconv"
 	"testing"
@@ -525,11 +526,12 @@ func TestAccLDAPServerConfigResource(t *testing.T) {
 		t.Fatalf("capture pre-test LDAP server config: %v", err)
 	}
 	t.Cleanup(func() {
-		// A never-configured instance has blank required fields, which the
-		// backend refuses to accept back (HTTP 400 for an empty label, host
-		// or search_base); nothing can be restored through the API then.
+		// The backend refuses a blank label, host or search_base with HTTP
+		// 400. A never-configured instance reports label "LDAP Server" and
+		// host "localhost" but a blank search_base, so its configuration
+		// cannot be POSTed back and nothing can be restored through the API.
 		if original.Label == "" || original.Host == "" || original.SearchBase == "" {
-			t.Logf("pre-test LDAP server config has blank required fields; it cannot be POSTed back, leaving the test values in place")
+			t.Logf("pre-test LDAP server config has a blank label, host or search_base (search_base is blank on a never-configured instance); it cannot be POSTed back, leaving the test values in place")
 			return
 		}
 		if _, err := apiClient.SetLDAPServerConfig(context.Background(), *original); err != nil {
@@ -658,6 +660,26 @@ func TestAccOAuthConfigResource(t *testing.T) {
 			t.Errorf("restore pre-test OAuth config: %v", err)
 		}
 	})
+	// OAUTH_CODE_CHALLENGE_METHOD, OAUTH_TOKEN_ENDPOINT_AUTH_METHOD and
+	// OAUTH_SUB_CLAIM default to null, and a partial update cannot write null
+	// back. They are only exercised when the instance already holds a value
+	// for them, so the cleanup can restore it; otherwise the test leaves them
+	// untouched (null).
+	nullableFull, nullableReset := "", ""
+	var nullableFullChecks, nullableResetChecks []resource.TestCheckFunc
+	addNullable := func(attr string, current *string, value string) {
+		if current == nil {
+			nullableFullChecks = append(nullableFullChecks, resource.TestCheckNoResourceAttr(name, attr))
+			return
+		}
+		nullableFull += "\n  " + attr + " = \"" + value + "\""
+		nullableReset += "\n  " + attr + " = \"\""
+		nullableFullChecks = append(nullableFullChecks, resource.TestCheckResourceAttr(name, attr, value))
+		nullableResetChecks = append(nullableResetChecks, resource.TestCheckResourceAttr(name, attr, ""))
+	}
+	addNullable("oauth_code_challenge_method", original.OAuthCodeChallengeMethod, "S256")
+	addNullable("oauth_token_endpoint_auth_method", original.OAuthTokenEndpointAuthMethod, "client_secret_post")
+	addNullable("oauth_sub_claim", original.OAuthSubClaim, "acc_sub")
 	const empty = `
 resource "openwebui_oauth_config" "test" {
 }`
@@ -677,19 +699,16 @@ resource "openwebui_oauth_config" "test" {
   oauth_client_id                   = "acc-client"
   oauth_client_secret               = "acc-secret"
   oauth_scopes                      = "openid email"
-  oauth_code_challenge_method       = "S256"
-  oauth_token_endpoint_auth_method  = "client_secret_post"
   oauth_timeout                     = "30"
   oauth_client_timeout              = "45"
   oauth_email_claim                 = "acc_email"
   oauth_username_claim              = "acc_name"
   oauth_picture_claim               = "acc_picture"
-  oauth_sub_claim                   = "acc_sub"
   oauth_audience                    = "acc-audience"
   oauth_update_email_on_login       = true
   oauth_update_name_on_login        = true
   oauth_update_picture_on_login     = true
-  oauth_refresh_token_include_scope = true
+  oauth_refresh_token_include_scope = true` + nullableFull + `
 }`
 	reset := testAccProviderConfig() + `
 resource "openwebui_oauth_config" "test" {
@@ -705,19 +724,16 @@ resource "openwebui_oauth_config" "test" {
   oauth_client_id                   = ""
   oauth_client_secret               = ""
   oauth_scopes                      = "openid email profile"
-  oauth_code_challenge_method       = ""
-  oauth_token_endpoint_auth_method  = ""
   oauth_timeout                     = ""
   oauth_client_timeout              = ""
   oauth_email_claim                 = "email"
   oauth_username_claim              = "name"
   oauth_picture_claim               = "picture"
-  oauth_sub_claim                   = ""
   oauth_audience                    = ""
   oauth_update_email_on_login       = false
   oauth_update_name_on_login        = false
   oauth_update_picture_on_login     = false
-  oauth_refresh_token_include_scope = false
+  oauth_refresh_token_include_scope = false` + nullableReset + `
 }`
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
@@ -738,20 +754,18 @@ resource "openwebui_oauth_config" "test" {
 			},
 			{
 				Config: full,
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeTestCheckFunc(append([]resource.TestCheckFunc{
 					resource.TestCheckResourceAttr(name, "oauth_allowed_domains", "acc.example.com,example.org"),
 					resource.TestCheckResourceAttr(name, "oauth_admin_roles", "Acc Admin,admin"),
 					resource.TestCheckResourceAttr(name, "oauth_group_default_share", "members"),
 					resource.TestCheckResourceAttr(name, "oauth_provider_name", "Acc SSO"),
 					resource.TestCheckResourceAttr(name, "oauth_client_secret", "acc-secret"),
-					resource.TestCheckResourceAttr(name, "oauth_code_challenge_method", "S256"),
 					resource.TestCheckResourceAttr(name, "oauth_timeout", "30"),
 					resource.TestCheckResourceAttr(name, "oauth_client_timeout", "45"),
-					resource.TestCheckResourceAttr(name, "oauth_sub_claim", "acc_sub"),
 					resource.TestCheckResourceAttr(name, "oauth_update_email_on_login", "true"),
 					resource.TestCheckResourceAttr(name, "oauth_refresh_token_include_scope", "true"),
 					resource.TestCheckResourceAttr(name, "oauth_auto_redirect", "false"),
-				),
+				}, nullableFullChecks...)...),
 			},
 			{
 				Config:   full,
@@ -759,14 +773,13 @@ resource "openwebui_oauth_config" "test" {
 			},
 			{
 				Config: reset,
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeTestCheckFunc(append([]resource.TestCheckFunc{
 					resource.TestCheckResourceAttr(name, "oauth_allowed_domains", "*"),
 					resource.TestCheckResourceAttr(name, "oauth_group_default_share", "true"),
 					resource.TestCheckResourceAttr(name, "oauth_client_secret", ""),
 					resource.TestCheckResourceAttr(name, "oauth_timeout", ""),
-					resource.TestCheckResourceAttr(name, "oauth_code_challenge_method", ""),
 					resource.TestCheckResourceAttr(name, "oauth_update_email_on_login", "false"),
-				),
+				}, nullableResetChecks...)...),
 			},
 			{
 				Config:   reset,
@@ -1031,12 +1044,30 @@ func TestAccTerminalServersConfigResource(t *testing.T) {
 	const name = "openwebui_terminal_servers_config.test"
 
 	apiClient := testAccAPIClient(t)
-	original, err := apiClient.GetTerminalServersConfig(context.Background())
+	// Capture the raw body so per-connection keys the provider does not model
+	// (extra keys are allowed by Open WebUI's model) are restored as well.
+	// Open WebUI v0.11.0 itself drops `policy` and `lifecycle` on every POST,
+	// so those cannot be restored through the API on that version.
+	original, err := apiClient.GetTerminalServersConfigRaw(context.Background())
 	if err != nil {
 		t.Fatalf("capture pre-test terminal servers config: %v", err)
 	}
 	t.Cleanup(func() {
-		if _, err := apiClient.SetTerminalServersConfig(context.Background(), *original); err != nil {
+		var body map[string]json.RawMessage
+		if err := json.Unmarshal(original, &body); err != nil {
+			t.Errorf("decode pre-test terminal servers config %s: %v", original, err)
+			return
+		}
+		if list := body["TERMINAL_SERVER_CONNECTIONS"]; len(list) == 0 || string(list) == "null" {
+			// The POST requires a list, so a never-set (null) value can only
+			// be restored as an empty list.
+			t.Logf("pre-test terminal server list was null; restoring it as []")
+			if _, err := apiClient.SetTerminalServersConfig(context.Background(), client.TerminalServersConfigForm{}); err != nil {
+				t.Errorf("restore pre-test terminal servers config: %v", err)
+			}
+			return
+		}
+		if _, err := apiClient.SetTerminalServersConfigRaw(context.Background(), original); err != nil {
 			t.Errorf("restore pre-test terminal servers config: %v", err)
 		}
 	})

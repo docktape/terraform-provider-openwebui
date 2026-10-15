@@ -2,10 +2,16 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"regexp"
+	"sync"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	tfresource "github.com/hashicorp/terraform-plugin-testing/helper/resource"
 
 	"github.com/docktape/terraform-provider-openwebui/internal/client"
 )
@@ -142,4 +148,118 @@ func TestOAuthConfigSchemaShape(t *testing.T) {
 			t.Errorf("attribute %q: unexpected Sensitive=%v", name, attr.IsSensitive())
 		}
 	}
+}
+
+// fakeOAuthServer stands in for GET/POST /api/v1/auths/admin/config/oauth.
+// The POST is a partial update (exclude_none); keys outside `known` are
+// dropped, mimicking the response model of the emulated version.
+type fakeOAuthServer struct {
+	mu    sync.Mutex
+	store map[string]any
+	known map[string]bool
+	gets  int
+	posts int
+}
+
+func (f *fakeOAuthServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if r.URL.Path != "/api/v1/auths/admin/config/oauth" {
+		http.NotFound(w, r)
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		f.gets++
+	case http.MethodPost:
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, `{"detail":"invalid"}`, http.StatusUnprocessableEntity)
+			return
+		}
+		for k, v := range body {
+			if f.known[k] && v != nil {
+				f.store[k] = v
+			}
+		}
+		f.posts++
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(f.store)
+}
+
+func newFakeOAuthServer(withEnableOAuth bool) *fakeOAuthServer {
+	f := &fakeOAuthServer{
+		store: map[string]any{"ENABLE_OAUTH_SIGNUP": false, "OAUTH_PROVIDER_NAME": "SSO"},
+		known: map[string]bool{"ENABLE_OAUTH_SIGNUP": true, "OAUTH_PROVIDER_NAME": true},
+	}
+	if withEnableOAuth {
+		f.store["ENABLE_OAUTH"] = true
+		f.known["ENABLE_OAUTH"] = true
+	}
+	return f
+}
+
+// TestOAuthEnableOAuthGuard: setting enable_oauth against a server that does
+// not report ENABLE_OAUTH (v0.10.x) fails before anything is written, while a
+// v0.11.0-like server accepts it; leaving it unset needs no extra read.
+func TestOAuthEnableOAuthGuard(t *testing.T) {
+	const name = "openwebui_oauth_config.test"
+
+	t.Run("v0.10.x rejects before POST", func(t *testing.T) {
+		fake := newFakeOAuthServer(false)
+		server := httptest.NewServer(fake)
+		defer server.Close()
+		t.Setenv("OPENWEBUI_ENDPOINT", server.URL)
+		t.Setenv("OPENWEBUI_TOKEN", "test-token")
+		tfresource.UnitTest(t, tfresource.TestCase{
+			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+			Steps: []tfresource.TestStep{{
+				Config: oauthHCL(`  enable_oauth        = false
+  oauth_provider_name = "Corp"`),
+				ExpectError: regexp.MustCompile(`(?s)Unsupported by this Open WebUI.*v0\.11\.0`),
+			}},
+		})
+		if fake.posts != 0 || fake.store["OAUTH_PROVIDER_NAME"] != "SSO" {
+			t.Errorf("nothing must be written: posts=%d store=%v", fake.posts, fake.store)
+		}
+	})
+
+	t.Run("v0.10.x without enable_oauth", func(t *testing.T) {
+		fake := newFakeOAuthServer(false)
+		server := httptest.NewServer(fake)
+		defer server.Close()
+		t.Setenv("OPENWEBUI_ENDPOINT", server.URL)
+		t.Setenv("OPENWEBUI_TOKEN", "test-token")
+		config := oauthHCL(`  oauth_provider_name = "Corp"`)
+		tfresource.UnitTest(t, tfresource.TestCase{
+			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+			Steps: []tfresource.TestStep{
+				{Config: config, Check: tfresource.ComposeTestCheckFunc(
+					tfresource.TestCheckResourceAttr(name, "oauth_provider_name", "Corp"),
+					tfresource.TestCheckNoResourceAttr(name, "enable_oauth"),
+				)},
+				{Config: config, PlanOnly: true},
+			},
+		})
+	})
+
+	t.Run("v0.11.0 accepts", func(t *testing.T) {
+		fake := newFakeOAuthServer(true)
+		server := httptest.NewServer(fake)
+		defer server.Close()
+		t.Setenv("OPENWEBUI_ENDPOINT", server.URL)
+		t.Setenv("OPENWEBUI_TOKEN", "test-token")
+		config := oauthHCL(`  enable_oauth = false`)
+		tfresource.UnitTest(t, tfresource.TestCase{
+			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+			Steps: []tfresource.TestStep{
+				{Config: config, Check: tfresource.TestCheckResourceAttr(name, "enable_oauth", "false")},
+				{Config: config, PlanOnly: true},
+			},
+		})
+		if fake.store["ENABLE_OAUTH"] != false {
+			t.Errorf("ENABLE_OAUTH not written: %v", fake.store)
+		}
+	})
 }

@@ -4,18 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 )
-
-func newLDAPConfigTestClient(handler http.HandlerFunc) (*Client, *httptest.Server) {
-	server := httptest.NewServer(handler)
-	client, err := NewClient(server.URL, "test-token", false)
-	if err != nil {
-		panic(err)
-	}
-	return client, server
-}
 
 func TestGetLDAPConfig(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -34,7 +24,7 @@ func TestGetLDAPConfig(t *testing.T) {
 		}
 	})
 
-	client, server := newLDAPConfigTestClient(handler)
+	client, server := newConfigTestClient(handler)
 	defer server.Close()
 
 	resp, err := client.GetLDAPConfig(context.Background())
@@ -94,7 +84,7 @@ func TestSetLDAPConfig(t *testing.T) {
 		}
 	})
 
-	client, server := newLDAPConfigTestClient(handler)
+	client, server := newConfigTestClient(handler)
 	defer server.Close()
 
 	enableTrue := true

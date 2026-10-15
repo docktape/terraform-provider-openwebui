@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
@@ -136,7 +137,7 @@ func (r *audioConfigResource) Schema(_ context.Context, _ resource.SchemaRequest
 
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Manages Open WebUI's audio settings: text-to-speech (`tts`) and speech-to-text (`stt`) engines, models, voices and per-engine connection details.\n\n" +
-			"~> Open WebUI's update endpoint replaces the whole audio configuration (both `tts` and `stt`) at once. This resource reads the current configuration first and sends it back with only the attributes set in your configuration changed, so omitted attributes (and an omitted `tts` or `stt` block) keep their last-read (state) values (the current server values on first apply). Removing an attribute from your configuration therefore does not reset it; set it to the value you want instead.\n\n" +
+			"~> Open WebUI's update endpoint replaces the whole audio configuration (both `tts` and `stt`) at once. This resource reads the current configuration first and sends it back with the attributes set in your configuration applied and every other attribute (including an omitted `tts` or `stt` block) set to its last-read (state) value (the current server value on first apply). With `-refresh=false` the state can be out of date, so a value changed outside Terraform for an attribute you do not set is written back to its state value. Removing an attribute from your configuration therefore does not reset it; set it to the value you want instead.\n\n" +
 			"~> The API keys are stored in Terraform state because Open WebUI returns them in plain text. Protect your state accordingly.\n\n" +
 			"-> " + whisperNote,
 		Attributes: map[string]schema.Attribute{
@@ -149,7 +150,7 @@ func (r *audioConfigResource) Schema(_ context.Context, _ resource.SchemaRequest
 			"tts": nested("Text-to-speech settings. Omit the block, or any attribute in it, to keep the last-read (state) values.", map[string]schema.Attribute{
 				"openai_api_base_url":        str("Base URL of the OpenAI-compatible speech API. Server default: the `OPENAI_API_BASE_URL` setting."),
 				"openai_api_key":             secret("API key for the OpenAI-compatible speech API."),
-				"openai_params_json":         str("JSON object of extra parameters merged into OpenAI speech requests, for example `jsonencode({ speed = 1.25 })`. Use `{}` for none. Server default: `{}`. Compared semantically: key order and whitespace differences are not drift.", jsonObjectValidator()),
+				"openai_params_json":         str("JSON object of extra parameters merged into OpenAI speech requests, for example `jsonencode({ speed = 1.25 })`. Use `{}` for none. Server default: `{}`. Compared semantically: key order and whitespace differences are not drift."+jsonNumberNote+" A stored value that is not a JSON object (for example a JSON list set through the `AUDIO_TTS_OPENAI_PARAMS` environment variable) is shown as null and replaced with null on the next apply, because Open WebUI's update endpoint only accepts an object or null.", jsonObjectValidator()),
 				"api_key":                    secret("API key for the ElevenLabs and Azure AI Speech engines."),
 				"engine":                     str("Text-to-speech engine: empty for the browser's Web API, `transformers` (local), `openai`, `elevenlabs`, `azure` or `mistral`. Server default: empty."),
 				"model":                      str("Text-to-speech model. Server default: `tts-1`."),
@@ -164,7 +165,7 @@ func (r *audioConfigResource) Schema(_ context.Context, _ resource.SchemaRequest
 			"stt": nested("Speech-to-text settings. Omit the block, or any attribute in it, to keep the last-read (state) values.", map[string]schema.Attribute{
 				"openai_api_base_url":       str("Base URL of the OpenAI-compatible transcription API. Server default: the `OPENAI_API_BASE_URL` setting."),
 				"openai_api_key":            secret("API key for the OpenAI-compatible transcription API."),
-				"openai_api_request_format": str("How audio is sent to the OpenAI-compatible transcription API: `multipart` (file upload) or `json` (base64 in a JSON body). Server default: `multipart`. Added in Open WebUI v0.10.2; setting it against an older server is an error."),
+				"openai_api_request_format": str("How audio is sent to the OpenAI-compatible transcription API: `multipart` (file upload) or `json` (base64 in a JSON body). Server default: `multipart`. Added in Open WebUI v0.10.2; setting it against an older server fails the apply (the check runs at apply time, after the current configuration is read and before anything is written)."),
 				"engine":                    str("Speech-to-text engine: empty for local Whisper, `openai`, `web` (browser), `deepgram`, `azure` or `mistral`. Server default: empty. Leaving it empty makes every apply reload `whisper_model` (see the resource notes)."),
 				"model":                     str("Speech-to-text model for the remote engines, for example `whisper-1`."),
 				"supported_content_types":   list("MIME types accepted for transcription, for example `[\"audio/*\"]`. An empty list means Open WebUI's built-in default (`audio/*` and `video/webm`). Server default: `[]`."),
@@ -210,8 +211,13 @@ func (r *audioConfigResource) Create(ctx context.Context, req resource.CreateReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	formatConfigured, d := audioRequestFormatConfigured(ctx, req.Config)
+	resp.Diagnostics.Append(d...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	state, diags := applyAudioConfig(ctx, r.client, plan)
+	state, diags := applyAudioConfig(ctx, r.client, plan, formatConfigured)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -231,8 +237,13 @@ func (r *audioConfigResource) Update(ctx context.Context, req resource.UpdateReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	formatConfigured, d := audioRequestFormatConfigured(ctx, req.Config)
+	resp.Diagnostics.Append(d...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	state, diags := applyAudioConfig(ctx, r.client, plan)
+	state, diags := applyAudioConfig(ctx, r.client, plan, formatConfigured)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -241,12 +252,25 @@ func (r *audioConfigResource) Update(ctx context.Context, req resource.UpdateReq
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
+// audioRequestFormatConfigured reports whether the configuration itself (not
+// a value UseStateForUnknown copied from state into the plan) sets
+// stt.openai_api_request_format.
+func audioRequestFormatConfigured(ctx context.Context, config tfsdk.Config) (bool, diag.Diagnostics) {
+	var stt types.Object
+	diags := config.GetAttribute(ctx, path.Root("stt"), &stt)
+	if diags.HasError() || !knownObject(stt) {
+		return false, diags
+	}
+	format, ok := stt.Attributes()["openai_api_request_format"].(types.String)
+	return ok && !format.IsNull() && !format.IsUnknown(), diags
+}
+
 // applyAudioConfig performs a fetch-then-merge write. AudioConfigUpdateForm
 // requires both sub-objects and nearly every field in them, and the handler
 // upserts every field it receives, so the POST replaces the whole audio
 // configuration. The current configuration is therefore read first and every
 // unknown attribute (or wholly unknown sub-object) keeps its server value.
-func applyAudioConfig(ctx context.Context, apiClient *client.Client, plan audioConfigModel) (audioConfigModel, diag.Diagnostics) {
+func applyAudioConfig(ctx context.Context, apiClient *client.Client, plan audioConfigModel, formatConfigured bool) (audioConfigModel, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	current, err := apiClient.GetAudioConfig(ctx)
@@ -255,7 +279,7 @@ func applyAudioConfig(ctx context.Context, apiClient *client.Client, plan audioC
 		return audioConfigModel{}, diags
 	}
 
-	form, formDiags := overlayAudioConfigPlan(ctx, *current, plan)
+	form, formDiags := overlayAudioConfigPlan(ctx, *current, plan, formatConfigured)
 	diags.Append(formDiags...)
 	if diags.HasError() {
 		return audioConfigModel{}, diags
@@ -316,7 +340,11 @@ func (r *audioConfigResource) ImportState(ctx context.Context, req resource.Impo
 
 // overlayAudioConfigPlan returns current with every known plan value applied.
 // Null or unknown sub-objects and attributes keep the current server value.
-func overlayAudioConfigPlan(ctx context.Context, current client.AudioConfigForm, m audioConfigModel) (client.AudioConfigForm, diag.Diagnostics) {
+// formatConfigured tells whether a known stt.openai_api_request_format comes
+// from the configuration (true) or was copied from prior state (false); it
+// only changes the wording of the error raised when the server does not
+// support the setting.
+func overlayAudioConfigPlan(ctx context.Context, current client.AudioConfigForm, m audioConfigModel, formatConfigured bool) (client.AudioConfigForm, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	f := current
 	// OPENAI_PARAMS is Optional[dict] on write, but the GET has no response
@@ -385,10 +413,17 @@ func overlayAudioConfigPlan(ctx context.Context, current client.AudioConfigForm,
 		setString(&f.STT.OpenAIAPIKey, stt.OpenAIAPIKey)
 		if p := stringPtr(stt.OpenAIAPIRequestFormat); p != nil {
 			if f.STT.OpenAIAPIRequestFormat == nil {
+				// Raised before anything is written. Skipping the value instead
+				// would not help: the plan already holds it as known, so the
+				// server's null would fail the apply as an inconsistent result.
+				detail := "The server does not report OPENAI_API_REQUEST_FORMAT, so it would ignore this value. The setting was added in Open WebUI v0.10.2; remove it from the configuration or upgrade Open WebUI. Nothing was written."
+				if !formatConfigured {
+					detail = "Your configuration does not set this attribute, but the prior state holds a value for it and the server no longer reports OPENAI_API_REQUEST_FORMAT (Open WebUI older than v0.10.2, for example after a downgrade). Run the plan with refresh enabled (without -refresh=false) so the state is updated to null. Nothing was written."
+				}
 				diags.AddAttributeError(
 					path.Root("stt").AtName("openai_api_request_format"),
 					"Unsupported by this Open WebUI version",
-					"The server does not report OPENAI_API_REQUEST_FORMAT, so it would ignore this value. The setting was added in Open WebUI v0.10.2; remove it from the configuration or upgrade Open WebUI.",
+					detail,
 				)
 				return f, diags
 			}
@@ -423,7 +458,7 @@ func audioConfigModelFromForm(ctx context.Context, f client.AudioConfigForm) (au
 	tts := audioTTSModel{
 		OpenAIAPIBaseURL:        types.StringValue(f.TTS.OpenAIAPIBaseURL),
 		OpenAIAPIKey:            types.StringValue(f.TTS.OpenAIAPIKey),
-		OpenAIParamsJSON:        rawJSONToState(f.TTS.OpenAIParams),
+		OpenAIParamsJSON:        audioParamsToState(f.TTS.OpenAIParams),
 		APIKey:                  types.StringValue(f.TTS.APIKey),
 		Engine:                  types.StringValue(f.TTS.Engine),
 		Model:                   types.StringValue(f.TTS.Model),
@@ -467,6 +502,17 @@ func audioConfigModelFromForm(ctx context.Context, f client.AudioConfigForm) (au
 	diags.Append(d...)
 
 	return audioConfigModel{ID: types.StringValue("audio"), TTS: ttsObj, STT: sttObj}, diags
+}
+
+// audioParamsToState flattens OPENAI_PARAMS. Only a JSON object is surfaced;
+// any other stored value becomes null, which is exactly what
+// overlayAudioConfigPlan sends back for it, so an apply never reports an
+// inconsistent result for a non-object value the server held before.
+func audioParamsToState(raw json.RawMessage) types.String {
+	if !isJSONObject(raw) {
+		return types.StringNull()
+	}
+	return rawJSONToState(raw)
 }
 
 // preserveAudioConfigJSON keeps the preferred (plan or prior state) text of
