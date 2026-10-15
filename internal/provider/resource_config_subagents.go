@@ -54,7 +54,7 @@ func (r *subagentsConfigResource) Schema(_ context.Context, _ resource.SchemaReq
 		return schema.StringAttribute{Optional: true, Computed: true, Description: desc, MarkdownDescription: desc, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}
 	}
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "~> **Requires Open WebUI v0.11.0+** — the Subagents feature and this config endpoint did not exist in earlier releases.\n\nManages Open WebUI's sub-agent orchestration settings. This is a singleton resource.\n\n" +
+		MarkdownDescription: "~> **Requires Open WebUI v0.11.0 or later.** The Subagents feature and this config endpoint did not exist in earlier releases.\n\nManages Open WebUI's sub-agent orchestration settings. This is a singleton resource.\n\n" +
 			"~> This resource does a full-object update: any attribute not explicitly set in your configuration will be reset to its zero value (false/0/empty string) on every apply.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{

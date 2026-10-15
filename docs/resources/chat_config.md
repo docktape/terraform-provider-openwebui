@@ -3,14 +3,14 @@
 page_title: "openwebui_chat_config Resource - openwebui"
 subcategory: ""
 description: |-
-  ~> Requires Open WebUI v0.11.0+. Context compaction and this config endpoint did not exist in earlier releases.
+  ~> Requires Open WebUI v0.11.0 or later. The chat config endpoint first appeared in v0.10.0 with only three of this resource's six attributes; context_compaction_model, context_compaction_token_cap and context_compaction_retention_percentage were added in v0.11.0, and this resource reads and writes all six.
   Manages Open WebUI's chat context-compaction settings. This is a singleton resource.
   ~> This resource does a full-object update: any attribute not explicitly set in your configuration will be reset to its zero value (false/0/empty string) on every apply.
 ---
 
 # openwebui_chat_config (Resource)
 
-~> **Requires Open WebUI v0.11.0+.** Context compaction and this config endpoint did not exist in earlier releases.
+~> **Requires Open WebUI v0.11.0 or later.** The chat config endpoint first appeared in v0.10.0 with only three of this resource's six attributes; `context_compaction_model`, `context_compaction_token_cap` and `context_compaction_retention_percentage` were added in v0.11.0, and this resource reads and writes all six.
 
 Manages Open WebUI's chat context-compaction settings. This is a singleton resource.
 
@@ -36,9 +36,9 @@ resource "openwebui_chat_config" "example" {
 
 - `context_compaction_model` (String) Model ID used when compacting/summarizing chat context, if different from the chat's regular model.
 - `context_compaction_prompt_template` (String) Prompt template used for context compaction operations.
-- `context_compaction_retention_percentage` (Number) Percentage of tokens to retain from the original context (10-50).
-- `context_compaction_token_cap` (Number) Maximum tokens to retain after compaction.
-- `context_compaction_token_threshold` (Number) Minimum token count that triggers context compaction.
+- `context_compaction_retention_percentage` (Number) Percentage of tokens to retain from the original context. Must be between 10 and 50 inclusive (Open WebUI clamps values outside this range).
+- `context_compaction_token_cap` (Number) Maximum tokens to retain after compaction. Must be at least 1 (Open WebUI raises smaller values to 1; 0 is replaced by the token threshold).
+- `context_compaction_token_threshold` (Number) Minimum token count that triggers context compaction. Must be at least 1 (Open WebUI raises smaller values to 1).
 - `enable_context_compaction` (Boolean) Whether context compaction is enabled for chat processing.
 
 ### Read-Only

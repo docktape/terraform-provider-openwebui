@@ -55,9 +55,9 @@ resource "openwebui_admin_config" "main" {
 
 - `admin_email` (String) Email address of the admin account.
 - `api_keys_allowed_endpoints` (String) Comma-separated list of allowed endpoints for API keys.
-- `automation_max_count` (Number) Maximum number of concurrent automations.
-- `automation_min_interval` (Number) Minimum interval between automations in milliseconds.
-- `channel_model_response_mode` (String) Whether model responses in channels are posted as threads or as channel messages (`thread` or `channel`).
+- `automation_max_count` (Number) Maximum number of concurrent automations. 0 is not accepted: Open WebUI stores 0 as unset (no limit) and reads it back as null.
+- `automation_min_interval` (Number) Minimum interval between automations in milliseconds. 0 is not accepted: Open WebUI stores 0 as unset (no limit) and reads it back as null.
+- `channel_model_response_mode` (String) Whether model responses in channels are posted as threads or as channel messages (`thread` or `channel`). Requires Open WebUI v0.11.0 or later.
 - `default_group_id` (String) Default group ID for new users.
 - `default_user_role` (String) Default role for new users (pending, user, or admin).
 - `enable_api_keys` (Boolean) Whether API key authentication is enabled.
@@ -68,14 +68,14 @@ resource "openwebui_admin_config" "main" {
 - `enable_community_sharing` (Boolean) Whether community sharing is enabled.
 - `enable_folders` (Boolean) Whether folders are enabled.
 - `enable_memories` (Boolean) Whether memories are enabled.
-- `enable_memory_system_context` (Boolean) Whether memory system context is enabled. Available in v0.10.2+.
+- `enable_memory_system_context` (Boolean) Whether memory system context is enabled. Requires Open WebUI v0.10.2 or later.
 - `enable_message_rating` (Boolean) Whether message rating is enabled.
 - `enable_notes` (Boolean) Whether notes are enabled.
 - `enable_signup` (Boolean) Whether user signup is enabled.
 - `enable_user_status` (Boolean) Whether user status is enabled.
 - `enable_user_webhooks` (Boolean) Whether user webhooks are enabled.
-- `folder_max_file_count` (Number) Maximum number of files per folder.
-- `jwt_expires_in` (String) JWT token expiration duration (e.g., 30d, 24h).
+- `folder_max_file_count` (Number) Maximum number of files per folder. 0 is not accepted: Open WebUI stores 0 as unset (no limit) and reads it back as null.
+- `jwt_expires_in` (String) JWT token expiration duration (e.g., 30d, 24h). Must be -1, 0, or a number followed by one of the units ms, s, m, h, d, w (Open WebUI silently ignores any other value).
 - `pending_user_overlay_content` (String) Content for pending user overlay.
 - `pending_user_overlay_title` (String) Title for pending user overlay.
 - `response_watermark` (String) Watermark to add to AI responses.

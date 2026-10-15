@@ -163,8 +163,17 @@ func TestAdminConfigFormEnableMemorySystemContextZeroValueSentAsFalse(t *testing
 	if err != nil {
 		t.Fatalf("json.Marshal: %v", err)
 	}
-	if !strings.Contains(string(encoded), `"ENABLE_MEMORY_SYSTEM_CONTEXT":false`) {
-		t.Fatalf("expected encoded JSON to contain \"ENABLE_MEMORY_SYSTEM_CONTEXT\":false, got %s", encoded)
+
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(encoded, &fields); err != nil {
+		t.Fatalf("json.Unmarshal of encoded form: %v", err)
+	}
+	raw, ok := fields["ENABLE_MEMORY_SYSTEM_CONTEXT"]
+	if !ok {
+		t.Fatalf("expected key ENABLE_MEMORY_SYSTEM_CONTEXT to be present, got %s", encoded)
+	}
+	if string(raw) != "false" {
+		t.Fatalf("expected ENABLE_MEMORY_SYSTEM_CONTEXT to be false (not null), got %s", raw)
 	}
 }
 
@@ -253,4 +262,70 @@ func TestAdminConfigFormIntOrEmptyStringFields(t *testing.T) {
 			t.Fatalf("expected all three round-tripped fields nil, got %v %v %v", updated.FolderMaxFileCount, updated.AutomationMaxCount, updated.AutomationMinInterval)
 		}
 	})
+}
+
+// TestDecodeIntOrEmptyString covers every branch of the helper that decodes
+// the backend's `int | ""` union, including the numeric-string branch and the
+// garbage-input error path.
+func TestDecodeIntOrEmptyString(t *testing.T) {
+	i64 := func(v int64) *int64 { return &v }
+
+	tests := []struct {
+		name    string
+		raw     json.RawMessage
+		want    *int64
+		wantErr string
+	}{
+		{name: "absent", raw: nil, want: nil},
+		{name: "null", raw: json.RawMessage(`null`), want: nil},
+		{name: "empty string", raw: json.RawMessage(`""`), want: nil},
+		{name: "number", raw: json.RawMessage(`42`), want: i64(42)},
+		{name: "zero", raw: json.RawMessage(`0`), want: i64(0)},
+		{name: "negative number", raw: json.RawMessage(`-5`), want: i64(-5)},
+		{name: "numeric string", raw: json.RawMessage(`"42"`), want: i64(42)},
+		{name: "negative numeric string", raw: json.RawMessage(`"-7"`), want: i64(-7)},
+		{name: "non-numeric string is an error", raw: json.RawMessage(`"abc"`), wantErr: `non-numeric string "abc"`},
+		{name: "fractional number is an error", raw: json.RawMessage(`4.5`), wantErr: "expected a JSON number or string"},
+		{name: "boolean is an error", raw: json.RawMessage(`true`), wantErr: "expected a JSON number or string"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := decodeIntOrEmptyString(tc.raw)
+			if tc.wantErr != "" {
+				if err == nil {
+					t.Fatalf("expected error containing %q, got value %v", tc.wantErr, got)
+				}
+				if !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("expected error containing %q, got %v", tc.wantErr, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			switch {
+			case tc.want == nil && got != nil:
+				t.Fatalf("expected nil, got %d", *got)
+			case tc.want != nil && got == nil:
+				t.Fatalf("expected %d, got nil", *tc.want)
+			case tc.want != nil && *got != *tc.want:
+				t.Fatalf("expected %d, got %d", *tc.want, *got)
+			}
+		})
+	}
+}
+
+// TestAdminConfigFormGarbageIntFieldIsNotSwallowed proves a non-numeric string
+// in one of the int-or-empty fields surfaces as an error naming the key,
+// rather than being silently read as "unset".
+func TestAdminConfigFormGarbageIntFieldIsNotSwallowed(t *testing.T) {
+	var form AdminConfigForm
+	err := json.Unmarshal([]byte(`{"AUTOMATION_MAX_COUNT":"abc"}`), &form)
+	if err == nil {
+		t.Fatal("expected an error for a non-numeric AUTOMATION_MAX_COUNT string, got nil")
+	}
+	if !strings.Contains(err.Error(), "AUTOMATION_MAX_COUNT") {
+		t.Fatalf("expected error to name AUTOMATION_MAX_COUNT, got %v", err)
+	}
 }

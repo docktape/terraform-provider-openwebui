@@ -3,14 +3,14 @@
 page_title: "openwebui_subagents_config Resource - openwebui"
 subcategory: ""
 description: |-
-  ~> Requires Open WebUI v0.11.0+ — the Subagents feature and this config endpoint did not exist in earlier releases.
+  ~> Requires Open WebUI v0.11.0 or later. The Subagents feature and this config endpoint did not exist in earlier releases.
   Manages Open WebUI's sub-agent orchestration settings. This is a singleton resource.
   ~> This resource does a full-object update: any attribute not explicitly set in your configuration will be reset to its zero value (false/0/empty string) on every apply.
 ---
 
 # openwebui_subagents_config (Resource)
 
-~> **Requires Open WebUI v0.11.0+** — the Subagents feature and this config endpoint did not exist in earlier releases.
+~> **Requires Open WebUI v0.11.0 or later.** The Subagents feature and this config endpoint did not exist in earlier releases.
 
 Manages Open WebUI's sub-agent orchestration settings. This is a singleton resource.
 

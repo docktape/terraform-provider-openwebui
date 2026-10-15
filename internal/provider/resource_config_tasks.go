@@ -78,7 +78,7 @@ func (r *tasksConfigResource) Schema(_ context.Context, _ resource.SchemaRequest
 			"image_prompt_generation_prompt_template":  str("Prompt template used to generate image-generation prompts."),
 			"enable_autocomplete_generation":           b("Whether inline autocomplete suggestions are generated."),
 			"autocomplete_generation_input_max_length": schema.Int64Attribute{Optional: true, Computed: true, Description: "Maximum input length considered for autocomplete generation.", MarkdownDescription: "Maximum input length considered for autocomplete generation.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
-			"autocomplete_generation_prompt_template":  str("Prompt template used for autocomplete generation. Always sent on write, including as an empty string when unset. On an Open WebUI release at or before v0.9.6, the read response may omit this key entirely, which is read back as an empty string."),
+			"autocomplete_generation_prompt_template":  str("Prompt template used for autocomplete generation. Always sent on write, including as an empty string when unset. On older releases the read response omits this key entirely, which is read back as an empty string. Requires Open WebUI v0.10.0 or later."),
 			"tags_generation_prompt_template":          str("Prompt template used to generate chat tags."),
 			"follow_up_generation_prompt_template":     str("Prompt template used to generate follow-up suggestions."),
 			"enable_follow_up_generation":              b("Whether follow-up suggestions are generated."),
