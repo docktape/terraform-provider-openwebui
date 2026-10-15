@@ -892,3 +892,127 @@ func (c *Client) SetImagesConfig(ctx context.Context, form ImagesConfigForm) (*I
 	}
 	return &resp, nil
 }
+
+// AudioTTSConfigForm mirrors the TTSConfigForm Pydantic model
+// (backend/open_webui/routers/audio.py; identical from v0.9.6 through
+// v0.11.0). Every field except OPENAI_PARAMS is required by the model.
+// OPENAI_PARAMS is Optional[dict] = None and is kept as raw JSON so the stored
+// value (object or null) round-trips unchanged; nil is sent as null.
+type AudioTTSConfigForm struct {
+	OpenAIAPIBaseURL        string          `json:"OPENAI_API_BASE_URL"`
+	OpenAIAPIKey            string          `json:"OPENAI_API_KEY"`
+	OpenAIParams            json.RawMessage `json:"OPENAI_PARAMS"`
+	APIKey                  string          `json:"API_KEY"`
+	Engine                  string          `json:"ENGINE"`
+	Model                   string          `json:"MODEL"`
+	Voice                   string          `json:"VOICE"`
+	SplitOn                 string          `json:"SPLIT_ON"`
+	AzureSpeechRegion       string          `json:"AZURE_SPEECH_REGION"`
+	AzureSpeechBaseURL      string          `json:"AZURE_SPEECH_BASE_URL"`
+	AzureSpeechOutputFormat string          `json:"AZURE_SPEECH_OUTPUT_FORMAT"`
+	MistralAPIKey           string          `json:"MISTRAL_API_KEY"`
+	MistralAPIBaseURL       string          `json:"MISTRAL_API_BASE_URL"`
+}
+
+// MarshalJSON sends a nil OPENAI_PARAMS as null.
+func (f AudioTTSConfigForm) MarshalJSON() ([]byte, error) {
+	type alias AudioTTSConfigForm
+	a := alias(f)
+	if len(a.OpenAIParams) == 0 {
+		a.OpenAIParams = json.RawMessage(`null`)
+	}
+	return json.Marshal(a)
+}
+
+// AudioSTTConfigForm mirrors the STTConfigForm Pydantic model. Every scalar is
+// required by the model. SUPPORTED_CONTENT_TYPES and ALLOWED_EXTENSIONS are
+// list[str] = [] (not nullable), so nil slices are sent as []; omitting them
+// would reset them to [] server-side. OPENAI_API_REQUEST_FORMAT was added in
+// Open WebUI v0.10.2 (str = "multipart"); older servers neither return nor
+// accept it, so nil is omitted.
+type AudioSTTConfigForm struct {
+	OpenAIAPIBaseURL          string   `json:"OPENAI_API_BASE_URL"`
+	OpenAIAPIKey              string   `json:"OPENAI_API_KEY"`
+	OpenAIAPIRequestFormat    *string  `json:"OPENAI_API_REQUEST_FORMAT,omitempty"`
+	Engine                    string   `json:"ENGINE"`
+	Model                     string   `json:"MODEL"`
+	SupportedContentTypes     []string `json:"SUPPORTED_CONTENT_TYPES"`
+	AllowedExtensions         []string `json:"ALLOWED_EXTENSIONS"`
+	WhisperModel              string   `json:"WHISPER_MODEL"`
+	DeepgramAPIKey            string   `json:"DEEPGRAM_API_KEY"`
+	AzureAPIKey               string   `json:"AZURE_API_KEY"`
+	AzureRegion               string   `json:"AZURE_REGION"`
+	AzureLocales              string   `json:"AZURE_LOCALES"`
+	AzureBaseURL              string   `json:"AZURE_BASE_URL"`
+	AzureMaxSpeakers          string   `json:"AZURE_MAX_SPEAKERS"`
+	MistralAPIKey             string   `json:"MISTRAL_API_KEY"`
+	MistralAPIBaseURL         string   `json:"MISTRAL_API_BASE_URL"`
+	MistralUseChatCompletions bool     `json:"MISTRAL_USE_CHAT_COMPLETIONS"`
+}
+
+// MarshalJSON sends nil string lists as [].
+func (f AudioSTTConfigForm) MarshalJSON() ([]byte, error) {
+	type alias AudioSTTConfigForm
+	a := alias(f)
+	if a.SupportedContentTypes == nil {
+		a.SupportedContentTypes = []string{}
+	}
+	if a.AllowedExtensions == nil {
+		a.AllowedExtensions = []string{}
+	}
+	return json.Marshal(a)
+}
+
+// UnmarshalJSON decodes AZURE_MAX_SPEAKERS leniently: the model types it as
+// str, but a number stored by other means is accepted as its text form.
+func (f *AudioSTTConfigForm) UnmarshalJSON(data []byte) error {
+	type alias AudioSTTConfigForm
+	aux := struct {
+		*alias
+		AzureMaxSpeakers json.RawMessage `json:"AZURE_MAX_SPEAKERS"`
+	}{alias: (*alias)(f)}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	v, err := decodeScalarAsString(aux.AzureMaxSpeakers)
+	if err != nil {
+		return fmt.Errorf("AZURE_MAX_SPEAKERS: %w", err)
+	}
+	f.AzureMaxSpeakers = ""
+	if v != nil {
+		f.AzureMaxSpeakers = *v
+	}
+	return nil
+}
+
+// AudioConfigForm is the AudioConfigUpdateForm body of POST
+// /audio/config/update and the shape of GET /audio/config. Both sub-objects
+// are required and the handler upserts every field of both, so the POST is a
+// full-object write: callers that only want to change some settings must read
+// the current config first and send it back with their changes.
+type AudioConfigForm struct {
+	TTS AudioTTSConfigForm `json:"tts"`
+	STT AudioSTTConfigForm `json:"stt"`
+}
+
+// GetAudioConfig retrieves the text-to-speech and speech-to-text
+// configuration. API keys are returned in plain text.
+func (c *Client) GetAudioConfig(ctx context.Context) (*AudioConfigForm, error) {
+	var resp AudioConfigForm
+	if err := c.do(ctx, http.MethodGet, "audio/config", nil, nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// SetAudioConfig replaces the whole audio configuration (full-object write;
+// see AudioConfigForm) and returns the stored result. When stt.ENGINE is ""
+// (local Whisper) the server also (re)loads stt.WHISPER_MODEL before
+// responding, downloading it if it is not cached.
+func (c *Client) SetAudioConfig(ctx context.Context, form AudioConfigForm) (*AudioConfigForm, error) {
+	var resp AudioConfigForm
+	if err := c.do(ctx, http.MethodPost, "audio/config/update", nil, form, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
