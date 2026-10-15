@@ -72,13 +72,15 @@ func (p *openWebUIProvider) Schema(_ context.Context, _ provider.SchemaRequest, 
 			"- `openwebui_oauth_config` — generic OIDC provider settings, role/group mapping, claims, and domain allowlist (Open WebUI v0.10.0+)\n" +
 			"- `openwebui_images_config` — image generation and image editing engines, models, sizes, and engine connection settings\n" +
 			"- `openwebui_audio_config` — text-to-speech and speech-to-text engines, models, voices, and engine connection settings\n" +
+			"- `openwebui_terminal_servers_config` — admin-configured terminal server (Open Terminal / orchestrator) connections\n" +
 			"- `openwebui_oauth_client` — OAuth client registrations\n\n" +
 			"## Data Sources\n\n" +
 			"- `openwebui_model`, `openwebui_knowledge`, `openwebui_prompt`, `openwebui_group`, `openwebui_tool`, `openwebui_pipeline` — look up existing objects by name or ID\n" +
 			"- `openwebui_file`, `openwebui_files` — look up uploaded files\n" +
 			"- `openwebui_config_export` — export the current Open WebUI configuration\n" +
 			"- `openwebui_user` — look up a user by email or ID\n" +
-			"- `openwebui_tool_server_verify` — verify connectivity to a tool server\n",
+			"- `openwebui_tool_server_verify` — verify connectivity to a tool server\n" +
+			"- `openwebui_terminal_server_verify` — probe a terminal server and detect its type\n",
 		Attributes: map[string]schema.Attribute{
 			"endpoint": schema.StringAttribute{
 				Optional:    true,
@@ -195,6 +197,7 @@ func (p *openWebUIProvider) Resources(_ context.Context) []func() resource.Resou
 		NewOAuthConfigResource,
 		NewImagesConfigResource,
 		NewAudioConfigResource,
+		NewTerminalServersConfigResource,
 		NewOAuthClientResource,
 		NewFunctionResource,
 		NewFunctionValvesResource,
@@ -217,6 +220,7 @@ func (p *openWebUIProvider) DataSources(_ context.Context) []func() datasource.D
 		NewConfigExportDataSource,
 		NewUserDataSource,
 		NewToolServerVerifyDataSource,
+		NewTerminalServerVerifyDataSource,
 		NewOpenAIConnectionVerifyDataSource,
 		NewOllamaConnectionVerifyDataSource,
 	}

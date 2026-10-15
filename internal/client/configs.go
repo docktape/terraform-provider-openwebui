@@ -1016,3 +1016,67 @@ func (c *Client) SetAudioConfig(ctx context.Context, form AudioConfigForm) (*Aud
 	}
 	return &resp, nil
 }
+
+// TerminalServerConnection mirrors Open WebUI's TerminalServerConnection model
+// (backend/open_webui/routers/configs.py). The Pydantic model allows extra
+// keys and drops `policy`/`lifecycle` on write; only the declared fields are
+// carried here. Every key is always sent: all of them are nullable in the
+// backend except `url`, but a null `path`, `auth_type` or `enabled` defeats the
+// server-side defaults, so callers should send concrete values for those.
+type TerminalServerConnection struct {
+	ID         *string        `json:"id"`
+	Name       *string        `json:"name"`
+	Enabled    *bool          `json:"enabled"`
+	URL        string         `json:"url"`
+	Path       *string        `json:"path"`
+	Key        *string        `json:"key"`
+	AuthType   *string        `json:"auth_type"`
+	Config     map[string]any `json:"config"`
+	ServerType *string        `json:"server_type"`
+	PolicyID   *string        `json:"policy_id"`
+}
+
+// TerminalServersConfigForm captures the terminal server connection list. The
+// list is nullable on read (an unset config returns null) and replaced as a
+// whole on write.
+type TerminalServersConfigForm struct {
+	Connections []TerminalServerConnection `json:"TERMINAL_SERVER_CONNECTIONS"`
+}
+
+// GetTerminalServersConfig retrieves the terminal server connections.
+func (c *Client) GetTerminalServersConfig(ctx context.Context) (*TerminalServersConfigForm, error) {
+	var resp TerminalServersConfigForm
+	if err := c.do(ctx, http.MethodGet, "configs/terminal_servers", nil, nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// SetTerminalServersConfig replaces the terminal server connections.
+func (c *Client) SetTerminalServersConfig(ctx context.Context, form TerminalServersConfigForm) (*TerminalServersConfigForm, error) {
+	if form.Connections == nil {
+		form.Connections = []TerminalServerConnection{}
+	}
+	var resp TerminalServersConfigForm
+	if err := c.do(ctx, http.MethodPost, "configs/terminal_servers", nil, form, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// TerminalServerVerifyResult is the response of POST /configs/terminal_servers/verify.
+type TerminalServerVerifyResult struct {
+	Status bool   `json:"status"`
+	Type   string `json:"type"`
+}
+
+// VerifyTerminalServer probes a terminal server. Open WebUI answers
+// {"status": true, "type": "orchestrator"|"terminal"} when the server responds
+// and HTTP 400 otherwise (surfaced as an error).
+func (c *Client) VerifyTerminalServer(ctx context.Context, connection TerminalServerConnection) (*TerminalServerVerifyResult, error) {
+	var resp TerminalServerVerifyResult
+	if err := c.do(ctx, http.MethodPost, "configs/terminal_servers/verify", nil, connection, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}

@@ -937,3 +937,98 @@ resource "openwebui_audio_config" "test" {
 		},
 	})
 }
+
+// TestAccTerminalServersConfigResource applies a two-entry connection list
+// (one fully specified, one relying on defaults) and then a reordered
+// single-entry list, each followed by a PlanOnly idempotency step. The URLs
+// point at a closed local port: Open WebUI contacts every enabled connection
+// after the POST to cache its OpenAPI spec, but a refused connection is
+// logged, not an error. The pre-test connection list is captured and POSTed
+// back on cleanup.
+func TestAccTerminalServersConfigResource(t *testing.T) {
+	testAccPreCheck(t)
+	const name = "openwebui_terminal_servers_config.test"
+
+	apiClient, err := client.NewClient(os.Getenv("OPENWEBUI_ENDPOINT"), os.Getenv("OPENWEBUI_TOKEN"), os.Getenv("OPENWEBUI_INSECURE") != "")
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	original, err := apiClient.GetTerminalServersConfig(context.Background())
+	if err != nil {
+		t.Fatalf("capture pre-test terminal servers config: %v", err)
+	}
+	t.Cleanup(func() {
+		if _, err := apiClient.SetTerminalServersConfig(context.Background(), *original); err != nil {
+			t.Errorf("restore pre-test terminal servers config: %v", err)
+		}
+	})
+
+	two := testAccProviderConfig() + `
+resource "openwebui_terminal_servers_config" "test" {
+  connections = [
+    {
+      id          = "acc-term-a"
+      name        = "Acc A"
+      url         = "http://127.0.0.1:1"
+      enabled     = false
+      key         = "acc-secret"
+      auth_type   = "bearer"
+      server_type = "terminal"
+      config_json = "{ \"access_grants\": [],  \"note\": \"acc\" }"
+    },
+    {
+      id  = "acc-term-b"
+      url = "http://127.0.0.1:1"
+    },
+  ]
+}`
+	one := testAccProviderConfig() + `
+resource "openwebui_terminal_servers_config" "test" {
+  connections = [
+    {
+      id        = "acc-term-b"
+      name      = "Acc B"
+      url       = "http://127.0.0.1:1"
+      path      = "/spec.json"
+      auth_type = "none"
+      enabled   = false
+    },
+  ]
+}`
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: two,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "id", "terminal_servers"),
+					resource.TestCheckResourceAttr(name, "connections.#", "2"),
+					resource.TestCheckResourceAttr(name, "connections.0.id", "acc-term-a"),
+					resource.TestCheckResourceAttr(name, "connections.0.enabled", "false"),
+					resource.TestCheckResourceAttr(name, "connections.0.key", "acc-secret"),
+					resource.TestCheckResourceAttr(name, "connections.0.server_type", "terminal"),
+					resource.TestCheckResourceAttr(name, "connections.0.config_json", "{ \"access_grants\": [],  \"note\": \"acc\" }"),
+					resource.TestCheckResourceAttr(name, "connections.1.id", "acc-term-b"),
+					resource.TestCheckResourceAttr(name, "connections.1.name", ""),
+					resource.TestCheckResourceAttr(name, "connections.1.enabled", "true"),
+					resource.TestCheckResourceAttr(name, "connections.1.path", "/openapi.json"),
+					resource.TestCheckResourceAttr(name, "connections.1.auth_type", "bearer"),
+					resource.TestCheckNoResourceAttr(name, "connections.1.config_json"),
+				),
+			},
+			{Config: two, PlanOnly: true},
+			{
+				Config: one,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "connections.#", "1"),
+					resource.TestCheckResourceAttr(name, "connections.0.id", "acc-term-b"),
+					resource.TestCheckResourceAttr(name, "connections.0.path", "/spec.json"),
+					resource.TestCheckResourceAttr(name, "connections.0.auth_type", "none"),
+					resource.TestCheckResourceAttr(name, "connections.0.key", ""),
+				),
+			},
+			{Config: one, PlanOnly: true},
+		},
+	})
+}
