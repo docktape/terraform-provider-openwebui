@@ -13,8 +13,9 @@ import (
 // only the attributes set in the configuration (every attribute
 // Optional+Computed with UseStateForUnknown). For each top-level attribute of
 // the flat model T (a struct of attr.Value fields with tfsdk tags) that is
-// null in config while its planned value is known, i.e. copied from the prior
-// state, Terraform requires the applied state to equal that planned value.
+// null in config while its planned value is known (including a known null),
+// i.e. copied from the prior state, Terraform requires the applied state to
+// equal that planned value.
 // The server value can legitimately differ (changed outside Terraform after
 // the last refresh, with -refresh=false, or by Open WebUI itself), and the
 // apply did not change the attribute, so the planned value is kept and an attribute
@@ -39,7 +40,7 @@ func reconcileUnconfiguredAttributes[T any](config, plan, fresh T, cause string)
 		if configured == nil || planned == nil || got == nil {
 			continue
 		}
-		if !configured.IsNull() || planned.IsNull() || planned.IsUnknown() || planned.Equal(got) {
+		if !configured.IsNull() || planned.IsUnknown() || planned.Equal(got) {
 			continue
 		}
 		freshValue.Field(i).Set(planValue.Field(i))

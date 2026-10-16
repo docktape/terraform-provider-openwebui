@@ -274,13 +274,24 @@ func (c *Client) UpdateWebSearchConfig(ctx context.Context, update WebSearchConf
 	return c.postRetrievalConfig(ctx, RetrievalConfigUpdateForm{Web: merged})
 }
 
+// webSearchNonNullableKeys are the WebConfig fields whose annotation is not
+// Optional on every release from v0.9.6 to v0.11.0:
+// `WEB_SEARCH_DOMAIN_FILTER_LIST: list[str | None] = []` and
+// `YOUTUBE_LOADER_LANGUAGE: list[str | None] = None`. Pydantic rejects an
+// explicit null for them with HTTP 422 ("Input should be a valid list"), while
+// an omitted key takes the default ([] and None). Every other WebConfig field
+// is `X | None` and accepts null.
+var webSearchNonNullableKeys = []string{"WEB_SEARCH_DOMAIN_FILTER_LIST", "YOUTUBE_LOADER_LANGUAGE"}
+
 // mergeWebSearchObject overlays changes onto the current raw `web` object.
 // It refuses to proceed without a current object: sending only the changed
 // keys would reset every other web search setting.
 //
-// WEB_SEARCH_DOMAIN_FILTER_LIST is `list[str | None] = []` in WebConfig (not
-// nullable), so a null read back is left out instead of echoed, which would
-// be an HTTP 422; Pydantic then applies its default [].
+// A null read back for one of webSearchNonNullableKeys is left out instead of
+// echoed. Open WebUI stores null for YOUTUBE_LOADER_LANGUAGE whenever another
+// client saves a web object without it; leaving it out keeps it null (the
+// default). A null WEB_SEARCH_DOMAIN_FILTER_LIST (not reachable through the
+// API) becomes its default [].
 func mergeWebSearchObject(current json.RawMessage, changes map[string]json.RawMessage) (json.RawMessage, error) {
 	if !isJSONObjectText(current) {
 		return nil, errors.New("the retrieval config response has no web search (web) object; refusing to send a partial one, which would reset every other web search setting")
@@ -289,8 +300,10 @@ func mergeWebSearchObject(current json.RawMessage, changes map[string]json.RawMe
 	if err := json.Unmarshal(current, &web); err != nil {
 		return nil, fmt.Errorf("decode current web search config: %w", err)
 	}
-	if v, ok := web["WEB_SEARCH_DOMAIN_FILTER_LIST"]; ok && bytes.Equal(bytes.TrimSpace(v), []byte("null")) {
-		delete(web, "WEB_SEARCH_DOMAIN_FILTER_LIST")
+	for _, key := range webSearchNonNullableKeys {
+		if v, ok := web[key]; ok && bytes.Equal(bytes.TrimSpace(v), []byte("null")) {
+			delete(web, key)
+		}
 	}
 	for k, v := range changes {
 		web[k] = v

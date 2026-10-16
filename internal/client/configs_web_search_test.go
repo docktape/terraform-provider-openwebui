@@ -232,29 +232,56 @@ func TestUpdateWebSearchConfigRefusesWithoutCurrentWebObject(t *testing.T) {
 	}
 }
 
-// TestUpdateWebSearchConfigDropsNullDomainFilterList: WEB_SEARCH_DOMAIN_FILTER_LIST
-// is `list[str | None] = []` (not nullable) in WebConfig, so echoing a null
-// back would be an HTTP 422. It is left out instead (Pydantic default []).
-func TestUpdateWebSearchConfigDropsNullDomainFilterList(t *testing.T) {
+// TestUpdateWebSearchConfigOmitsNullNonNullableKeys: exactly two WebConfig
+// fields have a non-Optional annotation on every release from v0.9.6 to
+// v0.11.0, WEB_SEARCH_DOMAIN_FILTER_LIST (`list[str | None] = []`) and
+// YOUTUBE_LOADER_LANGUAGE (`list[str | None] = None`). Pydantic rejects an
+// explicit null for them ("Input should be a valid list", HTTP 422, confirmed
+// against a live v0.11.0), while an omitted key takes the default. The server
+// stores null for YOUTUBE_LOADER_LANGUAGE whenever another client saves a web
+// object without it, so a null read back must be left out, never echoed. A
+// null in any nullable field is echoed as null.
+func TestUpdateWebSearchConfigOmitsNullNonNullableKeys(t *testing.T) {
+	for _, key := range []string{"WEB_SEARCH_DOMAIN_FILTER_LIST", "YOUTUBE_LOADER_LANGUAGE"} {
+		t.Run(key, func(t *testing.T) {
+			var posts []map[string]any
+			web := `{"` + key + `": null, "WEB_FETCH_MAX_CONTENT_LENGTH": null, "LINKUP_SEARCH_PARAMS": null, "YOUTUBE_LOADER_TRANSLATION": null, "WEB_SEARCH_ENGINE": "searxng"}`
+			c, done := webSearchFakeServer(t, web, &posts)
+			defer done()
+			enable := true
+			if err := c.UpdateWebSearchConfig(context.Background(), WebSearchConfigUpdate{EnableWebSearch: &enable}); err != nil {
+				t.Fatalf("UpdateWebSearchConfig failed: %v", err)
+			}
+			sent, ok := posts[0]["web"].(map[string]any)
+			if !ok {
+				t.Fatalf("web must be an object, got %T", posts[0]["web"])
+			}
+			if _, present := sent[key]; present {
+				t.Errorf("a null %s must be left out (an explicit null is an HTTP 422), got %v", key, sent)
+			}
+			for _, nullable := range []string{"WEB_FETCH_MAX_CONTENT_LENGTH", "LINKUP_SEARCH_PARAMS", "YOUTUBE_LOADER_TRANSLATION"} {
+				if v, present := sent[nullable]; !present || v != nil {
+					t.Errorf("a nullable null %s must be echoed as null, got %v (present=%v)", nullable, v, present)
+				}
+			}
+			if sent["ENABLE_WEB_SEARCH"] != true || sent["WEB_SEARCH_ENGINE"] != "searxng" {
+				t.Errorf("unexpected web: %v", sent)
+			}
+		})
+	}
+
+	// A set value of a non-nullable key is still sent, and an update of it
+	// replaces a null read back.
 	var posts []map[string]any
-	c, done := webSearchFakeServer(t, `{"WEB_SEARCH_DOMAIN_FILTER_LIST": null, "YOUTUBE_LOADER_LANGUAGE": null, "WEB_SEARCH_ENGINE": "searxng"}`, &posts)
+	c, done := webSearchFakeServer(t, `{"YOUTUBE_LOADER_LANGUAGE": null, "WEB_SEARCH_DOMAIN_FILTER_LIST": ["a.example"]}`, &posts)
 	defer done()
-	enable := true
-	if err := c.UpdateWebSearchConfig(context.Background(), WebSearchConfigUpdate{EnableWebSearch: &enable}); err != nil {
+	langs := []string{"de"}
+	if err := c.UpdateWebSearchConfig(context.Background(), WebSearchConfigUpdate{YouTubeLoaderLanguage: &langs}); err != nil {
 		t.Fatalf("UpdateWebSearchConfig failed: %v", err)
 	}
-	web, ok := posts[0]["web"].(map[string]any)
-	if !ok {
-		t.Fatalf("web must be an object, got %T", posts[0]["web"])
-	}
-	if _, ok := web["WEB_SEARCH_DOMAIN_FILTER_LIST"]; ok {
-		t.Errorf("a null WEB_SEARCH_DOMAIN_FILTER_LIST must be left out, got %v", web)
-	}
-	if v, ok := web["YOUTUBE_LOADER_LANGUAGE"]; !ok || v != nil {
-		t.Errorf("a nullable null must be echoed as null, got %v (present=%v)", v, ok)
-	}
-	if web["ENABLE_WEB_SEARCH"] != true || web["WEB_SEARCH_ENGINE"] != "searxng" {
-		t.Errorf("unexpected web: %v", web)
+	sent, _ := posts[0]["web"].(map[string]any)
+	if !reflect.DeepEqual(sent["YOUTUBE_LOADER_LANGUAGE"], []any{"de"}) || !reflect.DeepEqual(sent["WEB_SEARCH_DOMAIN_FILTER_LIST"], []any{"a.example"}) {
+		t.Errorf("unexpected web: %v", sent)
 	}
 }
 
