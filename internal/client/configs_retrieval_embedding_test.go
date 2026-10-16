@@ -201,8 +201,8 @@ func TestUpdateRetrievalEmbeddingConfigNestedForEngine(t *testing.T) {
 // anything is sent, and the error never prints the values.
 func TestUpdateRetrievalEmbeddingConfigRejectsIgnoredNested(t *testing.T) {
 	for name, update := range map[string]RetrievalEmbeddingConfigUpdate{
-		"local engine stays": {OpenAIConfig: &EmbeddingConnectionConfig{Key: strPtr("sk-new-secret")}},
-		"switch to local":    {RAGEmbeddingEngine: strPtr(""), OllamaConfig: &EmbeddingConnectionConfig{URL: strPtr("http://ollama:11434"), Key: strPtr("sk-new-secret")}},
+		"local engine stays": {OpenAIConfig: &EmbeddingConnectionConfig{Key: embeddingStr("sk-new-secret")}},
+		"switch to local":    {RAGEmbeddingEngine: embeddingStr(""), OllamaConfig: &EmbeddingConnectionConfig{URL: embeddingStr("http://ollama:11434"), Key: embeddingStr("sk-new-secret")}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			var posts []map[string]any
@@ -233,7 +233,7 @@ func TestUpdateRetrievalEmbeddingConfigNestedForAnyRemoteEngine(t *testing.T) {
 	var posts []map[string]any
 	c, done := embeddingFakeServer(t, strings.Replace(stockEmbeddingConfig, `"RAG_EMBEDDING_ENGINE": ""`, `"RAG_EMBEDDING_ENGINE": "openai"`, 1), &posts)
 	defer done()
-	if err := c.UpdateRetrievalEmbeddingConfig(context.Background(), RetrievalEmbeddingConfigUpdate{OllamaConfig: &EmbeddingConnectionConfig{Key: strPtr("ollama-key")}}); err != nil {
+	if err := c.UpdateRetrievalEmbeddingConfig(context.Background(), RetrievalEmbeddingConfigUpdate{OllamaConfig: &EmbeddingConnectionConfig{Key: embeddingStr("ollama-key")}}); err != nil {
 		t.Fatalf("UpdateRetrievalEmbeddingConfig failed: %v", err)
 	}
 	if len(posts) != 1 {
@@ -256,12 +256,12 @@ func TestUpdateRetrievalEmbeddingConfigNoChangeSendsNothing(t *testing.T) {
 	c, done := embeddingFakeServer(t, stockEmbeddingConfig, &posts)
 	defer done()
 	update := RetrievalEmbeddingConfigUpdate{
-		RAGEmbeddingEngine:             strPtr(""),
-		RAGEmbeddingModel:              strPtr("sentence-transformers/all-MiniLM-L6-v2"),
-		RAGEmbeddingBatchSize:          int64Ptr(10),
-		EnableAsyncEmbedding:           boolPtr(true),
-		RAGEmbeddingConcurrentRequests: int64Ptr(3),
-		OpenAIConfig:                   &EmbeddingConnectionConfig{URL: strPtr("https://api.openai.com/v1"), Key: strPtr("sk-existing")},
+		RAGEmbeddingEngine:             embeddingStr(""),
+		RAGEmbeddingModel:              embeddingStr("sentence-transformers/all-MiniLM-L6-v2"),
+		RAGEmbeddingBatchSize:          embeddingInt(10),
+		EnableAsyncEmbedding:           embeddingBool(true),
+		RAGEmbeddingConcurrentRequests: embeddingInt(3),
+		OpenAIConfig:                   &EmbeddingConnectionConfig{URL: embeddingStr("https://api.openai.com/v1"), Key: embeddingStr("sk-existing")},
 	}
 	if err := c.UpdateRetrievalEmbeddingConfig(context.Background(), update); err != nil {
 		t.Fatalf("UpdateRetrievalEmbeddingConfig failed: %v", err)
@@ -281,7 +281,7 @@ func TestUpdateRetrievalEmbeddingConfigUnchangedNestedIsNotSent(t *testing.T) {
 	size := int64(11)
 	update := RetrievalEmbeddingConfigUpdate{
 		RAGEmbeddingBatchSize: &size,
-		OpenAIConfig:          &EmbeddingConnectionConfig{URL: strPtr("https://api.openai.com/v1"), Key: strPtr("sk-existing")},
+		OpenAIConfig:          &EmbeddingConnectionConfig{URL: embeddingStr("https://api.openai.com/v1"), Key: embeddingStr("sk-existing")},
 	}
 	if err := c.UpdateRetrievalEmbeddingConfig(context.Background(), update); err != nil {
 		t.Fatalf("UpdateRetrievalEmbeddingConfig failed: %v", err)
@@ -298,7 +298,7 @@ func TestUpdateRetrievalEmbeddingConfigUnchangedNestedIsNotSent(t *testing.T) {
 	var more []map[string]any
 	c2, done2 := embeddingFakeServer(t, strings.Replace(stockEmbeddingConfig, `"https://api.openai.com/v1"`, `"https://proxy.example/v1?a=1&b=2"`, 1), &more)
 	defer done2()
-	update.OpenAIConfig.URL = strPtr("https://proxy.example/v1?a=1&b=2")
+	update.OpenAIConfig.URL = embeddingStr("https://proxy.example/v1?a=1&b=2")
 	if err := c2.UpdateRetrievalEmbeddingConfig(context.Background(), update); err != nil {
 		t.Fatalf("UpdateRetrievalEmbeddingConfig failed: %v", err)
 	}
@@ -397,8 +397,10 @@ func TestRetrievalEmbeddingConfigUpdateWireKeys(t *testing.T) {
 	}
 }
 
-func strPtr(s string) *string { return &s }
+// embeddingStr, embeddingInt and embeddingBool return pointers for update
+// fields in the embedding tests.
+func embeddingStr(s string) *string { return &s }
 
-func int64Ptr(n int64) *int64 { return &n }
+func embeddingInt(n int64) *int64 { return &n }
 
-func boolPtr(b bool) *bool { return &b }
+func embeddingBool(b bool) *bool { return &b }

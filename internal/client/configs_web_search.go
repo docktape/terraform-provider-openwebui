@@ -245,18 +245,25 @@ func (c *Client) GetWebSearchConfig(ctx context.Context) (*WebSearchConfig, erro
 // atomic on the server: a web search change made by another client in
 // between is overwritten.
 //
-// An update with no fields set sends nothing at all.
-func (c *Client) UpdateWebSearchConfig(ctx context.Context, update WebSearchConfigUpdate) error {
+// Every POST makes Open WebUI re-save its retrieval settings and, while
+// hybrid search is on, reload the reranking model, so nothing is sent when
+// the update changes nothing: no field set (no request at all), or a merged
+// object equal to the current one (decoded-JSON equality).
+//
+// If the reload of the reranking model fails, Open WebUI turns hybrid search
+// off as a side effect of the POST; the result reports that.
+func (c *Client) UpdateWebSearchConfig(ctx context.Context, update WebSearchConfigUpdate) (WebSearchUpdateResult, error) {
+	var result WebSearchUpdateResult
 	changes, err := json.Marshal(update)
 	if err != nil {
-		return err
+		return result, err
 	}
 	var overlay map[string]json.RawMessage
 	if err := json.Unmarshal(changes, &overlay); err != nil {
-		return err
+		return result, err
 	}
 	if len(overlay) == 0 {
-		return nil
+		return result, nil
 	}
 
 	// Hold the retrieval write lock across the read and the write, so no
@@ -265,13 +272,38 @@ func (c *Client) UpdateWebSearchConfig(ctx context.Context, update WebSearchConf
 	defer c.retrievalMu.Unlock()
 	current, err := c.GetRetrievalConfig(ctx)
 	if err != nil {
-		return err
+		return result, err
 	}
 	merged, err := mergeWebSearchObject(current.Web, overlay)
 	if err != nil {
-		return err
+		return result, err
 	}
-	return c.postRetrievalConfig(ctx, RetrievalConfigUpdateForm{Web: merged})
+	// The current object as it would be sent unchanged (the null
+	// non-nullable keys left out, see mergeWebSearchObject).
+	unchanged, err := mergeWebSearchObject(current.Web, nil)
+	if err != nil {
+		return result, err
+	}
+	if sameJSONValue(merged, unchanged) {
+		return result, nil
+	}
+	var resp struct {
+		EnableRAGHybridSearch *bool `json:"ENABLE_RAG_HYBRID_SEARCH"`
+	}
+	if err := c.postRetrievalConfig(ctx, RetrievalConfigUpdateForm{Web: merged}, &resp); err != nil {
+		return result, err
+	}
+	result.HybridSearchTurnedOff = current.EnableRAGHybridSearch != nil && *current.EnableRAGHybridSearch &&
+		resp.EnableRAGHybridSearch != nil && !*resp.EnableRAGHybridSearch
+	return result, nil
+}
+
+// WebSearchUpdateResult reports side effects of UpdateWebSearchConfig.
+type WebSearchUpdateResult struct {
+	// HybridSearchTurnedOff is true when hybrid search was on before the
+	// update and Open WebUI reports it off afterwards (the reranking model
+	// failed to reload during the POST).
+	HybridSearchTurnedOff bool
 }
 
 // webSearchNonNullableKeys are the WebConfig fields whose annotation is not

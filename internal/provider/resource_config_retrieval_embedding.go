@@ -18,7 +18,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
 	"github.com/docktape/terraform-provider-openwebui/internal/client"
 )
@@ -26,10 +25,6 @@ import (
 var _ resource.Resource = &retrievalEmbeddingConfigResource{}
 var _ resource.ResourceWithConfigure = &retrievalEmbeddingConfigResource{}
 var _ resource.ResourceWithImportState = &retrievalEmbeddingConfigResource{}
-
-// objectAsOptions converts nested objects to their models as they are
-// (unknown inner values stay unknown).
-var objectAsOptions = basetypes.ObjectAsOptions{}
 
 // embeddingConnectionAttrTypes is the {url, key} shape of openai_config and
 // ollama_config.
@@ -106,7 +101,7 @@ func (r *retrievalEmbeddingConfigResource) Schema(_ context.Context, _ resource.
 			"~> Open WebUI requires the engine and the model in every update and resets the batch size, the async toggle and the concurrency to their defaults when they are left out. This resource therefore reads the current settings, changes only the attributes set in your configuration, and sends the others back as read. Any attribute you leave out keeps its current Open WebUI value, and its state shows that value; removing an attribute from your configuration does not reset it. A connection block (`openai_config`, `ollama_config`, `azure_openai_config`) you leave out is not sent; inside a configured block, an attribute you leave out keeps its current value. The read and the write are separate requests, so an embedding change made by someone else in between is overwritten.\n\n" +
 			"~> Open WebUI stores the connection blocks only while `rag_embedding_engine` is `ollama`, `openai` or `azure_openai` (all three blocks, for any of these engines) and silently ignores them for the local engine (`\"\"`). A change to a block while the engine (after the apply) is the local one therefore fails before anything is sent. A configured block that equals the current values is accepted with any engine.\n\n" +
 			"~> The connection keys are stored in Terraform state because Open WebUI returns them in plain text. Protect your state accordingly. The `url` attributes are not marked sensitive: do not embed credentials in them.\n\n" +
-			"~> Every update makes Open WebUI unload and reload the embedding model. With the local engine (`\"\"`) Open WebUI loads the sentence-transformers model into its own process: a model that is not in its cache yet is downloaded from Hugging Face during the apply (large models can take a long time), and unless `OFFLINE_MODE` is set or `RAG_EMBEDDING_MODEL_AUTO_UPDATE` is false Open WebUI checks Hugging Face for a newer revision on every update. If the model cannot be loaded, Open WebUI still reports success, and document embedding fails until a valid model is set. Changing the engine or the model does not re-embed existing documents; reindex the knowledge bases afterwards (Admin Settings > Documents > Reindex Knowledge Base Vectors). An apply that changes nothing sends nothing.\n\n" +
+			"~> Every update makes Open WebUI unload and reload the embedding model. With the local engine (`\"\"`) Open WebUI loads the sentence-transformers model into its own process: a model that is not in its cache yet is downloaded from Hugging Face inside the update request, and unless `OFFLINE_MODE` is set or `RAG_EMBEDDING_MODEL_AUTO_UPDATE` is false Open WebUI checks Hugging Face for a newer revision on every update. If the model cannot be loaded, Open WebUI still reports success, and document embedding fails until a valid model is set. The provider gives up on a request after 30 seconds, while Open WebUI finishes the change on its own: when the model is not cached yet, the apply can fail with `Client.Timeout exceeded` although Open WebUI completes the download and saves the change, and because Open WebUI handles no other request meanwhile, other Open WebUI resources in the same apply can time out too. Pre-download the model (for example by selecting it once in the Open WebUI admin page), or re-run `terraform plan`/`terraform apply`, which converges once the model is loaded. Changing the engine or the model does not re-embed existing documents; reindex the knowledge bases afterwards (Admin Settings > Documents > Reindex Knowledge Base Vectors). An apply that changes nothing sends nothing.\n\n" +
 			"~> If Open WebUI reports a different value during an apply for an attribute you do not set (because it was changed outside Terraform after the last refresh), the apply leaves it unchanged and keeps the previous state value with a warning; the next refresh shows the server value.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -115,20 +110,20 @@ func (r *retrievalEmbeddingConfigResource) Schema(_ context.Context, _ resource.
 				MarkdownDescription: "Singleton identifier, always `retrieval_embedding`.",
 				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
-			"rag_embedding_engine": str("Embedding engine: `\"\"` for the local sentence-transformers model (the Open WebUI default), `ollama`, `openai` or `azure_openai`. Open WebUI fails to reload the model with any other value.", false,
+			"rag_embedding_engine": str("Embedding engine: `\"\"` for the local sentence-transformers model (the server default), `ollama`, `openai` or `azure_openai`. Open WebUI fails to reload the model with any other value.", false,
 				stringvalidator.OneOf("", "ollama", "openai", "azure_openai")),
-			"rag_embedding_model": str("Embedding model: a Hugging Face sentence-transformers model name such as `sentence-transformers/all-MiniLM-L6-v2` (the Open WebUI default) for the local engine, or the remote engine's model name, for example `text-embedding-3-small`. With the local engine a model that is not cached yet is downloaded during the apply, and `\"\"` loads no model. Must not start or end with whitespace (Open WebUI strips it).", false,
+			"rag_embedding_model": str("Embedding model: a Hugging Face sentence-transformers model name such as `sentence-transformers/all-MiniLM-L6-v2` (the server default) for the local engine, or the remote engine's model name, for example `text-embedding-3-small`. With the local engine a model that is not cached yet is downloaded during the apply, and `\"\"` loads no model. Must not start or end with whitespace (Open WebUI strips it).", false,
 				noEdgeWhitespaceValidator),
-			"rag_embedding_batch_size": i("Number of texts per embedding batch, at least 1. Open WebUI default: `1`.",
+			"rag_embedding_batch_size": i("Number of texts per embedding batch, at least 1. Server default: `1`.",
 				int64validator.AtLeast(1)),
 			"enable_async_embedding": schema.BoolAttribute{
 				Optional:            true,
 				Computed:            true,
-				Description:         "Whether batches are sent to the remote engine concurrently. Used by the `ollama`, `openai` and `azure_openai` engines only. Open WebUI default: `true`.",
-				MarkdownDescription: "Whether batches are sent to the remote engine concurrently. Used by the `ollama`, `openai` and `azure_openai` engines only. Open WebUI default: `true`.",
+				Description:         "Whether batches are sent to the remote engine concurrently. Used by the `ollama`, `openai` and `azure_openai` engines only. Server default: `true`.",
+				MarkdownDescription: "Whether batches are sent to the remote engine concurrently. Used by the `ollama`, `openai` and `azure_openai` engines only. Server default: `true`.",
 				PlanModifiers:       []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
 			},
-			"rag_embedding_concurrent_requests": i("Maximum number of concurrent embedding requests to the remote engine while `enable_async_embedding` is on; `0` means unlimited. Used by the `ollama`, `openai` and `azure_openai` engines only. Open WebUI default: `0`.",
+			"rag_embedding_concurrent_requests": i("Maximum number of concurrent embedding requests to the remote engine while `enable_async_embedding` is on; `0` means unlimited. Used by the `ollama`, `openai` and `azure_openai` engines only. Server default: `0`.",
 				int64validator.AtLeast(0)),
 			"openai_config": nested("Connection of the `openai` engine (Open WebUI's `RAG_OPENAI_API_BASE_URL` and `RAG_OPENAI_API_KEY`)."+keepNote+storedNote, map[string]schema.Attribute{
 				"url": str("Base URL of the OpenAI-compatible API, for example `https://api.openai.com/v1`."+urlNote, false),
