@@ -126,3 +126,41 @@ func TestFlattenExpandRoundTrip(t *testing.T) {
 		}
 	}
 }
+
+func TestFlattenNullableStringSlice(t *testing.T) {
+	ctx := context.Background()
+	null, diags := flattenNullableStringSlice(ctx, nil)
+	if diags.HasError() || !null.IsNull() {
+		t.Fatalf("nil must flatten to null, got %v (%v)", null, diags)
+	}
+	empty, diags := flattenNullableStringSlice(ctx, []string{})
+	if diags.HasError() || empty.IsNull() || len(empty.Elements()) != 0 {
+		t.Fatalf("[] must flatten to an empty list, got %v (%v)", empty, diags)
+	}
+	values, diags := flattenNullableStringSlice(ctx, []string{"a"})
+	if diags.HasError() || len(values.Elements()) != 1 {
+		t.Fatalf("populated slice must flatten to a list, got %v (%v)", values, diags)
+	}
+}
+
+func TestExpandStringListPtr(t *testing.T) {
+	ctx := context.Background()
+	var diags diag.Diagnostics
+	if got := expandStringListPtr(ctx, types.ListNull(types.StringType), path.Root("x"), &diags); got != nil {
+		t.Errorf("null must expand to nil, got %v", *got)
+	}
+	if got := expandStringListPtr(ctx, types.ListUnknown(types.StringType), path.Root("x"), &diags); got != nil {
+		t.Errorf("unknown must expand to nil, got %v", *got)
+	}
+	empty, _ := types.ListValueFrom(ctx, types.StringType, []string{})
+	if got := expandStringListPtr(ctx, empty, path.Root("x"), &diags); got == nil || *got == nil || len(*got) != 0 {
+		t.Errorf("[] must expand to a non-nil empty slice, got %v", got)
+	}
+	values, _ := types.ListValueFrom(ctx, types.StringType, []string{"a", "b"})
+	if got := expandStringListPtr(ctx, values, path.Root("x"), &diags); got == nil || len(*got) != 2 {
+		t.Errorf("populated list: got %v", got)
+	}
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+}

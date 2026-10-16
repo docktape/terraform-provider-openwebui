@@ -74,6 +74,7 @@ func (p *openWebUIProvider) Schema(_ context.Context, _ provider.SchemaRequest, 
 			"- `openwebui_images_config` — image generation and image editing engines, models, sizes, and engine connection settings\n" +
 			"- `openwebui_audio_config` — text-to-speech and speech-to-text engines, models, voices, and engine connection settings\n" +
 			"- `openwebui_terminal_servers_config` — admin-configured terminal server (Open Terminal / orchestrator) connections\n" +
+			"- `openwebui_retrieval_config` — document retrieval (RAG): hybrid search, content extraction engines, reranking, chunking, and file upload limits\n" +
 			"- `openwebui_oauth_client` — OAuth client registrations\n\n" +
 			"## Data Sources\n\n" +
 			"- `openwebui_model`, `openwebui_knowledge`, `openwebui_prompt`, `openwebui_group`, `openwebui_tool`, `openwebui_skill`, `openwebui_pipeline` — look up existing objects by name or ID\n" +
@@ -200,6 +201,7 @@ func (p *openWebUIProvider) Resources(_ context.Context) []func() resource.Resou
 		NewImagesConfigResource,
 		NewAudioConfigResource,
 		NewTerminalServersConfigResource,
+		NewRetrievalConfigResource,
 		NewOAuthClientResource,
 		NewFunctionResource,
 		NewFunctionValvesResource,

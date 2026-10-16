@@ -40,3 +40,27 @@ func flattenStringSlice(ctx context.Context, values []string) (types.List, diag.
 	list, diags := types.ListValueFrom(ctx, types.StringType, values)
 	return list, diags
 }
+
+// flattenNullableStringSlice is flattenStringSlice for server fields where
+// null and [] mean different things: a nil slice (JSON null or an absent key)
+// produces a null list, an empty non-nil slice an empty list.
+func flattenNullableStringSlice(ctx context.Context, values []string) (types.List, diag.Diagnostics) {
+	if values == nil {
+		return types.ListNull(types.StringType), nil
+	}
+	return flattenStringSlice(ctx, values)
+}
+
+// expandStringListPtr converts a known list attribute into a pointer to a
+// non-nil slice (so an empty list is sent as []), and a null or unknown one
+// into nil (so the key is omitted).
+func expandStringListPtr(ctx context.Context, value types.List, attribute path.Path, diags *diag.Diagnostics) *[]string {
+	if value.IsNull() || value.IsUnknown() {
+		return nil
+	}
+	result := expandStringList(ctx, value, attribute, diags)
+	if result == nil {
+		result = []string{}
+	}
+	return &result
+}

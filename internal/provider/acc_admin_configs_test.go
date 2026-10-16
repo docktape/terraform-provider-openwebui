@@ -1,13 +1,19 @@
 package provider
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 
 	"github.com/docktape/terraform-provider-openwebui/internal/client"
 )
@@ -1138,6 +1144,193 @@ resource "openwebui_terminal_servers_config" "test" {
 				),
 			},
 			{Config: one, PlanOnly: true},
+		},
+	})
+}
+
+// testAccRetrievalRaw sends a raw request to the retrieval config endpoints of
+// the acceptance-test instance and returns the decoded JSON object.
+func testAccRetrievalRaw(t *testing.T, method, apiPath string, body map[string]any) map[string]any {
+	t.Helper()
+	var reader io.Reader
+	if body != nil {
+		encoded, err := json.Marshal(body)
+		if err != nil {
+			t.Fatalf("encode body: %v", err)
+		}
+		reader = bytes.NewReader(encoded)
+	}
+	req, err := http.NewRequestWithContext(context.Background(), method, strings.TrimRight(os.Getenv("OPENWEBUI_ENDPOINT"), "/")+"/api/v1/"+apiPath, reader)
+	if err != nil {
+		t.Fatalf("build request: %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("OPENWEBUI_TOKEN"))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("%s %s: %v", method, apiPath, err)
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("%s %s: HTTP %d: %s", method, apiPath, resp.StatusCode, raw)
+	}
+	var out map[string]any
+	if err := json.Unmarshal(raw, &out); err != nil {
+		t.Fatalf("decode %s %s: %v", method, apiPath, err)
+	}
+	return out
+}
+
+// TestAccRetrievalConfigResource covers the partial-merge retrieval config: an
+// empty apply (every value read back from the server, nothing sent), an apply
+// of near-default values (MINERU_API_TIMEOUT round-tripping the stock "300"
+// string as an int, file_max_size = -1 on a null server value), an apply
+// changing scalars, a float, lists, JSON objects written with non-canonical
+// formatting, a secret-shaped header blob and a file limit, and a reset that
+// clears that limit again with -1. Each apply is followed by a PlanOnly
+// idempotency step, and every step checks that the nested `web` search
+// settings are byte-for-byte unchanged. The pre-test values are captured and
+// POSTed back on cleanup (null file limits as "", Open WebUI's "clear").
+// content_extraction_supported_media_mime_types is not exercised: once set it
+// cannot be returned to null through the API. Hybrid search stays as found,
+// so no reranking model is loaded.
+func TestAccRetrievalConfigResource(t *testing.T) {
+	testAccPreCheck(t)
+	const name = "openwebui_retrieval_config.test"
+
+	original := testAccRetrievalRaw(t, http.MethodGet, "retrieval/config", nil)
+	originalWeb, _ := json.Marshal(original["web"])
+	t.Cleanup(func() {
+		restore := map[string]any{}
+		for k, v := range original {
+			if k == "web" || k == "status" {
+				continue
+			}
+			restore[k] = v
+		}
+		for _, k := range []string{"FILE_MAX_SIZE", "FILE_MAX_COUNT", "FILE_IMAGE_COMPRESSION_WIDTH", "FILE_IMAGE_COMPRESSION_HEIGHT"} {
+			if restore[k] == nil {
+				restore[k] = ""
+			}
+		}
+		testAccRetrievalRaw(t, http.MethodPost, "retrieval/config/update", restore)
+	})
+	webUnchanged := func(_ *terraform.State) error {
+		current := testAccRetrievalRaw(t, http.MethodGet, "retrieval/config", nil)
+		web, _ := json.Marshal(current["web"])
+		if string(web) != string(originalWeb) {
+			return fmt.Errorf("web search settings changed: %d bytes before, %d after", len(originalWeb), len(web))
+		}
+		return nil
+	}
+
+	empty := testAccProviderConfig() + `
+resource "openwebui_retrieval_config" "test" {
+}`
+	nearDefault := testAccProviderConfig() + `
+resource "openwebui_retrieval_config" "test" {
+  rag_full_context              = false
+  relevance_threshold           = 0
+  hybrid_bm25_weight            = 0.5
+  mineru_api_timeout            = 300
+  mineru_file_extensions        = ["pdf"]
+  allowed_file_extensions       = []
+  file_max_size                 = -1
+  rag_external_reranker_timeout = ""
+  rag_tokenizer_model           = ""
+  docling_params_json           = "{}"
+}`
+	changed := testAccProviderConfig() + `
+resource "openwebui_retrieval_config" "test" {
+  top_k                                 = 4
+  chunk_overlap                         = 120
+  hybrid_bm25_weight                    = 0.25
+  datalab_marker_output_format          = "markdown"
+  docling_params_json                   = "{ \"lang\": [\"en\"],  \"do_ocr\": true }"
+  mineru_params_json                    = jsonencode({ backend = "pipeline" })
+  external_document_loader_headers_json = jsonencode({ "X-Acc-Test" = "1" })
+  allowed_file_extensions               = ["pdf", "txt"]
+  mineru_file_extensions                = ["pdf", "docx"]
+  file_max_count                        = 7
+}`
+	reset := testAccProviderConfig() + `
+resource "openwebui_retrieval_config" "test" {
+  top_k                                 = 4
+  chunk_overlap                         = 100
+  hybrid_bm25_weight                    = 0.5
+  docling_params_json                   = "{}"
+  mineru_params_json                    = "{}"
+  external_document_loader_headers_json = "{}"
+  allowed_file_extensions               = []
+  mineru_file_extensions                = ["pdf"]
+  file_max_count                        = -1
+}`
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: empty,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "id", "retrieval"),
+					resource.TestCheckResourceAttrSet(name, "top_k"),
+					resource.TestCheckResourceAttrSet(name, "rag_template"),
+					resource.TestCheckResourceAttrSet(name, "mineru_api_timeout"),
+					resource.TestCheckResourceAttrSet(name, "hybrid_bm25_weight"),
+					webUnchanged,
+				),
+			},
+			{Config: empty, PlanOnly: true},
+			{
+				Config: nearDefault,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "mineru_api_timeout", "300"),
+					resource.TestCheckResourceAttr(name, "file_max_size", "-1"),
+					resource.TestCheckResourceAttr(name, "allowed_file_extensions.#", "0"),
+					resource.TestCheckResourceAttr(name, "mineru_file_extensions.#", "1"),
+					resource.TestCheckResourceAttr(name, "docling_params_json", "{}"),
+					resource.TestCheckResourceAttr(name, "hybrid_bm25_weight", "0.5"),
+					webUnchanged,
+				),
+			},
+			{Config: nearDefault, PlanOnly: true},
+			{
+				Config: changed,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "top_k", "4"),
+					resource.TestCheckResourceAttr(name, "chunk_overlap", "120"),
+					resource.TestCheckResourceAttr(name, "hybrid_bm25_weight", "0.25"),
+					resource.TestCheckResourceAttr(name, "docling_params_json", "{ \"lang\": [\"en\"],  \"do_ocr\": true }"),
+					resource.TestCheckResourceAttr(name, "mineru_params_json", `{"backend":"pipeline"}`),
+					resource.TestCheckResourceAttr(name, "external_document_loader_headers_json", `{"X-Acc-Test":"1"}`),
+					resource.TestCheckResourceAttr(name, "allowed_file_extensions.#", "2"),
+					resource.TestCheckResourceAttr(name, "mineru_file_extensions.1", "docx"),
+					resource.TestCheckResourceAttr(name, "file_max_count", "7"),
+					resource.TestCheckResourceAttr(name, "mineru_api_timeout", "300"),
+					resource.TestCheckResourceAttr(name, "file_max_size", "-1"),
+					webUnchanged,
+				),
+			},
+			{Config: changed, PlanOnly: true},
+			{
+				Config: reset,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "file_max_count", "-1"),
+					resource.TestCheckResourceAttr(name, "external_document_loader_headers_json", "{}"),
+					resource.TestCheckResourceAttr(name, "allowed_file_extensions.#", "0"),
+					webUnchanged,
+					func(_ *terraform.State) error {
+						current := testAccRetrievalRaw(t, http.MethodGet, "retrieval/config", nil)
+						if current["FILE_MAX_COUNT"] != nil {
+							return fmt.Errorf("file_max_count = -1 should store null, server has %v", current["FILE_MAX_COUNT"])
+						}
+						return nil
+					},
+				),
+			},
+			{Config: reset, PlanOnly: true},
 		},
 	})
 }
