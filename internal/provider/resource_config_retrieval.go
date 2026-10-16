@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"regexp"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
@@ -45,7 +46,7 @@ var rerankerTimeoutValidator = stringvalidator.RegexMatches(
 	"must be empty or a whole number of seconds (Open WebUI converts it with int() when loading the external reranker)",
 )
 
-// retrievalLimitValidator allows -1 ("no limit", see the attribute
+// retrievalLimitValidator allows -1 ("no limit"/"no compression", see the attribute
 // descriptions) and any value Open WebUI stores verbatim.
 var retrievalLimitValidator = int64validator.AtLeast(-1)
 
@@ -136,6 +137,7 @@ const (
 	noteV0110        = " Added in Open WebUI v0.11.0; on older servers the value is ignored and reads back as null, so setting it fails the apply."
 	retrievalJSONTip = " Compared semantically: key order and whitespace differences are not drift. Use `{}` for none (Open WebUI cannot store null here once set)."
 	retrievalLimit   = " Set `-1` for no limit: Open WebUI stores it as null, and this resource keeps showing `-1` while the server value stays null. `0` is stored as 0 and is not \"no limit\"."
+	retrievalNoComp  = " Set `-1` for no compression: Open WebUI stores it as null, and this resource keeps showing `-1` while the server value stays null."
 )
 
 // Schema defines the retrieval config schema.
@@ -162,8 +164,9 @@ func (r *retrievalConfigResource) Schema(_ context.Context, _ resource.SchemaReq
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Manages Open WebUI's document retrieval (RAG) settings: retrieval and hybrid search, content extraction engines, reranking, chunking, file upload limits and the cloud-drive integration toggles. The nested web search settings of the same endpoint are not managed (and never sent) by this resource.\n\n" +
 			"~> Open WebUI's update endpoint merges per field: a setting left out of the request keeps its stored value. This resource only sends the attributes set in your configuration; any attribute you leave out is not sent, so Open WebUI keeps it, and its state shows the current server value. Removing an attribute from your configuration therefore does not reset it; set it to the value you want instead (`\"\"` for strings, `[]` for lists, `{}` for JSON objects, `-1` for the file limits).\n\n" +
-			"~> The API keys, tokens and `external_document_loader_headers_json` are stored in Terraform state because Open WebUI returns them in plain text. Protect your state accordingly.\n\n" +
-			"-> While hybrid search is enabled (and `bypass_embedding_and_retrieval` is false), every update makes Open WebUI (re)load the reranking model, which can download it. If loading fails, Open WebUI turns hybrid search off; when your configuration sets `enable_rag_hybrid_search = true` the apply then fails with an error.",
+			"~> The API keys, tokens, `external_document_loader_headers_json` and `docling_params_json` are stored in Terraform state because Open WebUI returns them in plain text. Protect your state accordingly.\n\n" +
+			"~> If Open WebUI reports a different value during an apply for an attribute you do not set (because it was changed outside Terraform after the last refresh, or by Open WebUI itself), the attribute is still not sent; the apply keeps the previous state value with a warning, and the next refresh shows the server value.\n\n" +
+			"-> While hybrid search is enabled (and `bypass_embedding_and_retrieval` is false), every update makes Open WebUI (re)load the reranking model, which can download it. If loading fails, Open WebUI turns hybrid search off; when your configuration sets `enable_rag_hybrid_search = true` the apply then fails with an error, otherwise it warns.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:            true,
@@ -207,7 +210,7 @@ func (r *retrievalConfigResource) Schema(_ context.Context, _ resource.SchemaReq
 			"tika_server_url":                str("Apache Tika server URL. Server default: `http://tika:9998`."),
 			"docling_server_url":             str("Docling server URL. Server default: `http://docling:5001`."),
 			"docling_api_key":                secret("Docling API key."),
-			"docling_params_json":            str("JSON object of Docling conversion parameters, for example `jsonencode({ do_ocr = true })`. Server default: `{}`."+retrievalJSONTip+jsonNumberNote, jsonObjectValidator()),
+			"docling_params_json":            secret("JSON object of Docling conversion parameters, for example `jsonencode({ do_ocr = true })`. Sensitive because docling-serve options (such as `picture_description_api` headers) can carry credentials. Server default: `{}`."+retrievalJSONTip+jsonNumberNote, jsonObjectValidator()),
 			"document_intelligence_endpoint": str("Azure Document Intelligence endpoint."),
 			"document_intelligence_key":      secret("Azure Document Intelligence key."),
 			"document_intelligence_model":    str("Azure Document Intelligence model. Server default: `prebuilt-layout`."),
@@ -240,8 +243,8 @@ func (r *retrievalConfigResource) Schema(_ context.Context, _ resource.SchemaReq
 
 			"file_max_size":                 i("Maximum upload size in MB."+retrievalLimit+" Server default: null (no limit).", retrievalLimitValidator),
 			"file_max_count":                i("Maximum number of files per upload."+retrievalLimit+" Server default: null (no limit).", retrievalLimitValidator),
-			"file_image_compression_width":  i("Width in pixels uploaded images are compressed to."+retrievalLimit+" Server default: null (no compression).", retrievalLimitValidator),
-			"file_image_compression_height": i("Height in pixels uploaded images are compressed to."+retrievalLimit+" Server default: null (no compression).", retrievalLimitValidator),
+			"file_image_compression_width":  i("Width in pixels uploaded images are compressed to."+retrievalNoComp+" Server default: null (no compression).", retrievalLimitValidator),
+			"file_image_compression_height": i("Height in pixels uploaded images are compressed to."+retrievalNoComp+" Server default: null (no compression).", retrievalLimitValidator),
 			"allowed_file_extensions":       list("Allowed upload file extensions (without dots). `[]` allows all. Server default: `[]`."),
 
 			"enable_google_drive_integration": b("Whether the Google Drive file picker is enabled. Server default: `false`."),
@@ -266,12 +269,13 @@ func (r *retrievalConfigResource) Create(ctx context.Context, req resource.Creat
 		resp.Diagnostics.AddError("Unconfigured API client", "Expected provider to configure the Open WebUI client before managing retrieval config.")
 		return
 	}
-	var plan retrievalConfigModel
+	var config, plan retrievalConfigModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	state, diags := applyRetrievalConfig(ctx, r.client, plan)
+	state, diags := applyRetrievalConfig(ctx, r.client, config, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -310,12 +314,13 @@ func (r *retrievalConfigResource) Update(ctx context.Context, req resource.Updat
 		resp.Diagnostics.AddError("Unconfigured API client", "Expected provider to configure the Open WebUI client before managing retrieval config.")
 		return
 	}
-	var plan retrievalConfigModel
+	var config, plan retrievalConfigModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	state, diags := applyRetrievalConfig(ctx, r.client, plan)
+	state, diags := applyRetrievalConfig(ctx, r.client, config, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -337,13 +342,21 @@ func (r *retrievalConfigResource) ImportState(ctx context.Context, req resource.
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-// applyRetrievalConfig sends the known plan values as a partial update (the
-// backend keeps every field it is not sent, and `web` is never sent), then
-// re-reads the configuration: the update response omits several keys.
-func applyRetrievalConfig(ctx context.Context, apiClient *client.Client, plan retrievalConfigModel) (retrievalConfigModel, diag.Diagnostics) {
+// applyRetrievalConfig sends the attributes set in the configuration as a
+// partial update, then re-reads the configuration (the update response omits
+// several keys). It builds the request from config, not plan: every attribute
+// is Optional+Computed with UseStateForUnknown, so on update the plan also
+// carries prior-state values for attributes the configuration leaves out, and
+// sending those would revert changes made outside Terraform. Open WebUI keeps
+// every field it is not sent, and `web` is never sent.
+//
+// The plan is still what the written state must agree with: configured
+// attributes are checked by checkRetrievalApplyResult, and unconfigured ones
+// are reconciled by reconcileUnconfiguredRetrieval.
+func applyRetrievalConfig(ctx context.Context, apiClient *client.Client, config, plan retrievalConfigModel) (retrievalConfigModel, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	form, formDiags := retrievalConfigFormFromPlan(ctx, plan)
+	form, formDiags := retrievalConfigFormFromConfig(ctx, config)
 	diags.Append(formDiags...)
 	if diags.HasError() {
 		return retrievalConfigModel{}, diags
@@ -366,16 +379,57 @@ func applyRetrievalConfig(ctx context.Context, apiClient *client.Client, plan re
 		return retrievalConfigModel{}, diags
 	}
 
-	diags.Append(checkRetrievalApplyResult(plan, fresh)...)
+	diags.Append(checkRetrievalApplyResult(config, fresh)...)
 	if diags.HasError() {
 		return retrievalConfigModel{}, diags
 	}
-	return preserveRetrievalConfig(plan, fresh), diags
+	state, reconcileDiags := reconcileUnconfiguredRetrieval(config, plan, preserveRetrievalConfig(plan, fresh))
+	diags.Append(reconcileDiags...)
+	return state, diags
 }
 
-// retrievalConfigFormFromPlan maps every known plan value onto the update
-// form. Null and unknown attributes stay nil and are omitted from the request.
-func retrievalConfigFormFromPlan(ctx context.Context, m retrievalConfigModel) (client.RetrievalConfigUpdateForm, diag.Diagnostics) {
+// reconcileUnconfiguredRetrieval handles attributes the configuration leaves
+// out (null in config) whose planned value is known, i.e. copied from the
+// prior state by UseStateForUnknown. Terraform requires the applied state to
+// match such a planned value, but the server value can legitimately differ:
+// it was changed outside Terraform after the last refresh (or with
+// -refresh=false), or Open WebUI changed it while applying (it turns
+// ENABLE_RAG_HYBRID_SEARCH off when the reranking model fails to load). This
+// resource never sent those attributes, so it keeps the planned value in
+// state and warns; the next refresh shows the server value.
+func reconcileUnconfiguredRetrieval(config, plan, fresh retrievalConfigModel) (retrievalConfigModel, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	configValue := reflect.ValueOf(config)
+	planValue := reflect.ValueOf(plan)
+	freshValue := reflect.ValueOf(&fresh).Elem()
+	modelType := configValue.Type()
+	for i := 0; i < modelType.NumField(); i++ {
+		name := modelType.Field(i).Tag.Get("tfsdk")
+		if name == "id" {
+			continue
+		}
+		configured, _ := configValue.Field(i).Interface().(attr.Value)
+		planned, _ := planValue.Field(i).Interface().(attr.Value)
+		got, _ := freshValue.Field(i).Interface().(attr.Value)
+		if configured == nil || planned == nil || got == nil {
+			continue
+		}
+		if !configured.IsNull() || planned.IsNull() || planned.IsUnknown() || planned.Equal(got) {
+			continue
+		}
+		freshValue.Field(i).Set(planValue.Field(i))
+		diags.AddAttributeWarning(path.Root(name), "Open WebUI value differs from state",
+			// Values are deliberately not printed: several attributes are secrets.
+			fmt.Sprintf("%s is not set in the configuration and was not sent, but Open WebUI now reports a different value than the state (changed outside Terraform since the last refresh, or by Open WebUI during this apply, for example hybrid search turned off after a reranking model load failure). The state keeps the previous value for now; the next refresh shows the server value.", name))
+	}
+	return fresh, diags
+}
+
+// retrievalConfigFormFromConfig maps every attribute set in the configuration
+// onto the update form. Null (unset) and unknown attributes stay nil and are
+// omitted from the request, so Open WebUI keeps their stored value. A file
+// limit of -1 is sent as "" (stored as null).
+func retrievalConfigFormFromConfig(ctx context.Context, m retrievalConfigModel) (client.RetrievalConfigUpdateForm, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	rawJSON := func(v types.String, attr string) json.RawMessage {
@@ -563,12 +617,13 @@ func preserveRetrievalConfig(preferred, fresh retrievalConfigModel) retrievalCon
 }
 
 // checkRetrievalApplyResult turns the two known ways the server can disagree
-// with an applied plan into clear errors, instead of Terraform's generic
-// "inconsistent result after apply".
-func checkRetrievalApplyResult(plan, fresh retrievalConfigModel) diag.Diagnostics {
+// with a configured (sent) value into clear errors, instead of Terraform's
+// generic "inconsistent result after apply". Attributes the configuration
+// leaves out are never checked here (see reconcileUnconfiguredRetrieval).
+func checkRetrievalApplyResult(config, fresh retrievalConfigModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	if !plan.EnableRAGHybridSearch.IsNull() && !plan.EnableRAGHybridSearch.IsUnknown() && plan.EnableRAGHybridSearch.ValueBool() &&
+	if !config.EnableRAGHybridSearch.IsNull() && !config.EnableRAGHybridSearch.IsUnknown() && config.EnableRAGHybridSearch.ValueBool() &&
 		!fresh.EnableRAGHybridSearch.IsNull() && !fresh.EnableRAGHybridSearch.ValueBool() {
 		diags.AddAttributeError(path.Root("enable_rag_hybrid_search"), "Hybrid search was turned off by Open WebUI",
 			"Open WebUI could not load the reranking model (rag_reranking_engine / rag_reranking_model / rag_external_reranker_*) and disabled hybrid search. Check the Open WebUI server log, fix the reranking settings, and apply again.")
@@ -582,10 +637,10 @@ func checkRetrievalApplyResult(plan, fresh retrievalConfigModel) diag.Diagnostic
 	}
 	known := func(v attr.Value) bool { return !v.IsNull() && !v.IsUnknown() }
 	for _, c := range []compat{
-		{"external_document_loader_headers_json", known(plan.ExternalDocumentLoaderHeadersJSON), fresh.ExternalDocumentLoaderHeadersJSON.IsNull(), "v0.10.0"},
-		{"rag_tokenizer_model", known(plan.RAGTokenizerModel), fresh.RAGTokenizerModel.IsNull(), "v0.10.0"},
-		{"mistral_ocr_use_base64", known(plan.MistralOCRUseBase64), fresh.MistralOCRUseBase64.IsNull(), "v0.10.0"},
-		{"content_extraction_supported_media_mime_types", known(plan.ContentExtractionSupportedMediaMimeTypes), fresh.ContentExtractionSupportedMediaMimeTypes.IsNull(), "v0.11.0"},
+		{"external_document_loader_headers_json", known(config.ExternalDocumentLoaderHeadersJSON), fresh.ExternalDocumentLoaderHeadersJSON.IsNull(), "v0.10.0"},
+		{"rag_tokenizer_model", known(config.RAGTokenizerModel), fresh.RAGTokenizerModel.IsNull(), "v0.10.0"},
+		{"mistral_ocr_use_base64", known(config.MistralOCRUseBase64), fresh.MistralOCRUseBase64.IsNull(), "v0.10.0"},
+		{"content_extraction_supported_media_mime_types", known(config.ContentExtractionSupportedMediaMimeTypes), fresh.ContentExtractionSupportedMediaMimeTypes.IsNull(), "v0.11.0"},
 	} {
 		if c.planned && c.missing {
 			diags.AddAttributeError(path.Root(c.name), "Setting not supported by this Open WebUI version",

@@ -5,8 +5,9 @@ subcategory: ""
 description: |-
   Manages Open WebUI's document retrieval (RAG) settings: retrieval and hybrid search, content extraction engines, reranking, chunking, file upload limits and the cloud-drive integration toggles. The nested web search settings of the same endpoint are not managed (and never sent) by this resource.
   ~> Open WebUI's update endpoint merges per field: a setting left out of the request keeps its stored value. This resource only sends the attributes set in your configuration; any attribute you leave out is not sent, so Open WebUI keeps it, and its state shows the current server value. Removing an attribute from your configuration therefore does not reset it; set it to the value you want instead ("" for strings, [] for lists, {} for JSON objects, -1 for the file limits).
-  ~> The API keys, tokens and external_document_loader_headers_json are stored in Terraform state because Open WebUI returns them in plain text. Protect your state accordingly.
-  -> While hybrid search is enabled (and bypass_embedding_and_retrieval is false), every update makes Open WebUI (re)load the reranking model, which can download it. If loading fails, Open WebUI turns hybrid search off; when your configuration sets enable_rag_hybrid_search = true the apply then fails with an error.
+  ~> The API keys, tokens, external_document_loader_headers_json and docling_params_json are stored in Terraform state because Open WebUI returns them in plain text. Protect your state accordingly.
+  ~> If Open WebUI reports a different value during an apply for an attribute you do not set (because it was changed outside Terraform after the last refresh, or by Open WebUI itself), the attribute is still not sent; the apply keeps the previous state value with a warning, and the next refresh shows the server value.
+  -> While hybrid search is enabled (and bypass_embedding_and_retrieval is false), every update makes Open WebUI (re)load the reranking model, which can download it. If loading fails, Open WebUI turns hybrid search off; when your configuration sets enable_rag_hybrid_search = true the apply then fails with an error, otherwise it warns.
 ---
 
 # openwebui_retrieval_config (Resource)
@@ -15,9 +16,11 @@ Manages Open WebUI's document retrieval (RAG) settings: retrieval and hybrid sea
 
 ~> Open WebUI's update endpoint merges per field: a setting left out of the request keeps its stored value. This resource only sends the attributes set in your configuration; any attribute you leave out is not sent, so Open WebUI keeps it, and its state shows the current server value. Removing an attribute from your configuration therefore does not reset it; set it to the value you want instead (`""` for strings, `[]` for lists, `{}` for JSON objects, `-1` for the file limits).
 
-~> The API keys, tokens and `external_document_loader_headers_json` are stored in Terraform state because Open WebUI returns them in plain text. Protect your state accordingly.
+~> The API keys, tokens, `external_document_loader_headers_json` and `docling_params_json` are stored in Terraform state because Open WebUI returns them in plain text. Protect your state accordingly.
 
--> While hybrid search is enabled (and `bypass_embedding_and_retrieval` is false), every update makes Open WebUI (re)load the reranking model, which can download it. If loading fails, Open WebUI turns hybrid search off; when your configuration sets `enable_rag_hybrid_search = true` the apply then fails with an error.
+~> If Open WebUI reports a different value during an apply for an attribute you do not set (because it was changed outside Terraform after the last refresh, or by Open WebUI itself), the attribute is still not sent; the apply keeps the previous state value with a warning, and the next refresh shows the server value.
+
+-> While hybrid search is enabled (and `bypass_embedding_and_retrieval` is false), every update makes Open WebUI (re)load the reranking model, which can download it. If loading fails, Open WebUI turns hybrid search off; when your configuration sets `enable_rag_hybrid_search = true` the apply then fails with an error, otherwise it warns.
 
 ## Example Usage
 
@@ -68,7 +71,7 @@ resource "openwebui_retrieval_config" "example" {
 - `datalab_marker_strip_existing_ocr` (Boolean) Datalab Marker: strip existing OCR text. Server default: `false`.
 - `datalab_marker_use_llm` (Boolean) Datalab Marker: use an LLM to improve accuracy. Server default: `false`.
 - `docling_api_key` (String, Sensitive) Docling API key.
-- `docling_params_json` (String) JSON object of Docling conversion parameters, for example `jsonencode({ do_ocr = true })`. Server default: `{}`. Compared semantically: key order and whitespace differences are not drift. Use `{}` for none (Open WebUI cannot store null here once set). Number literals must survive Open WebUI's Python JSON round trip: integers are exact (up to Python's 4300-digit limit), but a fraction or exponent that a 64-bit float cannot hold exactly (for example `9007199254740993.0`) or that overflows it (`1e400`) is rejected at plan time.
+- `docling_params_json` (String, Sensitive) JSON object of Docling conversion parameters, for example `jsonencode({ do_ocr = true })`. Sensitive because docling-serve options (such as `picture_description_api` headers) can carry credentials. Server default: `{}`. Compared semantically: key order and whitespace differences are not drift. Use `{}` for none (Open WebUI cannot store null here once set). Number literals must survive Open WebUI's Python JSON round trip: integers are exact (up to Python's 4300-digit limit), but a fraction or exponent that a 64-bit float cannot hold exactly (for example `9007199254740993.0`) or that overflows it (`1e400`) is rejected at plan time.
 - `docling_server_url` (String) Docling server URL. Server default: `http://docling:5001`.
 - `document_intelligence_endpoint` (String) Azure Document Intelligence endpoint.
 - `document_intelligence_key` (String, Sensitive) Azure Document Intelligence key.
@@ -81,8 +84,8 @@ resource "openwebui_retrieval_config" "example" {
 - `external_document_loader_api_key` (String, Sensitive) API key for the external document loader.
 - `external_document_loader_headers_json` (String, Sensitive) JSON object of extra HTTP headers sent to the external document loader, for example `jsonencode({ "X-Tenant" = "a" })`. Sensitive because headers commonly carry credentials. Server default: `{}`. Compared semantically: key order and whitespace differences are not drift. Use `{}` for none (Open WebUI cannot store null here once set). Number literals must survive Open WebUI's Python JSON round trip: integers are exact (up to Python's 4300-digit limit), but a fraction or exponent that a 64-bit float cannot hold exactly (for example `9007199254740993.0`) or that overflows it (`1e400`) is rejected at plan time. Added in Open WebUI v0.10.0; on older servers the value is ignored and reads back as null, so setting it fails the apply.
 - `external_document_loader_url` (String) URL of the external document loader.
-- `file_image_compression_height` (Number) Height in pixels uploaded images are compressed to. Set `-1` for no limit: Open WebUI stores it as null, and this resource keeps showing `-1` while the server value stays null. `0` is stored as 0 and is not "no limit". Server default: null (no compression).
-- `file_image_compression_width` (Number) Width in pixels uploaded images are compressed to. Set `-1` for no limit: Open WebUI stores it as null, and this resource keeps showing `-1` while the server value stays null. `0` is stored as 0 and is not "no limit". Server default: null (no compression).
+- `file_image_compression_height` (Number) Height in pixels uploaded images are compressed to. Set `-1` for no compression: Open WebUI stores it as null, and this resource keeps showing `-1` while the server value stays null. Server default: null (no compression).
+- `file_image_compression_width` (Number) Width in pixels uploaded images are compressed to. Set `-1` for no compression: Open WebUI stores it as null, and this resource keeps showing `-1` while the server value stays null. Server default: null (no compression).
 - `file_max_count` (Number) Maximum number of files per upload. Set `-1` for no limit: Open WebUI stores it as null, and this resource keeps showing `-1` while the server value stays null. `0` is stored as 0 and is not "no limit". Server default: null (no limit).
 - `file_max_size` (Number) Maximum upload size in MB. Set `-1` for no limit: Open WebUI stores it as null, and this resource keeps showing `-1` while the server value stays null. `0` is stored as 0 and is not "no limit". Server default: null (no limit).
 - `hybrid_bm25_weight` (Number) Weight of BM25 in hybrid search; the vector search weight is `1 - hybrid_bm25_weight`. Server default: `0.5`.

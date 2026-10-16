@@ -1187,7 +1187,9 @@ func testAccRetrievalRaw(t *testing.T, method, apiPath string, body map[string]a
 // of near-default values (MINERU_API_TIMEOUT round-tripping the stock "300"
 // string as an int, file_max_size = -1 on a null server value), an apply
 // changing scalars, a float, lists, JSON objects written with non-canonical
-// formatting, a secret-shaped header blob and a file limit, and a reset that
+// formatting, a secret-shaped header blob and a file limit (while an
+// unconfigured attribute changed outside Terraform and the unconfigured -1
+// file_max_size must not be sent), and a reset that
 // clears that limit again with -1. Each apply is followed by a PlanOnly
 // idempotency step, and every step checks that the nested `web` search
 // settings are byte-for-byte unchanged. The pre-test values are captured and
@@ -1297,6 +1299,13 @@ resource "openwebui_retrieval_config" "test" {
 			},
 			{Config: nearDefault, PlanOnly: true},
 			{
+				// file_max_size (-1 since the previous step) and
+				// file_image_compression_width are not configured here, so
+				// neither may be sent. The width is changed outside Terraform
+				// first and must survive the apply.
+				PreConfig: func() {
+					testAccRetrievalRaw(t, http.MethodPost, "retrieval/config/update", map[string]any{"FILE_IMAGE_COMPRESSION_WIDTH": 640})
+				},
 				Config: changed,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "top_k", "4"),
@@ -1310,7 +1319,18 @@ resource "openwebui_retrieval_config" "test" {
 					resource.TestCheckResourceAttr(name, "file_max_count", "7"),
 					resource.TestCheckResourceAttr(name, "mineru_api_timeout", "300"),
 					resource.TestCheckResourceAttr(name, "file_max_size", "-1"),
+					resource.TestCheckResourceAttr(name, "file_image_compression_width", "640"),
 					webUnchanged,
+					func(_ *terraform.State) error {
+						current := testAccRetrievalRaw(t, http.MethodGet, "retrieval/config", nil)
+						if current["FILE_MAX_SIZE"] != nil {
+							return fmt.Errorf("unconfigured file_max_size must stay null, server has %v", current["FILE_MAX_SIZE"])
+						}
+						if current["FILE_IMAGE_COMPRESSION_WIDTH"] != float64(640) {
+							return fmt.Errorf("out-of-band FILE_IMAGE_COMPRESSION_WIDTH must survive the apply, server has %v", current["FILE_IMAGE_COMPRESSION_WIDTH"])
+						}
+						return nil
+					},
 				),
 			},
 			{Config: changed, PlanOnly: true},

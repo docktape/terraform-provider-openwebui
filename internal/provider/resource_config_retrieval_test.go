@@ -12,7 +12,9 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
 	"github.com/docktape/terraform-provider-openwebui/internal/client"
 )
@@ -112,7 +114,7 @@ func marshalForm(t *testing.T, form client.RetrievalConfigUpdateForm) map[string
 }
 
 func TestRetrievalFormFromAllUnknownPlanIsEmpty(t *testing.T) {
-	form, diags := retrievalConfigFormFromPlan(context.Background(), unknownRetrievalModel())
+	form, diags := retrievalConfigFormFromConfig(context.Background(), unknownRetrievalModel())
 	if diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
@@ -123,7 +125,7 @@ func TestRetrievalFormFromAllUnknownPlanIsEmpty(t *testing.T) {
 
 func TestRetrievalFormFromNullPlanIsEmpty(t *testing.T) {
 	// A zero model has every attribute null (e.g. the user removed them).
-	form, diags := retrievalConfigFormFromPlan(context.Background(), retrievalConfigModel{})
+	form, diags := retrievalConfigFormFromConfig(context.Background(), retrievalConfigModel{})
 	if diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
@@ -151,7 +153,7 @@ func TestRetrievalFormFromKnownValues(t *testing.T) {
 	m.FileMaxCount = types.Int64Value(10)
 	m.RAGExternalRerankerTimeout = types.StringValue("30")
 
-	form, diags := retrievalConfigFormFromPlan(ctx, m)
+	form, diags := retrievalConfigFormFromConfig(ctx, m)
 	if diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
@@ -326,7 +328,7 @@ func TestApplyRetrievalConfigAgainstFakeServer(t *testing.T) {
 	plan.TopK = types.Int64Value(8)
 	plan.DoclingParamsJSON = types.StringValue(`{"lang": ["en"], "do_ocr": true}`)
 
-	state, diags := applyRetrievalConfig(context.Background(), apiClient, plan)
+	state, diags := applyRetrievalConfig(context.Background(), apiClient, plan, plan)
 	if diags.HasError() {
 		t.Fatalf("apply failed: %v", diags)
 	}
@@ -378,7 +380,7 @@ func TestRetrievalConfigSchemaShape(t *testing.T) {
 	}
 	sensitive := map[string]bool{
 		"datalab_marker_api_key": true, "external_document_loader_api_key": true,
-		"external_document_loader_headers_json": true, "docling_api_key": true,
+		"external_document_loader_headers_json": true, "docling_params_json": true, "docling_api_key": true,
 		"document_intelligence_key": true, "mistral_ocr_api_key": true, "paddleocr_vl_token": true,
 		"mineru_api_key": true, "rag_external_reranker_api_key": true,
 	}
@@ -395,5 +397,158 @@ func TestRetrievalConfigSchemaShape(t *testing.T) {
 		if !a.IsOptional() || !a.IsComputed() {
 			t.Errorf("attribute %q must be Optional+Computed", name)
 		}
+	}
+}
+
+// retrievalRaw encodes a model as a raw Terraform value of the resource schema.
+func retrievalRaw(t *testing.T, m retrievalConfigModel) (tftypes.Value, tfsdk.State) {
+	t.Helper()
+	ctx := context.Background()
+	var resp resource.SchemaResponse
+	NewRetrievalConfigResource().Schema(ctx, resource.SchemaRequest{}, &resp)
+	st := tfsdk.State{Schema: resp.Schema, Raw: tftypes.NewValue(resp.Schema.Type().TerraformType(ctx), nil)}
+	if diags := st.Set(ctx, &m); diags.HasError() {
+		t.Fatalf("encode model: %v", diags)
+	}
+	return st.Raw, st
+}
+
+// TestRetrievalUpdateOmitsUnconfiguredAttributes drives the resource's Update
+// with a configuration that sets only top_k, while the plan (as Terraform
+// builds it with UseStateForUnknown) carries prior-state values for every
+// other attribute, including a -1 file limit and a secret. Only TOP_K may be
+// sent; everything else must be left to Open WebUI's per-field merge.
+func TestRetrievalUpdateOmitsUnconfiguredAttributes(t *testing.T) {
+	ctx := context.Background()
+	var posted map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/retrieval/config/update":
+			raw, _ := io.ReadAll(r.Body)
+			if err := json.Unmarshal(raw, &posted); err != nil {
+				t.Errorf("decode POST: %v", err)
+			}
+			_, _ = w.Write([]byte(`{"status": true}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/retrieval/config":
+			_, _ = w.Write([]byte(strings.Replace(stockRetrievalJSON, `"TOP_K": 3,`, `"TOP_K": 8,`, 1)))
+		default:
+			t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	apiClient, err := client.NewClient(server.URL, "test-token", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	prior, diags := retrievalConfigModelFromAPI(ctx, decodeStockRetrieval(t, stockRetrievalJSON))
+	if diags.HasError() {
+		t.Fatal(diags)
+	}
+	prior.FileMaxSize = types.Int64Value(-1)
+
+	config := retrievalConfigModel{} // every attribute null...
+	reflectNullModel(&config)
+	config.TopK = types.Int64Value(8) // ...except top_k
+
+	plan := prior
+	plan.TopK = types.Int64Value(8)
+
+	configRaw, _ := retrievalRaw(t, config)
+	planRaw, _ := retrievalRaw(t, plan)
+	priorRaw, priorState := retrievalRaw(t, prior)
+
+	req := resource.UpdateRequest{
+		Config: tfsdk.Config{Schema: priorState.Schema, Raw: configRaw},
+		Plan:   tfsdk.Plan{Schema: priorState.Schema, Raw: planRaw},
+		State:  tfsdk.State{Schema: priorState.Schema, Raw: priorRaw},
+	}
+	resp := resource.UpdateResponse{State: tfsdk.State{Schema: priorState.Schema, Raw: planRaw}}
+	(&retrievalConfigResource{client: apiClient}).Update(ctx, req, &resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("Update failed: %v", resp.Diagnostics)
+	}
+
+	if len(posted) != 1 || posted["TOP_K"] != float64(8) {
+		t.Errorf("only TOP_K may be sent, got %v", posted)
+	}
+
+	var state retrievalConfigModel
+	resp.Diagnostics.Append(resp.State.Get(ctx, &state)...)
+	if state.TopK.ValueInt64() != 8 || state.FileMaxSize.ValueInt64() != -1 || state.MistralOCRAPIKey.ValueString() != "existing-secret" {
+		t.Errorf("unexpected state: top_k=%v file_max_size=%v", state.TopK, state.FileMaxSize)
+	}
+}
+
+// reflectNullModel sets every attribute of m to its typed null.
+func reflectNullModel(m *retrievalConfigModel) {
+	v := reflect.ValueOf(m).Elem()
+	for i := 0; i < v.NumField(); i++ {
+		f := v.Field(i)
+		switch f.Interface().(type) {
+		case types.String:
+			f.Set(reflect.ValueOf(types.StringNull()))
+		case types.Bool:
+			f.Set(reflect.ValueOf(types.BoolNull()))
+		case types.Int64:
+			f.Set(reflect.ValueOf(types.Int64Null()))
+		case types.Float64:
+			f.Set(reflect.ValueOf(types.Float64Null()))
+		case types.List:
+			f.Set(reflect.ValueOf(types.ListNull(types.StringType)))
+		}
+	}
+}
+
+// TestReconcileUnconfiguredRetrieval: an unconfigured attribute whose planned
+// (prior-state) value differs from the server keeps the planned value with a
+// warning that does not print values; configured and unknown-planned
+// attributes take the server value untouched.
+func TestReconcileUnconfiguredRetrieval(t *testing.T) {
+	fresh, _ := retrievalConfigModelFromAPI(context.Background(), decodeStockRetrieval(t, stockRetrievalJSON))
+
+	var config retrievalConfigModel
+	reflectNullModel(&config)
+	config.TopK = types.Int64Value(3)
+
+	plan := fresh
+	plan.EnableRAGHybridSearch = types.BoolValue(true)           // server flipped it off
+	plan.MistralOCRAPIKey = types.StringValue("previous-secret") // changed out of band
+	plan.ChunkSize = types.Int64Unknown()                        // e.g. a create plan
+
+	got, diags := reconcileUnconfiguredRetrieval(config, plan, fresh)
+	if diags.HasError() {
+		t.Fatalf("unexpected errors: %v", diags)
+	}
+	if diags.WarningsCount() != 2 {
+		t.Fatalf("expected 2 warnings, got %v", diags)
+	}
+	for _, d := range diags {
+		if strings.Contains(d.Detail(), "existing-secret") || strings.Contains(d.Detail(), "previous-secret") {
+			t.Errorf("warning must not print values: %s", d.Detail())
+		}
+	}
+	if !got.EnableRAGHybridSearch.ValueBool() || got.MistralOCRAPIKey.ValueString() != "previous-secret" {
+		t.Errorf("planned values must be kept: %v %v", got.EnableRAGHybridSearch, got.MistralOCRAPIKey)
+	}
+	if got.ChunkSize.ValueInt64() != 1000 {
+		t.Errorf("unknown planned value must take the server value, got %v", got.ChunkSize)
+	}
+
+	// Equal values: no warnings at all.
+	if _, d := reconcileUnconfiguredRetrieval(config, fresh, fresh); len(d) != 0 {
+		t.Errorf("expected no diagnostics, got %v", d)
+	}
+}
+
+// TestRetrievalApplyResultIgnoresUnconfigured: a hybrid-search flip or a
+// missing newer key never fails the apply when the configuration does not set
+// the attribute, even if the plan carries a prior-state value for it.
+func TestRetrievalApplyResultIgnoresUnconfigured(t *testing.T) {
+	older, _ := retrievalConfigModelFromAPI(context.Background(), decodeStockRetrieval(t, `{"TOP_K": 3, "ENABLE_RAG_HYBRID_SEARCH": false}`))
+	var config retrievalConfigModel
+	reflectNullModel(&config)
+	if diags := checkRetrievalApplyResult(config, older); diags.HasError() {
+		t.Errorf("unconfigured attributes must not be checked: %v", diags)
 	}
 }
