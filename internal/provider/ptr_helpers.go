@@ -63,3 +63,20 @@ func int64ValueOrNull(value *int64) types.Int64 {
 // knownObject reports whether a nested object attribute holds a concrete
 // (non-null, non-unknown) value.
 func knownObject(v types.Object) bool { return !v.IsNull() && !v.IsUnknown() }
+
+// float64Ptr and float64ValueOrNull are the float64 counterparts of
+// int64Ptr/int64ValueOrNull.
+func float64Ptr(value types.Float64) *float64 {
+	if value.IsNull() || value.IsUnknown() {
+		return nil
+	}
+	result := value.ValueFloat64()
+	return &result
+}
+
+func float64ValueOrNull(value *float64) types.Float64 {
+	if value == nil {
+		return types.Float64Null()
+	}
+	return types.Float64Value(*value)
+}
