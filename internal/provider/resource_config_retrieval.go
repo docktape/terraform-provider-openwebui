@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"reflect"
 	"regexp"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
@@ -398,31 +397,8 @@ func applyRetrievalConfig(ctx context.Context, apiClient *client.Client, config,
 // resource never sent those attributes, so it keeps the planned value in
 // state and warns; the next refresh shows the server value.
 func reconcileUnconfiguredRetrieval(config, plan, fresh retrievalConfigModel) (retrievalConfigModel, diag.Diagnostics) {
-	var diags diag.Diagnostics
-	configValue := reflect.ValueOf(config)
-	planValue := reflect.ValueOf(plan)
-	freshValue := reflect.ValueOf(&fresh).Elem()
-	modelType := configValue.Type()
-	for i := 0; i < modelType.NumField(); i++ {
-		name := modelType.Field(i).Tag.Get("tfsdk")
-		if name == "id" {
-			continue
-		}
-		configured, _ := configValue.Field(i).Interface().(attr.Value)
-		planned, _ := planValue.Field(i).Interface().(attr.Value)
-		got, _ := freshValue.Field(i).Interface().(attr.Value)
-		if configured == nil || planned == nil || got == nil {
-			continue
-		}
-		if !configured.IsNull() || planned.IsNull() || planned.IsUnknown() || planned.Equal(got) {
-			continue
-		}
-		freshValue.Field(i).Set(planValue.Field(i))
-		diags.AddAttributeWarning(path.Root(name), "Open WebUI value differs from state",
-			// Values are deliberately not printed: several attributes are secrets.
-			fmt.Sprintf("%s is not set in the configuration and was not sent, but Open WebUI now reports a different value than the state (changed outside Terraform since the last refresh, or by Open WebUI during this apply, for example hybrid search turned off after a reranking model load failure). The state keeps the previous value for now; the next refresh shows the server value.", name))
-	}
-	return fresh, diags
+	return reconcileUnconfiguredAttributes(config, plan, fresh,
+		"changed outside Terraform since the last refresh, or by Open WebUI during this apply, for example hybrid search turned off after a reranking model load failure")
 }
 
 // retrievalConfigFormFromConfig maps every attribute set in the configuration

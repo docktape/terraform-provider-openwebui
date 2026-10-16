@@ -301,6 +301,19 @@ func (c *Client) GetRetrievalConfig(ctx context.Context) (*RetrievalConfig, erro
 // keys (ENABLE_RAG_HYBRID_SEARCH_ENRICHED_TEXTS, DATALAB_MARKER_FORMAT_LINES,
 // MINERU_FILE_EXTENSIONS, RAG_RERANKING_BATCH_SIZE), so callers must re-read
 // with GetRetrievalConfig.
+//
+// Writes to this endpoint are serialized per client: Open WebUI's handler
+// loads every retrieval setting, merges the request and saves every setting
+// again, so two overlapping requests (openwebui_retrieval_config and
+// openwebui_web_search_config applied in parallel) could write back each
+// other's stale values.
 func (c *Client) UpdateRetrievalConfig(ctx context.Context, form RetrievalConfigUpdateForm) error {
+	c.retrievalMu.Lock()
+	defer c.retrievalMu.Unlock()
+	return c.postRetrievalConfig(ctx, form)
+}
+
+// postRetrievalConfig sends the update; callers hold retrievalMu.
+func (c *Client) postRetrievalConfig(ctx context.Context, form RetrievalConfigUpdateForm) error {
 	return c.do(ctx, http.MethodPost, "retrieval/config/update", nil, form, nil)
 }

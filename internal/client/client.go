@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -40,6 +41,10 @@ type Client struct {
 	rootURL    string // scheme://host[:port], no path — used for /openai and /ollama endpoints
 	token      string
 	httpClient *http.Client
+
+	// retrievalMu serializes the writes to /retrieval/config/update (see
+	// UpdateRetrievalConfig).
+	retrievalMu sync.Mutex
 }
 
 // NewClient constructs a new API client instance.
