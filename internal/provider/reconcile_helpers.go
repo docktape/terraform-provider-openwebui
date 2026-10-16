@@ -24,6 +24,13 @@ import (
 //
 // Values are deliberately never printed: several attributes are secrets.
 func reconcileUnconfiguredAttributes[T any](config, plan, fresh T, cause string) (T, diag.Diagnostics) {
+	return reconcileUnconfiguredAttributesAt(path.Empty(), config, plan, fresh, cause)
+}
+
+// reconcileUnconfiguredAttributesAt is reconcileUnconfiguredAttributes for
+// the attributes of a nested object at base (path.Empty() for the top level),
+// for example the inner attributes of a configured single nested attribute.
+func reconcileUnconfiguredAttributesAt[T any](base path.Path, config, plan, fresh T, cause string) (T, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	configValue := reflect.ValueOf(config)
 	planValue := reflect.ValueOf(plan)
@@ -44,8 +51,9 @@ func reconcileUnconfiguredAttributes[T any](config, plan, fresh T, cause string)
 			continue
 		}
 		freshValue.Field(i).Set(planValue.Field(i))
-		diags.AddAttributeWarning(path.Root(name), "Open WebUI value differs from state",
-			fmt.Sprintf("%s is not set in the configuration, so this apply left it unchanged, but Open WebUI reports a different value than the state (%s). The state keeps the previous value for now; the next refresh shows the server value.", name, cause))
+		attrPath := base.AtName(name)
+		diags.AddAttributeWarning(attrPath, "Open WebUI value differs from state",
+			fmt.Sprintf("%s is not set in the configuration, so this apply left it unchanged, but Open WebUI reports a different value than the state (%s). The state keeps the previous value for now; the next refresh shows the server value.", attrPath, cause))
 	}
 	return fresh, diags
 }

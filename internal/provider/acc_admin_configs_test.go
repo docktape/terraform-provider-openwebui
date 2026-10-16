@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -1585,6 +1586,207 @@ resource "openwebui_web_search_config" "test" {
 				),
 			},
 			{Config: populated, PlanOnly: true},
+		},
+	})
+}
+
+// TestAccRetrievalEmbeddingConfigResource exercises
+// openwebui_retrieval_embedding_config against the live instance without
+// changing its embedding engine or model (a model change can download a
+// model; a remote engine would be contacted): only the batch size, the async
+// toggle and the concurrency change. Every POST reloads the current model.
+// Open WebUI stores connection blocks only for a remote engine, so with the
+// local engine the blocks are applied only with their current values (a no-op,
+// one of them unknown at plan time) and a real change must be refused before
+// anything is sent. The captured settings are restored on cleanup and
+// compared. Mutates the target Open WebUI instance.
+func TestAccRetrievalEmbeddingConfigResource(t *testing.T) {
+	testAccPreCheck(t)
+	const name = "openwebui_retrieval_embedding_config.test"
+
+	original := testAccRetrievalRaw(t, http.MethodGet, "retrieval/embedding", nil)
+	engine, _ := original["RAG_EMBEDDING_ENGINE"].(string)
+	model, _ := original["RAG_EMBEDDING_MODEL"].(string)
+	if engine != "" {
+		t.Skip("this test needs the local embedding engine (it never switches engines)")
+	}
+	restore := map[string]any{}
+	for _, k := range []string{"RAG_EMBEDDING_ENGINE", "RAG_EMBEDDING_MODEL", "RAG_EMBEDDING_BATCH_SIZE", "ENABLE_ASYNC_EMBEDDING", "RAG_EMBEDDING_CONCURRENT_REQUESTS"} {
+		if v, ok := original[k]; ok {
+			restore[k] = v
+		}
+	}
+	originalJSON, _ := json.Marshal(original)
+	t.Cleanup(func() {
+		testAccRetrievalRaw(t, http.MethodPost, "retrieval/embedding/update", restore)
+		after, _ := json.Marshal(testAccRetrievalRaw(t, http.MethodGet, "retrieval/embedding", nil))
+		if string(after) != string(originalJSON) {
+			t.Errorf("the embedding settings were not restored (%d bytes before, %d after)", len(originalJSON), len(after))
+		}
+	})
+
+	number := func(key string, fallback int) int {
+		if v, ok := original[key].(float64); ok {
+			return int(v)
+		}
+		return fallback
+	}
+	batch := number("RAG_EMBEDDING_BATCH_SIZE", 1) + 1
+	concurrent := number("RAG_EMBEDDING_CONCURRENT_REQUESTS", 0) + 1
+	async, _ := original["ENABLE_ASYNC_EMBEDDING"].(bool)
+	block := func(key, field string) string {
+		obj, _ := original[key].(map[string]any)
+		s, _ := obj[field].(string)
+		return s
+	}
+	openaiURL, ollamaURL := block("openai_config", "url"), block("ollama_config", "url")
+
+	// serverMatches compares the live settings with the capture, with the
+	// given top-level keys replaced. Only key names are reported.
+	serverMatches := func(changed map[string]any) resource.TestCheckFunc {
+		return func(_ *terraform.State) error {
+			current := testAccRetrievalRaw(t, http.MethodGet, "retrieval/embedding", nil)
+			var diffs []string
+			for k, v := range original {
+				expected := v
+				if c, ok := changed[k]; ok {
+					expected = c
+				}
+				a, _ := json.Marshal(current[k])
+				b, _ := json.Marshal(expected)
+				if string(a) != string(b) {
+					diffs = append(diffs, k)
+				}
+			}
+			if len(current) != len(original) {
+				diffs = append(diffs, fmt.Sprintf("(key count %d, want %d)", len(current), len(original)))
+			}
+			if len(diffs) > 0 {
+				return fmt.Errorf("embedding settings differ from the expected values: %v", diffs)
+			}
+			return nil
+		}
+	}
+
+	// blocksMatchServer checks every nested state attribute against the
+	// capture without printing values (the keys are secrets).
+	blocksMatchServer := func(st *terraform.State) error {
+		rs, ok := st.RootModule().Resources[name]
+		if !ok {
+			return fmt.Errorf("%s not in state", name)
+		}
+		for _, b := range []struct {
+			key    string
+			fields []string
+		}{{"openai_config", []string{"url", "key"}}, {"ollama_config", []string{"url", "key"}}, {"azure_openai_config", []string{"url", "key", "version"}}} {
+			for _, f := range b.fields {
+				got, ok := rs.Primary.Attributes[b.key+"."+f]
+				if !ok || got != block(b.key, f) {
+					return fmt.Errorf("state %s.%s differs from the server value", b.key, f)
+				}
+			}
+		}
+		return nil
+	}
+
+	empty := testAccProviderConfig() + `
+resource "openwebui_retrieval_embedding_config" "test" {
+}`
+	changed := testAccProviderConfig() + fmt.Sprintf(`
+resource "terraform_data" "openai_url" {
+  input = %q
+}
+
+resource "openwebui_retrieval_embedding_config" "test" {
+  rag_embedding_engine              = ""
+  rag_embedding_model               = %q
+  rag_embedding_batch_size          = %d
+  enable_async_embedding            = %t
+  rag_embedding_concurrent_requests = %d
+
+  # Current values (the local engine ignores block changes); the url is
+  # unknown at plan time.
+  openai_config = {
+    url = terraform_data.openai_url.output
+  }
+  ollama_config = {
+    url = %q
+  }
+}`, openaiURL, model, batch, !async, concurrent, ollamaURL)
+	changedServer := map[string]any{"RAG_EMBEDDING_BATCH_SIZE": batch, "ENABLE_ASYNC_EMBEDDING": !async, "RAG_EMBEDDING_CONCURRENT_REQUESTS": concurrent}
+	outOfBandConcurrent := concurrent + 1
+	batchOnly := testAccProviderConfig() + fmt.Sprintf(`
+resource "openwebui_retrieval_embedding_config" "test" {
+  rag_embedding_batch_size = %d
+}`, batch+1)
+	batchOnlyServer := map[string]any{"RAG_EMBEDDING_BATCH_SIZE": batch + 1, "ENABLE_ASYNC_EMBEDDING": !async, "RAG_EMBEDDING_CONCURRENT_REQUESTS": outOfBandConcurrent}
+	refused := testAccProviderConfig() + fmt.Sprintf(`
+resource "openwebui_retrieval_embedding_config" "test" {
+  rag_embedding_batch_size = %d
+  openai_config = {
+    key = "acc-test-dummy-not-a-key"
+  }
+}`, batch+1)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: empty,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "id", "retrieval_embedding"),
+					resource.TestCheckResourceAttr(name, "rag_embedding_engine", ""),
+					resource.TestCheckResourceAttr(name, "rag_embedding_model", model),
+					resource.TestCheckResourceAttrSet(name, "rag_embedding_batch_size"),
+					resource.TestCheckResourceAttr(name, "openai_config.url", openaiURL),
+					resource.TestCheckResourceAttr(name, "ollama_config.url", ollamaURL),
+					blocksMatchServer,
+					serverMatches(nil),
+				),
+			},
+			{Config: empty, PlanOnly: true},
+			{
+				Config: changed,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "rag_embedding_batch_size", strconv.Itoa(batch)),
+					resource.TestCheckResourceAttr(name, "enable_async_embedding", strconv.FormatBool(!async)),
+					resource.TestCheckResourceAttr(name, "rag_embedding_concurrent_requests", strconv.Itoa(concurrent)),
+					blocksMatchServer,
+					serverMatches(changedServer),
+				),
+			},
+			{Config: changed, PlanOnly: true},
+			{
+				// The concurrency is changed by another client and is no longer
+				// configured: the batch-size update must send it back as stored.
+				PreConfig: func() {
+					current := testAccRetrievalRaw(t, http.MethodGet, "retrieval/embedding", nil)
+					body := map[string]any{}
+					for k := range restore {
+						body[k] = current[k]
+					}
+					body["RAG_EMBEDDING_CONCURRENT_REQUESTS"] = outOfBandConcurrent
+					testAccRetrievalRaw(t, http.MethodPost, "retrieval/embedding/update", body)
+				},
+				Config: batchOnly,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "rag_embedding_batch_size", strconv.Itoa(batch+1)),
+					resource.TestCheckResourceAttr(name, "rag_embedding_concurrent_requests", strconv.Itoa(outOfBandConcurrent)),
+					resource.TestCheckResourceAttr(name, "enable_async_embedding", strconv.FormatBool(!async)),
+					serverMatches(batchOnlyServer),
+				),
+			},
+			{Config: batchOnly, PlanOnly: true},
+			{
+				Config:      refused,
+				ExpectError: regexp.MustCompile(`(?s)openai_config\s+is\s+only\s+stored\s+by\s+Open\s+WebUI\s+while\s+RAG_EMBEDDING_ENGINE\s+is`),
+			},
+			{
+				// Nothing was written by the refused apply.
+				Config: batchOnly,
+				Check:  resource.ComposeTestCheckFunc(blocksMatchServer, serverMatches(batchOnlyServer)),
+			},
 		},
 	})
 }
