@@ -160,7 +160,7 @@ func TestUpdateWebSearchConfigMergesIntoCurrentWebObject(t *testing.T) {
 
 	count := int64(7)
 	filters := []string{}
-	err := c.UpdateWebSearchConfig(context.Background(), WebSearchConfigUpdate{
+	_, err := c.UpdateWebSearchConfig(context.Background(), WebSearchConfigUpdate{
 		WebSearchResultCount:      &count,
 		WebSearchDomainFilterList: &filters,
 	})
@@ -208,7 +208,7 @@ func TestUpdateWebSearchConfigEmptyUpdateSendsNothing(t *testing.T) {
 	})
 	c, server := newConfigTestClient(handler)
 	defer server.Close()
-	if err := c.UpdateWebSearchConfig(context.Background(), WebSearchConfigUpdate{}); err != nil {
+	if _, err := c.UpdateWebSearchConfig(context.Background(), WebSearchConfigUpdate{}); err != nil {
 		t.Fatalf("UpdateWebSearchConfig failed: %v", err)
 	}
 }
@@ -221,7 +221,7 @@ func TestUpdateWebSearchConfigRefusesWithoutCurrentWebObject(t *testing.T) {
 		var posts []map[string]any
 		c, done := webSearchFakeServer(t, web, &posts)
 		enable := true
-		err := c.UpdateWebSearchConfig(context.Background(), WebSearchConfigUpdate{EnableWebSearch: &enable})
+		_, err := c.UpdateWebSearchConfig(context.Background(), WebSearchConfigUpdate{EnableWebSearch: &enable})
 		done()
 		if err == nil {
 			t.Errorf("web=%s: expected an error", web)
@@ -249,7 +249,7 @@ func TestUpdateWebSearchConfigOmitsNullNonNullableKeys(t *testing.T) {
 			c, done := webSearchFakeServer(t, web, &posts)
 			defer done()
 			enable := true
-			if err := c.UpdateWebSearchConfig(context.Background(), WebSearchConfigUpdate{EnableWebSearch: &enable}); err != nil {
+			if _, err := c.UpdateWebSearchConfig(context.Background(), WebSearchConfigUpdate{EnableWebSearch: &enable}); err != nil {
 				t.Fatalf("UpdateWebSearchConfig failed: %v", err)
 			}
 			sent, ok := posts[0]["web"].(map[string]any)
@@ -276,12 +276,95 @@ func TestUpdateWebSearchConfigOmitsNullNonNullableKeys(t *testing.T) {
 	c, done := webSearchFakeServer(t, `{"YOUTUBE_LOADER_LANGUAGE": null, "WEB_SEARCH_DOMAIN_FILTER_LIST": ["a.example"]}`, &posts)
 	defer done()
 	langs := []string{"de"}
-	if err := c.UpdateWebSearchConfig(context.Background(), WebSearchConfigUpdate{YouTubeLoaderLanguage: &langs}); err != nil {
+	if _, err := c.UpdateWebSearchConfig(context.Background(), WebSearchConfigUpdate{YouTubeLoaderLanguage: &langs}); err != nil {
 		t.Fatalf("UpdateWebSearchConfig failed: %v", err)
 	}
 	sent, _ := posts[0]["web"].(map[string]any)
 	if !reflect.DeepEqual(sent["YOUTUBE_LOADER_LANGUAGE"], []any{"de"}) || !reflect.DeepEqual(sent["WEB_SEARCH_DOMAIN_FILTER_LIST"], []any{"a.example"}) {
 		t.Errorf("unexpected web: %v", sent)
+	}
+}
+
+// TestUpdateWebSearchConfigUnchangedSendsNothing: an update whose values all
+// equal the current web object (here also a null YOUTUBE_LOADER_LANGUAGE,
+// which is left out rather than echoed, and & escaping, which differs between
+// Go and Python) reads the config but makes no POST.
+func TestUpdateWebSearchConfigUnchangedSendsNothing(t *testing.T) {
+	var posts []map[string]any
+	web := strings.Replace(stockWebSearchObject, `"YOUTUBE_LOADER_LANGUAGE": ["en"]`, `"YOUTUBE_LOADER_LANGUAGE": null`, 1)
+	web = strings.Replace(web, `"SEARXNG_QUERY_URL": ""`, `"SEARXNG_QUERY_URL": "http://searxng:8080/search?q=<query>&format=json"`, 1)
+	c, done := webSearchFakeServer(t, web, &posts)
+	defer done()
+	enable, count, filters := true, int64(3), []string{}
+	searxng := "http://searxng:8080/search?q=<query>&format=json"
+	result, err := c.UpdateWebSearchConfig(context.Background(), WebSearchConfigUpdate{
+		EnableWebSearch:           &enable,
+		WebSearchResultCount:      &count,
+		WebSearchDomainFilterList: &filters,
+		SearXNGQueryURL:           &searxng,
+	})
+	if err != nil {
+		t.Fatalf("UpdateWebSearchConfig failed: %v", err)
+	}
+	if len(posts) != 0 {
+		t.Errorf("an unchanged update must not POST, got %v", posts)
+	}
+	if result.HybridSearchTurnedOff {
+		t.Errorf("no POST, so hybrid search cannot have been turned off")
+	}
+
+	// One changed value is sent, with the literal wire key.
+	count = 4
+	if _, err := c.UpdateWebSearchConfig(context.Background(), WebSearchConfigUpdate{WebSearchResultCount: &count}); err != nil {
+		t.Fatalf("UpdateWebSearchConfig failed: %v", err)
+	}
+	if len(posts) != 1 {
+		t.Fatalf("expected one POST, got %d", len(posts))
+	}
+	sent, _ := posts[0]["web"].(map[string]any)
+	if sent["WEB_SEARCH_RESULT_COUNT"] != float64(4) {
+		t.Errorf("WEB_SEARCH_RESULT_COUNT: sent %v", sent["WEB_SEARCH_RESULT_COUNT"])
+	}
+}
+
+// TestUpdateWebSearchConfigReportsHybridSearchTurnedOff: a web-only POST
+// reloads the reranking model while hybrid search is on, and Open WebUI turns
+// hybrid search off if that fails; the update reports a true -> false change
+// of ENABLE_RAG_HYBRID_SEARCH across the POST, and nothing otherwise.
+func TestUpdateWebSearchConfigReportsHybridSearchTurnedOff(t *testing.T) {
+	for name, tc := range map[string]struct {
+		before, after string
+		want          bool
+	}{
+		"turned off":   {"true", "false", true},
+		"stays on":     {"true", "true", false},
+		"was off":      {"false", "false", false},
+		"not reported": {"true", "null", false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			posts := 0
+			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch {
+				case r.Method == http.MethodGet && r.URL.Path == "/api/v1/retrieval/config":
+					_, _ = w.Write([]byte(`{"status": true, "ENABLE_RAG_HYBRID_SEARCH": ` + tc.before + `, "web": {"ENABLE_WEB_SEARCH": false, "TAVILY_API_KEY": "tvly-secret"}}`))
+				case r.Method == http.MethodPost && r.URL.Path == "/api/v1/retrieval/config/update":
+					posts++
+					_, _ = w.Write([]byte(`{"status": true, "ENABLE_RAG_HYBRID_SEARCH": ` + tc.after + `}`))
+				default:
+					t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+				}
+			})
+			c, server := newConfigTestClient(handler)
+			defer server.Close()
+			enable := true
+			result, err := c.UpdateWebSearchConfig(context.Background(), WebSearchConfigUpdate{EnableWebSearch: &enable})
+			if err != nil {
+				t.Fatalf("UpdateWebSearchConfig failed: %v", err)
+			}
+			if posts != 1 || result.HybridSearchTurnedOff != tc.want {
+				t.Errorf("posts=%d HybridSearchTurnedOff=%v, want 1 and %v", posts, result.HybridSearchTurnedOff, tc.want)
+			}
+		})
 	}
 }
 
@@ -369,7 +452,7 @@ func TestRetrievalWritesAreSerialized(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			enable := true
-			if err := c.UpdateWebSearchConfig(context.Background(), WebSearchConfigUpdate{EnableWebSearch: &enable}); err != nil {
+			if _, err := c.UpdateWebSearchConfig(context.Background(), WebSearchConfigUpdate{EnableWebSearch: &enable}); err != nil {
 				t.Errorf("UpdateWebSearchConfig: %v", err)
 			}
 		}()

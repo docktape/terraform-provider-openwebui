@@ -15,12 +15,12 @@ import (
 // the flat model T (a struct of attr.Value fields with tfsdk tags) that is
 // null in config while its planned value is known (including a known null),
 // i.e. copied from the prior state, Terraform requires the applied state to
-// equal that planned value.
-// The server value can legitimately differ (changed outside Terraform after
-// the last refresh, with -refresh=false, or by Open WebUI itself), and the
-// apply did not change the attribute, so the planned value is kept and an attribute
-// warning is added; the next refresh shows the server value. cause completes
-// the warning's parenthesis with the resource-specific reasons.
+// equal that planned value. The server value can legitimately differ
+// (changed outside Terraform after the last refresh, with -refresh=false, or
+// by Open WebUI itself), and the apply did not change the attribute, so the
+// planned value is kept and an attribute warning is added; the next refresh
+// shows the server value. cause completes the warning's parenthesis with the
+// resource-specific reasons.
 //
 // Values are deliberately never printed: several attributes are secrets.
 func reconcileUnconfiguredAttributes[T any](config, plan, fresh T, cause string) (T, diag.Diagnostics) {

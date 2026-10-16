@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -307,13 +308,25 @@ func (c *Client) GetRetrievalConfig(ctx context.Context) (*RetrievalConfig, erro
 // again, so two overlapping requests (openwebui_retrieval_config and
 // openwebui_web_search_config applied in parallel) could write back each
 // other's stale values.
+//
+// A form with nothing set sends nothing: even an empty request makes Open
+// WebUI re-save its retrieval settings and, while hybrid search is on, reload
+// the reranking model.
 func (c *Client) UpdateRetrievalConfig(ctx context.Context, form RetrievalConfigUpdateForm) error {
+	encoded, err := json.Marshal(form)
+	if err != nil {
+		return err
+	}
+	if bytes.Equal(bytes.TrimSpace(encoded), []byte("{}")) {
+		return nil
+	}
 	c.retrievalMu.Lock()
 	defer c.retrievalMu.Unlock()
-	return c.postRetrievalConfig(ctx, form)
+	return c.postRetrievalConfig(ctx, form, nil)
 }
 
-// postRetrievalConfig sends the update; callers hold retrievalMu.
-func (c *Client) postRetrievalConfig(ctx context.Context, form RetrievalConfigUpdateForm) error {
-	return c.do(ctx, http.MethodPost, "retrieval/config/update", nil, form, nil)
+// postRetrievalConfig sends the update and decodes the response into out
+// (nil discards it); callers hold retrievalMu.
+func (c *Client) postRetrievalConfig(ctx context.Context, form RetrievalConfigUpdateForm, out any) error {
+	return c.do(ctx, http.MethodPost, "retrieval/config/update", nil, form, out)
 }

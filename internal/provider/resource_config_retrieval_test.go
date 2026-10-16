@@ -343,6 +343,33 @@ func TestApplyRetrievalConfigAgainstFakeServer(t *testing.T) {
 	}
 }
 
+// TestRetrievalCreateWithoutAttributesSendsNothing: with nothing configured
+// the apply only reads (even an empty POST makes Open WebUI re-save its
+// settings and, with hybrid search on, reload the reranking model).
+func TestRetrievalCreateWithoutAttributesSendsNothing(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == "/api/v1/retrieval/config" {
+			_, _ = w.Write([]byte(stockRetrievalJSON))
+			return
+		}
+		t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+	}))
+	defer server.Close()
+	apiClient, err := client.NewClient(server.URL, "test-token", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := unknownRetrievalModel()
+	reflectNullModel(&config)
+	state, diags := applyRetrievalConfig(context.Background(), apiClient, config, unknownRetrievalModel())
+	if diags.HasError() {
+		t.Fatalf("apply failed: %v", diags)
+	}
+	if state.TopK.ValueInt64() != 3 {
+		t.Errorf("state must come from the server: %v", state.TopK)
+	}
+}
+
 func TestRetrievalConfigValidators(t *testing.T) {
 	planOnlyValid(t, retrievalHCL(`  file_max_size = -1`))
 	planOnlyValid(t, retrievalHCL(`  file_max_count = 0`))

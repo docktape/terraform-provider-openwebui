@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -439,6 +440,57 @@ func TestWebSearchCreateWithoutAttributesSendsNothing(t *testing.T) {
 	}
 	if state.WebSearchEngine.ValueString() != "tavily" || state.TavilyAPIKey.ValueString() != "tvly-existing" {
 		t.Errorf("state must come from the server: %v", state.WebSearchEngine)
+	}
+}
+
+// TestWebSearchApplyWarnsWhenHybridSearchTurnedOff: a web-only POST makes
+// Open WebUI reload the reranking model while hybrid search is on, and a
+// failed reload turns hybrid search off; the apply warns (without values) and
+// still succeeds. A POST that leaves hybrid search on does not warn.
+func TestWebSearchApplyWarnsWhenHybridSearchTurnedOff(t *testing.T) {
+	for _, turnedOff := range []bool{true, false} {
+		hybrid := true
+		var mu sync.Mutex
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			mu.Lock()
+			defer mu.Unlock()
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/api/v1/retrieval/config":
+				_, _ = fmt.Fprintf(w, `{"status": true, "ENABLE_RAG_HYBRID_SEARCH": %t, "web": %s}`, hybrid, stockWebJSON)
+			case r.Method == http.MethodPost && r.URL.Path == "/api/v1/retrieval/config/update":
+				if turnedOff {
+					hybrid = false
+				}
+				_, _ = fmt.Fprintf(w, `{"status": true, "ENABLE_RAG_HYBRID_SEARCH": %t}`, hybrid)
+			default:
+				t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+			}
+		}))
+		apiClient, err := client.NewClient(server.URL, "test-token", false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		config := fillWebSearchModel(false)
+		config.WebSearchResultCount = types.Int64Value(9)
+		plan := fillWebSearchModel(true)
+		plan.WebSearchResultCount = types.Int64Value(9)
+		_, diags := applyWebSearchConfig(context.Background(), apiClient, config, plan)
+		server.Close()
+		if diags.HasError() {
+			t.Fatalf("turnedOff=%v: apply failed: %v", turnedOff, diags)
+		}
+		var warned bool
+		for _, d := range diags {
+			if d.Summary() == "Hybrid search was turned off by Open WebUI" {
+				warned = true
+				if strings.Contains(d.Detail(), "tvly-") {
+					t.Errorf("the warning must not print values: %s", d.Detail())
+				}
+			}
+		}
+		if warned != turnedOff {
+			t.Errorf("turnedOff=%v: warning emitted=%v (%v)", turnedOff, warned, diags)
+		}
 	}
 }
 

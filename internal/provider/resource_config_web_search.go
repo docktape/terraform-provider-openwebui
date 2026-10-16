@@ -160,8 +160,9 @@ func (r *webSearchConfigResource) Schema(_ context.Context, _ resource.SchemaReq
 		MarkdownDescription: "Manages Open WebUI's web search settings: the web search toggles, the search engine and its provider credentials, and the web page loader. These are the nested `web` settings of the retrieval config endpoint; the document retrieval (RAG) settings of the same endpoint are managed by `openwebui_retrieval_config` and are never sent by this resource.\n\n" +
 			"~> Open WebUI replaces the whole web search configuration on every update. This resource therefore reads the current settings, changes only the attributes set in your configuration, and sends everything else back exactly as read. Any attribute you leave out keeps its current Open WebUI value, and its state shows that value. Removing an attribute from your configuration therefore does not reset it; set it to the value you want instead (`\"\"` for strings, `[]` for lists, `{}` for JSON objects). The read and the write are separate requests: the provider keeps its own updates (including those of `openwebui_retrieval_config`) from running in between, but a web search change made by someone else in between is overwritten.\n\n" +
 			"~> The API keys, passwords, `playwright_ws_url` and `youtube_loader_proxy_url` are stored in Terraform state because Open WebUI returns them in plain text. Protect your state accordingly. Of the URL attributes, only `playwright_ws_url` and `youtube_loader_proxy_url` are marked sensitive; the others (such as `searxng_query_url`, `external_web_search_url` and `external_web_loader_url`) are shown in plain text in plans and outputs, so do not embed credentials in them; use the matching `*_api_key` attributes instead.\n\n" +
-			"~> If Open WebUI reports a different value during an apply for an attribute you do not set (because it was changed outside Terraform after the last refresh), the apply leaves it unchanged and keeps the previous state value with a warning; the next refresh shows the server value.\n\n" +
-			"-> Every update also makes Open WebUI re-save its retrieval settings and, while hybrid search is enabled, reload the reranking model (see `openwebui_retrieval_config`). An apply that changes nothing sends nothing. `YOUTUBE_LOADER_TRANSLATION` is not managed: Open WebUI keeps it in memory only and does not use it.",
+			"~> If Open WebUI reports a different value during an apply for an attribute you do not set (because it was changed outside Terraform after the last refresh, or by Open WebUI during this apply), the apply leaves it unchanged and keeps the previous state value with a warning; the next refresh shows the server value.\n\n" +
+			"~> Every update also makes Open WebUI re-save its retrieval settings and, while hybrid search is enabled, reload the reranking model inside the update request (see `openwebui_retrieval_config`). If that reload fails, Open WebUI turns hybrid search off (`enable_rag_hybrid_search`, managed by `openwebui_retrieval_config`), and the apply warns about it. The provider gives up on a request after 30 seconds, while Open WebUI finishes the change on its own: when the reranking model is not cached yet, the apply can fail with `Client.Timeout exceeded` although Open WebUI completes the download and saves the change, and because Open WebUI handles no other request meanwhile, other Open WebUI resources in the same apply can time out too. Pre-download the model (for example by selecting it once in the Open WebUI admin page), or re-run `terraform plan`/`terraform apply`, which converges once the model is loaded.\n\n" +
+			"-> An apply that changes nothing (no attribute configured, or every configured value equal to the current one) sends nothing. `YOUTUBE_LOADER_TRANSLATION` is not managed: Open WebUI keeps it in memory only and does not use it.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:            true,
@@ -357,9 +358,14 @@ func applyWebSearchConfig(ctx context.Context, apiClient *client.Client, config,
 		return webSearchConfigModel{}, diags
 	}
 
-	if err := apiClient.UpdateWebSearchConfig(ctx, update); err != nil {
+	result, err := apiClient.UpdateWebSearchConfig(ctx, update)
+	if err != nil {
 		diags.AddError("Update web search config failed", err.Error())
 		return webSearchConfigModel{}, diags
+	}
+	if result.HybridSearchTurnedOff {
+		diags.AddWarning("Hybrid search was turned off by Open WebUI",
+			"This web search update made Open WebUI reload the reranking model (hybrid search was enabled), the reload failed, and Open WebUI turned hybrid search off (ENABLE_RAG_HYBRID_SEARCH). Check the reranking settings of openwebui_retrieval_config and the Open WebUI logs, then enable hybrid search again.")
 	}
 
 	current, err := apiClient.GetWebSearchConfig(ctx)
@@ -379,7 +385,7 @@ func applyWebSearchConfig(ctx context.Context, apiClient *client.Client, config,
 		return webSearchConfigModel{}, diags
 	}
 	state, reconcileDiags := reconcileUnconfiguredAttributes(config, plan, preserveWebSearchConfig(plan, fresh),
-		"changed outside Terraform since the last refresh")
+		"changed outside Terraform since the last refresh, or by Open WebUI during this apply, for example a null domain filter list stored as []")
 	diags.Append(reconcileDiags...)
 	return state, diags
 }

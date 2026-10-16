@@ -2,6 +2,7 @@ package provider
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
 
 // boolPtr and boolValueOrNull are shared across resources that model a
@@ -59,6 +60,10 @@ func int64ValueOrNull(value *int64) types.Int64 {
 	}
 	return types.Int64Value(*value)
 }
+
+// objectAsOptions converts a nested object attribute to its model as it is
+// (unknown inner values stay unknown); used with types.Object.As.
+var objectAsOptions = basetypes.ObjectAsOptions{}
 
 // knownObject reports whether a nested object attribute holds a concrete
 // (non-null, non-unknown) value.

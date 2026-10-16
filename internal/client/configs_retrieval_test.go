@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"strings"
 	"testing"
 )
 
@@ -213,20 +212,18 @@ func TestUpdateRetrievalConfigSendsOnlySetFields(t *testing.T) {
 	}
 }
 
-func TestUpdateRetrievalConfigEmptyFormSendsEmptyObject(t *testing.T) {
-	var raw []byte
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		raw, _ = io.ReadAll(r.Body)
-		_, _ = w.Write([]byte(stockRetrievalResponse))
+// TestUpdateRetrievalConfigEmptyFormSendsNothing: a form with nothing set
+// makes no request at all (even an empty POST makes Open WebUI re-save its
+// settings and, with hybrid search on, reload the reranking model).
+func TestUpdateRetrievalConfigEmptyFormSendsNothing(t *testing.T) {
+	handler := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
 	})
 	c, server := newConfigTestClient(handler)
 	defer server.Close()
 
 	if err := c.UpdateRetrievalConfig(context.Background(), RetrievalConfigUpdateForm{}); err != nil {
 		t.Fatalf("UpdateRetrievalConfig failed: %v", err)
-	}
-	if strings.TrimSpace(string(raw)) != "{}" {
-		t.Errorf("expected {}, got %s", raw)
 	}
 }
 
