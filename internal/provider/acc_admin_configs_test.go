@@ -1354,3 +1354,172 @@ resource "openwebui_retrieval_config" "test" {
 		},
 	})
 }
+
+// TestAccWebSearchConfigResource covers the read-merge-write web search
+// config against a live instance: an empty apply (nothing is sent), then an
+// apply of harmless values (a result count, [] and populated lists, a
+// non-canonical JSON object, a confirmation text and a dummy key for an
+// engine that is not selected) after an unmanaged web key was changed outside
+// Terraform. That step checks that every web key the configuration does not
+// set, including secrets, the unmodelled YOUTUBE_LOADER_TRANSLATION and the
+// out-of-band change, is exactly what it was before. Every step checks that
+// the top-level retrieval (RAG) settings are unchanged. Each apply is
+// followed by a PlanOnly idempotency step. The engine selection is not
+// changed and no external engine is called. Values are compared, never
+// printed (several are secrets). The original web object is POSTed back on
+// cleanup.
+func TestAccWebSearchConfigResource(t *testing.T) {
+	testAccPreCheck(t)
+	const name = "openwebui_web_search_config.test"
+
+	original := testAccRetrievalRaw(t, http.MethodGet, "retrieval/config", nil)
+	originalWeb, ok := original["web"].(map[string]any)
+	if !ok {
+		t.Fatalf("the retrieval config has no web object")
+	}
+	t.Cleanup(func() {
+		testAccRetrievalRaw(t, http.MethodPost, "retrieval/config/update", map[string]any{"web": originalWeb})
+	})
+	topLevel := func(cfg map[string]any) string {
+		rest := map[string]any{}
+		for k, v := range cfg {
+			if k != "web" {
+				rest[k] = v
+			}
+		}
+		encoded, _ := json.Marshal(rest)
+		return string(encoded)
+	}
+	originalTop := topLevel(original)
+	topLevelUnchanged := func(_ *terraform.State) error {
+		if current := topLevel(testAccRetrievalRaw(t, http.MethodGet, "retrieval/config", nil)); current != originalTop {
+			return fmt.Errorf("top-level retrieval settings changed: %d bytes before, %d after", len(originalTop), len(current))
+		}
+		return nil
+	}
+	// webMatches compares the server's web object with want: managed keys
+	// must hold the given value, every other key its value in want. Only key
+	// names are reported.
+	webMatches := func(want map[string]any, managed map[string]any) resource.TestCheckFunc {
+		return func(_ *terraform.State) error {
+			current, _ := testAccRetrievalRaw(t, http.MethodGet, "retrieval/config", nil)["web"].(map[string]any)
+			var diffs []string
+			for k, v := range want {
+				expected := v
+				if m, ok := managed[k]; ok {
+					expected = m
+				}
+				a, _ := json.Marshal(current[k])
+				b, _ := json.Marshal(expected)
+				if string(a) != string(b) {
+					diffs = append(diffs, k)
+				}
+			}
+			if len(current) != len(want) {
+				diffs = append(diffs, fmt.Sprintf("(key count %d, want %d)", len(current), len(want)))
+			}
+			if len(diffs) > 0 {
+				return fmt.Errorf("web search keys differ from the expected values: %v", diffs)
+			}
+			return nil
+		}
+	}
+
+	// Out-of-band change of a key this test never configures.
+	outOfBand := map[string]any{}
+	for k, v := range originalWeb {
+		outOfBand[k] = v
+	}
+	outOfBandDomain := "bing.com"
+	if originalWeb["SERPHOUSE_DOMAIN"] == outOfBandDomain {
+		outOfBandDomain = "google.com"
+	}
+	outOfBand["SERPHOUSE_DOMAIN"] = outOfBandDomain
+
+	empty := testAccProviderConfig() + `
+resource "openwebui_web_search_config" "test" {
+}`
+	changed := testAccProviderConfig() + `
+resource "openwebui_web_search_config" "test" {
+  web_search_result_count         = 4
+  web_search_domain_filter_list   = []
+  youtube_loader_language         = ["en", "de"]
+  searxng_language                = "en"
+  web_search_confirmation_content = "Terraform acceptance test confirmation."
+  serper_api_key                  = "acc-test-dummy-not-a-key"
+  linkup_search_params_json       = "{ \"depth\": \"standard\" }"
+}`
+	changedManaged := map[string]any{
+		"WEB_SEARCH_RESULT_COUNT":         4,
+		"WEB_SEARCH_DOMAIN_FILTER_LIST":   []any{},
+		"YOUTUBE_LOADER_LANGUAGE":         []any{"en", "de"},
+		"SEARXNG_LANGUAGE":                "en",
+		"WEB_SEARCH_CONFIRMATION_CONTENT": "Terraform acceptance test confirmation.",
+		"SERPER_API_KEY":                  "acc-test-dummy-not-a-key",
+		"LINKUP_SEARCH_PARAMS":            map[string]any{"depth": "standard"},
+	}
+	populated := testAccProviderConfig() + `
+resource "openwebui_web_search_config" "test" {
+  web_search_result_count       = 4
+  web_search_domain_filter_list = ["example.com", "!blocked.example"]
+  linkup_search_params_json     = jsonencode({ depth = "standard" })
+}`
+	populatedManaged := map[string]any{}
+	for k, v := range changedManaged {
+		populatedManaged[k] = v
+	}
+	populatedManaged["WEB_SEARCH_DOMAIN_FILTER_LIST"] = []any{"example.com", "!blocked.example"}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: empty,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "id", "web_search"),
+					resource.TestCheckResourceAttrSet(name, "enable_web_search"),
+					resource.TestCheckResourceAttrSet(name, "web_search_engine"),
+					resource.TestCheckResourceAttrSet(name, "web_search_result_count"),
+					resource.TestCheckResourceAttrSet(name, "web_search_domain_filter_list.#"),
+					webMatches(originalWeb, nil),
+					topLevelUnchanged,
+				),
+			},
+			{Config: empty, PlanOnly: true},
+			{
+				PreConfig: func() {
+					testAccRetrievalRaw(t, http.MethodPost, "retrieval/config/update", map[string]any{"web": outOfBand})
+				},
+				Config: changed,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "web_search_result_count", "4"),
+					resource.TestCheckResourceAttr(name, "web_search_domain_filter_list.#", "0"),
+					resource.TestCheckResourceAttr(name, "youtube_loader_language.#", "2"),
+					resource.TestCheckResourceAttr(name, "youtube_loader_language.1", "de"),
+					resource.TestCheckResourceAttr(name, "searxng_language", "en"),
+					resource.TestCheckResourceAttr(name, "linkup_search_params_json", "{ \"depth\": \"standard\" }"),
+					resource.TestCheckResourceAttr(name, "serphouse_domain", outOfBandDomain),
+					webMatches(outOfBand, changedManaged),
+					topLevelUnchanged,
+				),
+			},
+			{Config: changed, PlanOnly: true},
+			{
+				// youtube_loader_language, searxng_language, the confirmation
+				// text and the dummy key are no longer configured: they keep
+				// their server values.
+				Config: populated,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "web_search_domain_filter_list.#", "2"),
+					resource.TestCheckResourceAttr(name, "web_search_domain_filter_list.1", "!blocked.example"),
+					resource.TestCheckResourceAttr(name, "youtube_loader_language.#", "2"),
+					resource.TestCheckResourceAttr(name, "linkup_search_params_json", `{"depth":"standard"}`),
+					webMatches(outOfBand, populatedManaged),
+					topLevelUnchanged,
+				),
+			},
+			{Config: populated, PlanOnly: true},
+		},
+	})
+}
