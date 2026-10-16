@@ -66,9 +66,11 @@ const stockWebJSON = `{
 // GET returns the stored object; POST merges top-level fields per field (only
 // non-null ones) and, when `web` is present, REPLACES the web object the way
 // update_rag_config does: every WebConfig field (the keys of the initial web
-// object) is taken from the posted object, a missing one becomes null (the
-// non-nullable WEB_SEARCH_DOMAIN_FILTER_LIST becomes its Pydantic default []),
+// object) is taken from the posted object, a missing one becomes its Pydantic
+// default (null, or [] for WEB_SEARCH_DOMAIN_FILTER_LIST),
 // BRAVE_SEARCH_CONTEXT_TOKENS is kept when null, and unknown keys are ignored.
+// Like Pydantic, it rejects the whole request with HTTP 422 when one of the two
+// non-Optional WebConfig fields (webSearchNonNullableKeys) is an explicit null.
 type webSearchFakeBackend struct {
 	t     *testing.T
 	mu    sync.Mutex
@@ -100,6 +102,16 @@ func (b *webSearchFakeBackend) ServeHTTP(w http.ResponseWriter, r *http.Request)
 			b.t.Errorf("decode POST: %v", err)
 		}
 		b.posts = append(b.posts, body)
+		// Request validation (Pydantic) happens before the handler runs.
+		if posted, ok := body["web"].(map[string]any); ok {
+			for _, k := range webSearchNonNullableKeys {
+				if v, present := posted[k]; present && v == nil {
+					w.WriteHeader(http.StatusUnprocessableEntity)
+					_, _ = w.Write([]byte(`{"detail": [{"type": "list_type", "loc": ["body", "web", "` + k + `"], "msg": "Input should be a valid list", "input": null}]}`))
+					return
+				}
+			}
+		}
 		for k, v := range body {
 			if k != "web" && v != nil {
 				b.state[k] = v
@@ -124,6 +136,10 @@ func (b *webSearchFakeBackend) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		b.t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
 	}
 }
+
+// webSearchNonNullableKeys are the WebConfig fields whose annotation is not
+// Optional (`list[str | None]`) on every release from v0.9.6 to v0.11.0.
+var webSearchNonNullableKeys = []string{"WEB_SEARCH_DOMAIN_FILTER_LIST", "YOUTUBE_LOADER_LANGUAGE"}
 
 func (b *webSearchFakeBackend) web() map[string]any {
 	b.mu.Lock()
@@ -432,7 +448,11 @@ func TestWebSearchCreateWithoutAttributesSendsNothing(t *testing.T) {
 // a list that is unknown at plan time (from terraform_data), and JSON text
 // kept as written. Each apply is followed by an empty-plan check.
 func TestWebSearchConfigListsAndJSONThroughTerraform(t *testing.T) {
+	// Both non-nullable lists start as null on the server: YOUTUBE_LOADER_LANGUAGE
+	// is stored as null whenever another client saves a web object without
+	// it. Echoing either null back would be an HTTP 422 (see the fake).
 	web := strings.Replace(stockWebJSON, `"YOUTUBE_LOADER_LANGUAGE": ["en"]`, `"YOUTUBE_LOADER_LANGUAGE": null`, 1)
+	web = strings.Replace(web, `"WEB_SEARCH_DOMAIN_FILTER_LIST": []`, `"WEB_SEARCH_DOMAIN_FILTER_LIST": null`, 1)
 	backend, server := newWebSearchFakeBackend(t, web)
 	defer server.Close()
 	t.Setenv("OPENWEBUI_ENDPOINT", server.URL)
@@ -440,6 +460,9 @@ func TestWebSearchConfigListsAndJSONThroughTerraform(t *testing.T) {
 	const name = "openwebui_web_search_config.test"
 
 	empty := webSearchHCL(``)
+	otherOnly := webSearchHCL(`
+  web_search_result_count = 4
+`)
 	lists := `
 resource "terraform_data" "lang" {
   input = "de"
@@ -467,7 +490,7 @@ resource "terraform_data" "lang" {
 				Check: tfresource.ComposeTestCheckFunc(
 					tfresource.TestCheckResourceAttr(name, "id", "web_search"),
 					tfresource.TestCheckNoResourceAttr(name, "youtube_loader_language"),
-					tfresource.TestCheckResourceAttr(name, "web_search_domain_filter_list.#", "0"),
+					tfresource.TestCheckNoResourceAttr(name, "web_search_domain_filter_list"),
 					tfresource.TestCheckResourceAttr(name, "web_search_engine", "tavily"),
 					func(_ *terraform.State) error {
 						if len(backend.posts) != 0 {
@@ -478,6 +501,37 @@ resource "terraform_data" "lang" {
 				),
 			},
 			{Config: empty, PlanOnly: true},
+			{
+				// Neither list is configured and both are null on the server:
+				// they must be left out of the web object, not echoed as null.
+				Config: otherOnly,
+				Check: tfresource.ComposeTestCheckFunc(
+					tfresource.TestCheckResourceAttr(name, "web_search_result_count", "4"),
+					tfresource.TestCheckNoResourceAttr(name, "youtube_loader_language"),
+					// Omitted, the domain filter takes its Pydantic default []
+					// on the server. Terraform planned the prior null for the
+					// unconfigured attribute, so the state keeps null (with a
+					// warning) and the next refresh reads [].
+					tfresource.TestCheckNoResourceAttr(name, "web_search_domain_filter_list"),
+					func(_ *terraform.State) error {
+						last, _ := backend.posts[len(backend.posts)-1]["web"].(map[string]any)
+						for _, k := range webSearchNonNullableKeys {
+							if _, present := last[k]; present {
+								t.Errorf("a null %s must not be sent", k)
+							}
+						}
+						w := backend.web()
+						if w["YOUTUBE_LOADER_LANGUAGE"] != nil {
+							t.Errorf("YOUTUBE_LOADER_LANGUAGE must stay null on the server, got %v", w["YOUTUBE_LOADER_LANGUAGE"])
+						}
+						if !reflect.DeepEqual(w["WEB_SEARCH_DOMAIN_FILTER_LIST"], []any{}) {
+							t.Errorf("WEB_SEARCH_DOMAIN_FILTER_LIST must take its default [], got %v", w["WEB_SEARCH_DOMAIN_FILTER_LIST"])
+						}
+						return nil
+					},
+				),
+			},
+			{Config: otherOnly, PlanOnly: true},
 			{
 				Config: lists,
 				Check: tfresource.ComposeTestCheckFunc(
@@ -521,6 +575,25 @@ resource "terraform_data" "lang" {
 	}
 }
 
+// TestReconcileKeepsPlannedNull: an unconfigured attribute planned as null
+// (the prior state) that the server now reports non-null keeps null with a
+// value-free warning, since Terraform requires the planned null; here the
+// domain filter list, which Open WebUI turns from null into [] when it is
+// left out of a web object.
+func TestReconcileKeepsPlannedNull(t *testing.T) {
+	fresh, _ := webSearchConfigModelFromAPI(context.Background(), decodeStockWeb(t, stockWebJSON))
+	config := fillWebSearchModel(false)
+	plan := fresh
+	plan.WebSearchDomainFilterList = types.ListNull(types.StringType)
+	got, diags := reconcileUnconfiguredAttributes(config, plan, fresh, "test")
+	if diags.HasError() || diags.WarningsCount() != 1 {
+		t.Fatalf("expected exactly one warning, got %v", diags)
+	}
+	if !got.WebSearchDomainFilterList.IsNull() {
+		t.Errorf("the planned null must be kept, got %v", got.WebSearchDomainFilterList)
+	}
+}
+
 func TestWebSearchConfigValidators(t *testing.T) {
 	for _, attr := range []string{"web_search_concurrent_requests", "web_fetch_max_content_length", "web_loader_concurrent_requests"} {
 		planOnlyValid(t, webSearchHCL(`  `+attr+` = 0`))
@@ -530,13 +603,13 @@ func TestWebSearchConfigValidators(t *testing.T) {
 	for _, ok := range []string{"", "10", "2.5"} {
 		planOnlyValid(t, webSearchHCL(`  web_loader_timeout = "`+ok+`"`))
 	}
-	for _, bad := range []string{"10s", " 10", "-1", "1e3"} {
-		planOnlyRejected(t, webSearchHCL(`  web_loader_timeout = "`+bad+`"`), `(?s)web_loader_timeout.*non-negative\s+number`)
+	for _, bad := range []string{"10s", " 10", "-1", "+1", "1e3", ".5", "1."} {
+		planOnlyRejected(t, webSearchHCL(`  web_loader_timeout = "`+bad+`"`), `(?s)web_loader_timeout.*plain\s+decimal\s+number`)
 	}
 	for _, ok := range []string{"", "30"} {
 		planOnlyValid(t, webSearchHCL(`  firecrawl_timeout = "`+ok+`"`))
 	}
-	for _, bad := range []string{"2.5", "30s", "-1"} {
+	for _, bad := range []string{"2.5", "30s", "-1", "+30", "3e1"} {
 		planOnlyRejected(t, webSearchHCL(`  firecrawl_timeout = "`+bad+`"`), `(?s)firecrawl_timeout.*whole\s+number`)
 	}
 

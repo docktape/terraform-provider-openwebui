@@ -32,14 +32,14 @@ var _ resource.ResourceWithImportState = &webSearchConfigResource{}
 // WEB_LOADER_TIMEOUT: any other value is silently ignored by Open WebUI.
 var webLoaderTimeoutValidator = stringvalidator.RegexMatches(
 	regexp.MustCompile(`^$|^[0-9]+(\.[0-9]+)?$`),
-	"must be empty or a non-negative number of seconds (Open WebUI ignores anything else)",
+	"must be empty or a plain decimal number of seconds such as 10 or 2.5 (no sign, exponent or unit; Open WebUI ignores anything else)",
 )
 
 // firecrawlTimeoutValidator mirrors the Firecrawl loader's int() conversion
 // of FIRECRAWL_TIMEOUT: any other value is silently ignored by Open WebUI.
 var firecrawlTimeoutValidator = stringvalidator.RegexMatches(
 	regexp.MustCompile(`^[0-9]*$`),
-	"must be empty or a whole number of seconds (Open WebUI ignores anything else)",
+	"must be empty or a plain whole number of seconds such as 30 (no sign, fraction, exponent or unit; Open WebUI ignores anything else)",
 )
 
 // emptyOrJSONObjectValidator accepts "" or JSON object text: the Yandex
@@ -159,7 +159,7 @@ func (r *webSearchConfigResource) Schema(_ context.Context, _ resource.SchemaReq
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Manages Open WebUI's web search settings: the web search toggles, the search engine and its provider credentials, and the web page loader. These are the nested `web` settings of the retrieval config endpoint; the document retrieval (RAG) settings of the same endpoint are managed by `openwebui_retrieval_config` and are never sent by this resource.\n\n" +
 			"~> Open WebUI replaces the whole web search configuration on every update. This resource therefore reads the current settings, changes only the attributes set in your configuration, and sends everything else back exactly as read. Any attribute you leave out keeps its current Open WebUI value, and its state shows that value. Removing an attribute from your configuration therefore does not reset it; set it to the value you want instead (`\"\"` for strings, `[]` for lists, `{}` for JSON objects). The read and the write are separate requests: the provider keeps its own updates (including those of `openwebui_retrieval_config`) from running in between, but a web search change made by someone else in between is overwritten.\n\n" +
-			"~> The API keys, passwords, `playwright_ws_url` and `youtube_loader_proxy_url` are stored in Terraform state because Open WebUI returns them in plain text. Protect your state accordingly.\n\n" +
+			"~> The API keys, passwords, `playwright_ws_url` and `youtube_loader_proxy_url` are stored in Terraform state because Open WebUI returns them in plain text. Protect your state accordingly. Of the URL attributes, only `playwright_ws_url` and `youtube_loader_proxy_url` are marked sensitive; the others (such as `searxng_query_url`, `external_web_search_url` and `external_web_loader_url`) are shown in plain text in plans and outputs, so do not embed credentials in them; use the matching `*_api_key` attributes instead.\n\n" +
 			"~> If Open WebUI reports a different value during an apply for an attribute you do not set (because it was changed outside Terraform after the last refresh), the apply leaves it unchanged and keeps the previous state value with a warning; the next refresh shows the server value.\n\n" +
 			"-> Every update also makes Open WebUI re-save its retrieval settings and, while hybrid search is enabled, reload the reranking model (see `openwebui_retrieval_config`). An apply that changes nothing sends nothing. `YOUTUBE_LOADER_TRANSLATION` is not managed: Open WebUI keeps it in memory only and does not use it.",
 		Attributes: map[string]schema.Attribute{
@@ -223,19 +223,19 @@ func (r *webSearchConfigResource) Schema(_ context.Context, _ resource.SchemaReq
 			"sougou_api_sid":                            secret("Sougou (Tencent Cloud) SecretId."),
 			"sougou_api_sk":                             secret("Sougou (Tencent Cloud) SecretKey."),
 			"web_loader_engine":                         str("Web page loader: `\"\"` or `safe_web` (built-in), `playwright`, `firecrawl`, `tavily`, `external` or `microsoft_web_iq`. Open WebUI does not validate the value when saving, but every page load fails with any other value. Server default: `\"\"`."),
-			"web_loader_timeout":                        str("Timeout of the built-in and `microsoft_web_iq` loaders in seconds, as a string; `\"\"` means the default. Must be empty or a non-negative number (Open WebUI silently ignores anything else). Server default: `\"\"`.", webLoaderTimeoutValidator),
+			"web_loader_timeout":                        str("Timeout of the built-in and `microsoft_web_iq` loaders in seconds, as a string; `\"\"` means the default. Must be empty or a plain decimal number such as `10` or `2.5` (no sign, exponent or unit; Open WebUI silently ignores anything it cannot convert). Server default: `\"\"`.", webLoaderTimeoutValidator),
 			"enable_web_loader_ssl_verification":        b("Whether the web loader verifies TLS certificates. Server default: `true`."),
 			"playwright_ws_url":                         secret("WebSocket URL of a remote Playwright browser; empty launches a local one. Sensitive because hosted browsers (such as browserless) take an access token in this URL."),
 			"playwright_timeout":                        i("Playwright page load timeout in milliseconds. Server default: `10000`."),
 			"firecrawl_api_key":                         secret("Firecrawl API key (search engine and web loader)."),
 			"firecrawl_api_base_url":                    str("Firecrawl API base URL. Server default: `https://api.firecrawl.dev`."),
-			"firecrawl_timeout":                         str("Firecrawl web loader timeout in whole seconds, as a string; `\"\"` means the default. Must be empty or a whole number (Open WebUI silently ignores anything else). Server default: `\"\"`.", firecrawlTimeoutValidator),
+			"firecrawl_timeout":                         str("Firecrawl web loader timeout in whole seconds, as a string; `\"\"` means the default. Must be empty or a plain whole number such as `30` (no sign, fraction, exponent or unit; Open WebUI silently ignores anything it cannot convert). Server default: `\"\"`.", firecrawlTimeoutValidator),
 			"tavily_extract_depth":                      str("Tavily web loader extract depth: `basic` or `advanced`. Server default: `basic`."),
 			"external_web_search_url":                   str("URL of the external web search service (`external` engine)."),
 			"external_web_search_api_key":               secret("API key of the external web search service."),
 			"external_web_loader_url":                   str("URL of the external web loader (`external` loader)."),
 			"external_web_loader_api_key":               secret("API key of the external web loader."),
-			"youtube_loader_language":                   list("Preferred YouTube transcript languages, in order. Server default: `[\"en\"]`."),
+			"youtube_loader_language":                   list("Preferred YouTube transcript languages, in order. Open WebUI stores null here when another client saves the web search settings without it; this resource leaves such a null untouched unless you set the attribute. Server default: `[\"en\"]`."),
 			"youtube_loader_proxy_url":                  secret("Proxy URL for YouTube transcript requests. Sensitive because proxy URLs commonly embed credentials."),
 			"yandex_web_search_url":                     str("Yandex Search API URL. Empty means the public endpoint."),
 			"yandex_web_search_api_key":                 secret("Yandex Search API key."),

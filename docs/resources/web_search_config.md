@@ -5,7 +5,7 @@ subcategory: ""
 description: |-
   Manages Open WebUI's web search settings: the web search toggles, the search engine and its provider credentials, and the web page loader. These are the nested web settings of the retrieval config endpoint; the document retrieval (RAG) settings of the same endpoint are managed by openwebui_retrieval_config and are never sent by this resource.
   ~> Open WebUI replaces the whole web search configuration on every update. This resource therefore reads the current settings, changes only the attributes set in your configuration, and sends everything else back exactly as read. Any attribute you leave out keeps its current Open WebUI value, and its state shows that value. Removing an attribute from your configuration therefore does not reset it; set it to the value you want instead ("" for strings, [] for lists, {} for JSON objects). The read and the write are separate requests: the provider keeps its own updates (including those of openwebui_retrieval_config) from running in between, but a web search change made by someone else in between is overwritten.
-  ~> The API keys, passwords, playwright_ws_url and youtube_loader_proxy_url are stored in Terraform state because Open WebUI returns them in plain text. Protect your state accordingly.
+  ~> The API keys, passwords, playwright_ws_url and youtube_loader_proxy_url are stored in Terraform state because Open WebUI returns them in plain text. Protect your state accordingly. Of the URL attributes, only playwright_ws_url and youtube_loader_proxy_url are marked sensitive; the others (such as searxng_query_url, external_web_search_url and external_web_loader_url) are shown in plain text in plans and outputs, so do not embed credentials in them; use the matching *_api_key attributes instead.
   ~> If Open WebUI reports a different value during an apply for an attribute you do not set (because it was changed outside Terraform after the last refresh), the apply leaves it unchanged and keeps the previous state value with a warning; the next refresh shows the server value.
   -> Every update also makes Open WebUI re-save its retrieval settings and, while hybrid search is enabled, reload the reranking model (see openwebui_retrieval_config). An apply that changes nothing sends nothing. YOUTUBE_LOADER_TRANSLATION is not managed: Open WebUI keeps it in memory only and does not use it.
 ---
@@ -16,7 +16,7 @@ Manages Open WebUI's web search settings: the web search toggles, the search eng
 
 ~> Open WebUI replaces the whole web search configuration on every update. This resource therefore reads the current settings, changes only the attributes set in your configuration, and sends everything else back exactly as read. Any attribute you leave out keeps its current Open WebUI value, and its state shows that value. Removing an attribute from your configuration therefore does not reset it; set it to the value you want instead (`""` for strings, `[]` for lists, `{}` for JSON objects). The read and the write are separate requests: the provider keeps its own updates (including those of `openwebui_retrieval_config`) from running in between, but a web search change made by someone else in between is overwritten.
 
-~> The API keys, passwords, `playwright_ws_url` and `youtube_loader_proxy_url` are stored in Terraform state because Open WebUI returns them in plain text. Protect your state accordingly.
+~> The API keys, passwords, `playwright_ws_url` and `youtube_loader_proxy_url` are stored in Terraform state because Open WebUI returns them in plain text. Protect your state accordingly. Of the URL attributes, only `playwright_ws_url` and `youtube_loader_proxy_url` are marked sensitive; the others (such as `searxng_query_url`, `external_web_search_url` and `external_web_loader_url`) are shown in plain text in plans and outputs, so do not embed credentials in them; use the matching `*_api_key` attributes instead.
 
 ~> If Open WebUI reports a different value during an apply for an attribute you do not set (because it was changed outside Terraform after the last refresh), the apply leaves it unchanged and keeps the previous state value with a warning; the next refresh shows the server value.
 
@@ -66,7 +66,7 @@ resource "openwebui_web_search_config" "example" {
 - `external_web_search_url` (String) URL of the external web search service (`external` engine).
 - `firecrawl_api_base_url` (String) Firecrawl API base URL. Server default: `https://api.firecrawl.dev`.
 - `firecrawl_api_key` (String, Sensitive) Firecrawl API key (search engine and web loader).
-- `firecrawl_timeout` (String) Firecrawl web loader timeout in whole seconds, as a string; `""` means the default. Must be empty or a whole number (Open WebUI silently ignores anything else). Server default: `""`.
+- `firecrawl_timeout` (String) Firecrawl web loader timeout in whole seconds, as a string; `""` means the default. Must be empty or a plain whole number such as `30` (no sign, fraction, exponent or unit; Open WebUI silently ignores anything it cannot convert). Server default: `""`.
 - `google_pse_api_key` (String, Sensitive) Google Programmable Search Engine API key.
 - `google_pse_engine_id` (String) Google Programmable Search Engine ID.
 - `jina_api_base_url` (String) Jina search API base URL. Empty means the hosted service.
@@ -105,7 +105,7 @@ resource "openwebui_web_search_config" "example" {
 - `web_fetch_max_content_length` (Number) Maximum number of characters the built-in `fetch_url` tool returns; longer pages are truncated. Null (the server default) and `0` both mean no limit; once set, use `0` to remove the limit. Must be at least `0`.
 - `web_loader_concurrent_requests` (Number) Rate limit of the built-in web loader in requests per second; `0` disables the limit. Must be at least `0`. Server default: `10`.
 - `web_loader_engine` (String) Web page loader: `""` or `safe_web` (built-in), `playwright`, `firecrawl`, `tavily`, `external` or `microsoft_web_iq`. Open WebUI does not validate the value when saving, but every page load fails with any other value. Server default: `""`.
-- `web_loader_timeout` (String) Timeout of the built-in and `microsoft_web_iq` loaders in seconds, as a string; `""` means the default. Must be empty or a non-negative number (Open WebUI silently ignores anything else). Server default: `""`.
+- `web_loader_timeout` (String) Timeout of the built-in and `microsoft_web_iq` loaders in seconds, as a string; `""` means the default. Must be empty or a plain decimal number such as `10` or `2.5` (no sign, exponent or unit; Open WebUI silently ignores anything it cannot convert). Server default: `""`.
 - `web_search_concurrent_requests` (Number) Maximum number of search queries run in parallel; `0` means unlimited. Must be at least `0` (Open WebUI fails every search with a negative value). Server default: `0`.
 - `web_search_confirmation_content` (String) Text of the confirmation prompt shown when `enable_web_search_confirmation` is on. Server default: `Your query will be sent to the configured web search provider.` Added in Open WebUI v0.10.0; on older servers the value is ignored and reads back as null, so setting it fails the apply.
 - `web_search_domain_filter_list` (List of String) Domains search results are restricted to; an entry starting with `!` blocks that domain instead. `[]` means no filter. Server default: `[]`.
@@ -119,7 +119,7 @@ resource "openwebui_web_search_config" "example" {
 - `yandex_web_search_config` (String) Yandex search request template as JSON object text, used as the base of every request body; `""` means none. Stored verbatim as a string, so it is compared exactly. Must be empty or a JSON object.
 - `yandex_web_search_url` (String) Yandex Search API URL. Empty means the public endpoint.
 - `youcom_api_key` (String, Sensitive) You.com API key.
-- `youtube_loader_language` (List of String) Preferred YouTube transcript languages, in order. Server default: `["en"]`.
+- `youtube_loader_language` (List of String) Preferred YouTube transcript languages, in order. Open WebUI stores null here when another client saves the web search settings without it; this resource leaves such a null untouched unless you set the attribute. Server default: `["en"]`.
 - `youtube_loader_proxy_url` (String, Sensitive) Proxy URL for YouTube transcript requests. Sensitive because proxy URLs commonly embed credentials.
 
 ### Read-Only

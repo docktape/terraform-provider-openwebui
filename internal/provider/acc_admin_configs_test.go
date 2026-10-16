@@ -1173,13 +1173,60 @@ func testAccRetrievalRaw(t *testing.T, method, apiPath string, body map[string]a
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("%s %s: HTTP %d: %s", method, apiPath, resp.StatusCode, raw)
+		t.Fatalf("%s %s: HTTP %d: %s", method, apiPath, resp.StatusCode, testAccErrorSummary(raw))
 	}
 	var out map[string]any
 	if err := json.Unmarshal(raw, &out); err != nil {
 		t.Fatalf("decode %s %s: %v", method, apiPath, err)
 	}
 	return out
+}
+
+// testAccErrorSummary reduces an error response to what is safe to print: the
+// `loc` and `msg` of each FastAPI validation error (never `input`, which can
+// echo a submitted secret), or a short prefix of a string `detail`. The raw
+// body is never printed.
+func testAccErrorSummary(raw []byte) string {
+	var body struct {
+		Detail json.RawMessage `json:"detail"`
+	}
+	if err := json.Unmarshal(raw, &body); err != nil || len(body.Detail) == 0 {
+		return fmt.Sprintf("(unparseable error body, %d bytes)", len(raw))
+	}
+	var validation []struct {
+		Loc []any  `json:"loc"`
+		Msg string `json:"msg"`
+	}
+	if err := json.Unmarshal(body.Detail, &validation); err == nil {
+		parts := make([]string, 0, len(validation))
+		for _, v := range validation {
+			parts = append(parts, fmt.Sprintf("%v: %s", v.Loc, v.Msg))
+		}
+		return strings.Join(parts, "; ")
+	}
+	var detail string
+	if err := json.Unmarshal(body.Detail, &detail); err == nil {
+		if len(detail) > 120 {
+			detail = detail[:120] + "..."
+		}
+		return detail
+	}
+	return fmt.Sprintf("(error detail of %d bytes not shown)", len(body.Detail))
+}
+
+// testAccWebSearchBody wraps a web object for a raw POST, leaving out a null
+// in the two non-Optional WebConfig fields (webSearchNonNullableKeys in the
+// client), which Open WebUI would reject with HTTP 422; omitted, they take
+// their defaults (null and []).
+func testAccWebSearchBody(web map[string]any) map[string]any {
+	out := map[string]any{}
+	for k, v := range web {
+		if v == nil && (k == "WEB_SEARCH_DOMAIN_FILTER_LIST" || k == "YOUTUBE_LOADER_LANGUAGE") {
+			continue
+		}
+		out[k] = v
+	}
+	return map[string]any{"web": out}
 }
 
 // TestAccRetrievalConfigResource covers the partial-merge retrieval config: an
@@ -1362,12 +1409,15 @@ resource "openwebui_retrieval_config" "test" {
 // engine that is not selected) after an unmanaged web key was changed outside
 // Terraform. That step checks that every web key the configuration does not
 // set, including secrets, the unmodelled YOUTUBE_LOADER_TRANSLATION and the
-// out-of-band change, is exactly what it was before. Every step checks that
+// out-of-band change, is exactly what it was before. The last apply runs
+// after another client stored a null YOUTUBE_LOADER_LANGUAGE (Open WebUI does
+// so for a web object without it), which must not be echoed back as null
+// (HTTP 422) and must survive. Every step checks that
 // the top-level retrieval (RAG) settings are unchanged. Each apply is
 // followed by a PlanOnly idempotency step. The engine selection is not
 // changed and no external engine is called. Values are compared, never
 // printed (several are secrets). The original web object is POSTed back on
-// cleanup.
+// cleanup (a null in a non-Optional list left out, see testAccWebSearchBody).
 func TestAccWebSearchConfigResource(t *testing.T) {
 	testAccPreCheck(t)
 	const name = "openwebui_web_search_config.test"
@@ -1378,7 +1428,7 @@ func TestAccWebSearchConfigResource(t *testing.T) {
 		t.Fatalf("the retrieval config has no web object")
 	}
 	t.Cleanup(func() {
-		testAccRetrievalRaw(t, http.MethodPost, "retrieval/config/update", map[string]any{"web": originalWeb})
+		testAccRetrievalRaw(t, http.MethodPost, "retrieval/config/update", testAccWebSearchBody(originalWeb))
 	})
 	topLevel := func(cfg map[string]any) string {
 		rest := map[string]any{}
@@ -1469,6 +1519,8 @@ resource "openwebui_web_search_config" "test" {
 		populatedManaged[k] = v
 	}
 	populatedManaged["WEB_SEARCH_DOMAIN_FILTER_LIST"] = []any{"example.com", "!blocked.example"}
+	// Set to null out of band before that step (see its PreConfig).
+	populatedManaged["YOUTUBE_LOADER_LANGUAGE"] = nil
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
@@ -1489,7 +1541,7 @@ resource "openwebui_web_search_config" "test" {
 			{Config: empty, PlanOnly: true},
 			{
 				PreConfig: func() {
-					testAccRetrievalRaw(t, http.MethodPost, "retrieval/config/update", map[string]any{"web": outOfBand})
+					testAccRetrievalRaw(t, http.MethodPost, "retrieval/config/update", testAccWebSearchBody(outOfBand))
 				},
 				Config: changed,
 				Check: resource.ComposeTestCheckFunc(
@@ -1508,12 +1560,25 @@ resource "openwebui_web_search_config" "test" {
 			{
 				// youtube_loader_language, searxng_language, the confirmation
 				// text and the dummy key are no longer configured: they keep
-				// their server values.
+				// their server values. Another client first saves the web
+				// settings without YOUTUBE_LOADER_LANGUAGE, which Open WebUI
+				// stores as null; that null must not be echoed (HTTP 422) and
+				// must survive the apply. The step's refresh reads it, so the
+				// state shows null too.
+				PreConfig: func() {
+					current, _ := testAccRetrievalRaw(t, http.MethodGet, "retrieval/config", nil)["web"].(map[string]any)
+					delete(current, "YOUTUBE_LOADER_LANGUAGE")
+					testAccRetrievalRaw(t, http.MethodPost, "retrieval/config/update", testAccWebSearchBody(current))
+					after, _ := testAccRetrievalRaw(t, http.MethodGet, "retrieval/config", nil)["web"].(map[string]any)
+					if after["YOUTUBE_LOADER_LANGUAGE"] != nil {
+						t.Fatalf("expected Open WebUI to store a null YOUTUBE_LOADER_LANGUAGE")
+					}
+				},
 				Config: populated,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "web_search_domain_filter_list.#", "2"),
 					resource.TestCheckResourceAttr(name, "web_search_domain_filter_list.1", "!blocked.example"),
-					resource.TestCheckResourceAttr(name, "youtube_loader_language.#", "2"),
+					resource.TestCheckNoResourceAttr(name, "youtube_loader_language"),
 					resource.TestCheckResourceAttr(name, "linkup_search_params_json", `{"depth":"standard"}`),
 					webMatches(outOfBand, populatedManaged),
 					topLevelUnchanged,
