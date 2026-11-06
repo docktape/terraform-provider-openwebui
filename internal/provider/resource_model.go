@@ -23,6 +23,8 @@ import (
 var _ resource.Resource = &modelResource{}
 var _ resource.ResourceWithConfigure = &modelResource{}
 var _ resource.ResourceWithImportState = &modelResource{}
+var _ resource.ResourceWithValidateConfig = &modelResource{}
+var _ resource.ResourceWithModifyPlan = &modelResource{}
 
 // modelResource implements the Terraform resource for Open WebUI models.
 type modelResource struct {
@@ -187,18 +189,20 @@ func (r *modelResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"read_groups": schema.ListAttribute{
-				ElementType:   types.StringType,
-				Optional:      true,
-				Computed:      true,
-				Description:   "List of group names or IDs granted read access. Leave unset or empty for public access.",
-				PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()},
+				ElementType:         types.StringType,
+				Optional:            true,
+				Computed:            true,
+				Description:         accessReadGroupsDescription("model"),
+				MarkdownDescription: accessReadGroupsDescription("model"),
+				PlanModifiers:       []planmodifier.List{listplanmodifier.UseStateForUnknown()},
 			},
 			"write_groups": schema.ListAttribute{
-				ElementType:   types.StringType,
-				Optional:      true,
-				Computed:      true,
-				Description:   "List of group names or IDs granted write access.",
-				PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()},
+				ElementType:         types.StringType,
+				Optional:            true,
+				Computed:            true,
+				Description:         accessWriteGroupsDescription("model"),
+				MarkdownDescription: accessWriteGroupsDescription("model"),
+				PlanModifiers:       []planmodifier.List{listplanmodifier.UseStateForUnknown()},
 			},
 			"profile_image_url": schema.StringAttribute{
 				Optional:      true,
@@ -1519,4 +1523,16 @@ func toStringMap(value any) (map[string]string, bool) {
 	default:
 		return nil, false
 	}
+}
+
+// ValidateConfig requires every configured write group to be a configured read
+// group (see validateAccessGroupsConfig).
+func (r *modelResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	validateAccessGroupsConfig(ctx, req.Config, &resp.Diagnostics)
+}
+
+// ModifyPlan keeps the planned write_groups a subset of the planned read_groups
+// (see modifyAccessGroupsPlan).
+func (r *modelResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	modifyAccessGroupsPlan(ctx, req, resp)
 }

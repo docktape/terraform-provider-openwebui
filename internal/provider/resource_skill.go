@@ -30,6 +30,7 @@ var _ resource.Resource = &skillResource{}
 var _ resource.ResourceWithConfigure = &skillResource{}
 var _ resource.ResourceWithImportState = &skillResource{}
 var _ resource.ResourceWithValidateConfig = &skillResource{}
+var _ resource.ResourceWithModifyPlan = &skillResource{}
 
 // skillResource manages Open WebUI skills.
 type skillResource struct {
@@ -163,16 +164,16 @@ func (r *skillResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				ElementType:         types.StringType,
 				Optional:            true,
 				Computed:            true,
-				Description:         "Names of groups granted read access, spelled exactly as stored in Open WebUI (state always holds the stored group name, so an ID or a different letter case shows up as a difference). Set to `[]` for an owner-only skill; leaving it unset keeps the current grants.",
-				MarkdownDescription: "Names of groups granted read access, spelled exactly as stored in Open WebUI (state always holds the stored group name, so an ID or a different letter case shows up as a difference). Set to `[]` for an owner-only skill; leaving it unset keeps the current grants.",
+				Description:         accessReadGroupsDescription("skill"),
+				MarkdownDescription: accessReadGroupsDescription("skill"),
 				PlanModifiers:       []planmodifier.List{listplanmodifier.UseStateForUnknown()},
 			},
 			"write_groups": schema.ListAttribute{
 				ElementType:         types.StringType,
 				Optional:            true,
 				Computed:            true,
-				Description:         "Names of groups granted write access, spelled exactly as stored in Open WebUI. Every group listed here must also be listed in `read_groups`. Set to `[]` to revoke write access; leaving it unset keeps the current grants.",
-				MarkdownDescription: "Names of groups granted write access, spelled exactly as stored in Open WebUI. Every group listed here must also be listed in `read_groups`. Set to `[]` to revoke write access; leaving it unset keeps the current grants.",
+				Description:         accessWriteGroupsDescription("skill"),
+				MarkdownDescription: accessWriteGroupsDescription("skill"),
 				PlanModifiers:       []planmodifier.List{listplanmodifier.UseStateForUnknown()},
 			},
 			"user_id": schema.StringAttribute{
@@ -199,52 +200,6 @@ func (r *skillResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				PlanModifiers:       []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
 			},
 		},
-	}
-}
-
-// ValidateConfig requires every write group to also be a read group. The
-// shared access helpers copy write group IDs into the read grants (Open WebUI
-// v0.11.0 does not treat write access as read access), so a write group missing
-// from read_groups would come back in read_groups and fail with "inconsistent
-// result after apply". Only fully known lists are compared.
-func (r *skillResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	var read, write types.List
-	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("read_groups"), &read)...)
-	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("write_groups"), &write)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	if read.IsNull() || read.IsUnknown() || write.IsNull() || write.IsUnknown() {
-		return
-	}
-
-	// Skip the whole check if any element is not yet known.
-	readSet := make(map[string]struct{}, len(read.Elements()))
-	for _, e := range read.Elements() {
-		sv, ok := e.(types.String)
-		if !ok || sv.IsUnknown() {
-			return
-		}
-		readSet[strings.ToLower(strings.TrimSpace(sv.ValueString()))] = struct{}{}
-	}
-
-	var missing []string
-	for _, e := range write.Elements() {
-		sv, ok := e.(types.String)
-		if !ok || sv.IsUnknown() {
-			return
-		}
-		if _, found := readSet[strings.ToLower(strings.TrimSpace(sv.ValueString()))]; !found && strings.TrimSpace(sv.ValueString()) != "" {
-			missing = append(missing, sv.ValueString())
-		}
-	}
-
-	if len(missing) > 0 {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("write_groups"),
-			"write_groups must also be listed in read_groups",
-			fmt.Sprintf("Open WebUI does not treat write access as read access and always returns write groups as read groups too. Add these write_groups entries to read_groups: %s.", strings.Join(missing, ", ")),
-		)
 	}
 }
 
@@ -531,4 +486,16 @@ func skillResponseToModel(ctx context.Context, apiClient *client.Client, access 
 	}
 
 	return state, diags
+}
+
+// ValidateConfig requires every configured write group to be a configured read
+// group (see validateAccessGroupsConfig).
+func (r *skillResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	validateAccessGroupsConfig(ctx, req.Config, &resp.Diagnostics)
+}
+
+// ModifyPlan keeps the planned write_groups a subset of the planned read_groups
+// (see modifyAccessGroupsPlan).
+func (r *skillResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	modifyAccessGroupsPlan(ctx, req, resp)
 }

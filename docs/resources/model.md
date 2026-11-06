@@ -55,11 +55,11 @@ resource "openwebui_model" "example" {
 - `meta_additional_json` (String) Additional metadata JSON merged into the model's `meta` object. e.g. `jsonencode({ info = "custom" })`.
 - `params_additional_json` (String) Additional model parameters JSON merged into `params`, for fields not covered by the `params` block. e.g. `jsonencode({ top_p = 0.9 })`.
 - `profile_image_url` (String) URL of the model's profile image.
-- `read_groups` (List of String) List of group names or IDs granted read access. Leave unset or empty for public access.
+- `read_groups` (List of String) Names of groups granted read access to the model, spelled exactly as stored in Open WebUI (state holds the stored group name, so an ID or a different letter case shows up as a difference). Open WebUI stores every write group as a read group too, so this list always includes the `write_groups` entries. When `read_groups` is not set, its planned value keeps the current read groups and is extended with any `write_groups` entry missing from it. When it is set, it must include every write group: to remove a group from `read_groups`, remove it from `write_groups` too (or set `write_groups = []`). Set both lists to `[]` for no group grants.
 - `suggestion_prompts` (List of String) List of suggested starter prompts shown when the model is selected.
 - `tags` (List of String) List of tags for categorising the model.
 - `tool_ids` (List of String) List of tool IDs to attach to the model by default.
-- `write_groups` (List of String) List of group names or IDs granted write access.
+- `write_groups` (List of String) Names of groups granted write access to the model, spelled exactly as stored in Open WebUI. Open WebUI stores these groups as read groups too: when `read_groups` is set it must list every group here, and when it is not set it is extended with them automatically. Leaving `write_groups` unset keeps the current write groups; set it to `[]` to revoke write access.
 
 ### Read-Only
 

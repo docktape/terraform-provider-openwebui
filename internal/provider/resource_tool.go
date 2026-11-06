@@ -20,6 +20,8 @@ import (
 var _ resource.Resource = &toolResource{}
 var _ resource.ResourceWithConfigure = &toolResource{}
 var _ resource.ResourceWithImportState = &toolResource{}
+var _ resource.ResourceWithValidateConfig = &toolResource{}
+var _ resource.ResourceWithModifyPlan = &toolResource{}
 
 // toolResource manages Open WebUI tools.
 type toolResource struct {
@@ -101,16 +103,16 @@ func (r *toolResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 				ElementType:         types.StringType,
 				Optional:            true,
 				Computed:            true,
-				Description:         "List of group names or IDs granted read access. Leave unset or empty for public access.",
-				MarkdownDescription: "List of group names or IDs granted read access. Leave unset or empty for public access.",
+				Description:         accessReadGroupsDescription("tool"),
+				MarkdownDescription: accessReadGroupsDescription("tool"),
 				PlanModifiers:       []planmodifier.List{listplanmodifier.UseStateForUnknown()},
 			},
 			"write_groups": schema.ListAttribute{
 				ElementType:         types.StringType,
 				Optional:            true,
 				Computed:            true,
-				Description:         "List of group names or IDs granted write access.",
-				MarkdownDescription: "List of group names or IDs granted write access.",
+				Description:         accessWriteGroupsDescription("tool"),
+				MarkdownDescription: accessWriteGroupsDescription("tool"),
 				PlanModifiers:       []planmodifier.List{listplanmodifier.UseStateForUnknown()},
 			},
 			"specs_json": schema.StringAttribute{
@@ -415,4 +417,16 @@ func toolResponseToModel(ctx context.Context, apiClient *client.Client, access *
 	}
 
 	return state, diags
+}
+
+// ValidateConfig requires every configured write group to be a configured read
+// group (see validateAccessGroupsConfig).
+func (r *toolResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	validateAccessGroupsConfig(ctx, req.Config, &resp.Diagnostics)
+}
+
+// ModifyPlan keeps the planned write_groups a subset of the planned read_groups
+// (see modifyAccessGroupsPlan).
+func (r *toolResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	modifyAccessGroupsPlan(ctx, req, resp)
 }

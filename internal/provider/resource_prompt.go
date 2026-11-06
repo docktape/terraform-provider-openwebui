@@ -21,6 +21,8 @@ import (
 var _ resource.Resource = &promptResource{}
 var _ resource.ResourceWithConfigure = &promptResource{}
 var _ resource.ResourceWithImportState = &promptResource{}
+var _ resource.ResourceWithValidateConfig = &promptResource{}
+var _ resource.ResourceWithModifyPlan = &promptResource{}
 
 // promptResource implements Terraform management for prompts.
 type promptResource struct {
@@ -100,18 +102,20 @@ func (r *promptResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				Description: "Arbitrary JSON metadata object for the prompt. Use `jsonencode({})` to set an empty object.",
 			},
 			"read_groups": schema.ListAttribute{
-				ElementType:   types.StringType,
-				Optional:      true,
-				Computed:      true,
-				Description:   "List of group names or IDs granted read access. Leave unset or empty for public access.",
-				PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()},
+				ElementType:         types.StringType,
+				Optional:            true,
+				Computed:            true,
+				Description:         accessReadGroupsDescription("prompt"),
+				MarkdownDescription: accessReadGroupsDescription("prompt"),
+				PlanModifiers:       []planmodifier.List{listplanmodifier.UseStateForUnknown()},
 			},
 			"write_groups": schema.ListAttribute{
-				ElementType:   types.StringType,
-				Optional:      true,
-				Computed:      true,
-				Description:   "List of group names or IDs granted write access.",
-				PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()},
+				ElementType:         types.StringType,
+				Optional:            true,
+				Computed:            true,
+				Description:         accessWriteGroupsDescription("prompt"),
+				MarkdownDescription: accessWriteGroupsDescription("prompt"),
+				PlanModifiers:       []planmodifier.List{listplanmodifier.UseStateForUnknown()},
 			},
 			"created_at": schema.StringAttribute{
 				Computed:      true,
@@ -359,23 +363,12 @@ func promptResponseToModel(ctx context.Context, apiClient *client.Client, resp *
 	writeNames, writeDiags := fetchGroupNamesForIDs(ctx, apiClient, writeIDs)
 	diags.Append(writeDiags...)
 
-	readList := types.ListNull(types.StringType)
-	if len(readNames) > 0 {
-		l, listDiags := types.ListValueFrom(ctx, types.StringType, readNames)
-		diags.Append(listDiags...)
-		if !listDiags.HasError() {
-			readList = l
-		}
-	}
-
-	writeList := types.ListNull(types.StringType)
-	if len(writeNames) > 0 {
-		l, listDiags := types.ListValueFrom(ctx, types.StringType, writeNames)
-		diags.Append(listDiags...)
-		if !listDiags.HasError() {
-			writeList = l
-		}
-	}
+	// Empty grants flatten to [] (not null) so `read_groups = []` /
+	// `write_groups = []` round-trip without an inconsistent result.
+	readList, readListDiags := flattenStringSlice(ctx, readNames)
+	diags.Append(readListDiags...)
+	writeList, writeListDiags := flattenStringSlice(ctx, writeNames)
+	diags.Append(writeListDiags...)
 
 	state := promptResourceModel{
 		ID:      types.StringValue(resp.ID),
@@ -430,4 +423,16 @@ func promptResponseToModel(ctx context.Context, apiClient *client.Client, resp *
 	}
 
 	return state, diags
+}
+
+// ValidateConfig requires every configured write group to be a configured read
+// group (see validateAccessGroupsConfig).
+func (r *promptResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	validateAccessGroupsConfig(ctx, req.Config, &resp.Diagnostics)
+}
+
+// ModifyPlan keeps the planned write_groups a subset of the planned read_groups
+// (see modifyAccessGroupsPlan).
+func (r *promptResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	modifyAccessGroupsPlan(ctx, req, resp)
 }

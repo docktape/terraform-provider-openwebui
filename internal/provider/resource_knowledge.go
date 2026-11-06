@@ -18,6 +18,8 @@ import (
 var _ resource.Resource = &knowledgeResource{}
 var _ resource.ResourceWithConfigure = &knowledgeResource{}
 var _ resource.ResourceWithImportState = &knowledgeResource{}
+var _ resource.ResourceWithValidateConfig = &knowledgeResource{}
+var _ resource.ResourceWithModifyPlan = &knowledgeResource{}
 
 // knowledgeResource implements the Terraform resource for Open WebUI knowledge bases.
 type knowledgeResource struct {
@@ -79,18 +81,20 @@ func (r *knowledgeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"read_groups": schema.ListAttribute{
-				ElementType:   types.StringType,
-				Optional:      true,
-				Computed:      true,
-				Description:   "List of group names or IDs granted read access. Leave unset or empty for public access.",
-				PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()},
+				ElementType:         types.StringType,
+				Optional:            true,
+				Computed:            true,
+				Description:         accessReadGroupsDescription("knowledge base"),
+				MarkdownDescription: accessReadGroupsDescription("knowledge base"),
+				PlanModifiers:       []planmodifier.List{listplanmodifier.UseStateForUnknown()},
 			},
 			"write_groups": schema.ListAttribute{
-				ElementType:   types.StringType,
-				Optional:      true,
-				Computed:      true,
-				Description:   "List of group names or IDs granted write access. Groups here automatically receive read access too. Leave unset or empty for public access.",
-				PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()},
+				ElementType:         types.StringType,
+				Optional:            true,
+				Computed:            true,
+				Description:         accessWriteGroupsDescription("knowledge base"),
+				MarkdownDescription: accessWriteGroupsDescription("knowledge base"),
+				PlanModifiers:       []planmodifier.List{listplanmodifier.UseStateForUnknown()},
 			},
 			"created_at": schema.StringAttribute{
 				Computed:      true,
@@ -307,23 +311,12 @@ func knowledgeResponseToModel(ctx context.Context, apiClient *client.Client, res
 	writeNames, writeDiags := fetchGroupNamesForIDs(ctx, apiClient, writeIDs)
 	diags.Append(writeDiags...)
 
-	readList := types.ListNull(types.StringType)
-	if len(readNames) > 0 {
-		l, listDiags := types.ListValueFrom(ctx, types.StringType, readNames)
-		diags.Append(listDiags...)
-		if !listDiags.HasError() {
-			readList = l
-		}
-	}
-
-	writeList := types.ListNull(types.StringType)
-	if len(writeNames) > 0 {
-		l, listDiags := types.ListValueFrom(ctx, types.StringType, writeNames)
-		diags.Append(listDiags...)
-		if !listDiags.HasError() {
-			writeList = l
-		}
-	}
+	// Empty grants flatten to [] (not null) so `read_groups = []` /
+	// `write_groups = []` round-trip without an inconsistent result.
+	readList, readListDiags := flattenStringSlice(ctx, readNames)
+	diags.Append(readListDiags...)
+	writeList, writeListDiags := flattenStringSlice(ctx, writeNames)
+	diags.Append(writeListDiags...)
 
 	model := knowledgeResourceModel{
 		ID:          types.StringValue(resp.ID),
@@ -339,4 +332,16 @@ func knowledgeResponseToModel(ctx context.Context, apiClient *client.Client, res
 	}
 
 	return model, diags
+}
+
+// ValidateConfig requires every configured write group to be a configured read
+// group (see validateAccessGroupsConfig).
+func (r *knowledgeResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	validateAccessGroupsConfig(ctx, req.Config, &resp.Diagnostics)
+}
+
+// ModifyPlan keeps the planned write_groups a subset of the planned read_groups
+// (see modifyAccessGroupsPlan).
+func (r *knowledgeResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	modifyAccessGroupsPlan(ctx, req, resp)
 }
