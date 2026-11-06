@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -58,6 +59,8 @@ func (r *promptResource) Metadata(_ context.Context, req resource.MetadataReques
 
 // Schema defines the prompt resource schema.
 func (r *promptResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	const isActiveDesc = "Whether the prompt is active and available to users. Open WebUI creates prompts as active, so when this is `false` the provider deactivates the prompt right after creating it. When unset, the value reported by Open WebUI is used (`true` for new prompts)."
+
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Manages a reusable prompt command in Open WebUI. The `command` is the slash-command users type to invoke the prompt.",
 		Attributes: map[string]schema.Attribute{
@@ -79,10 +82,11 @@ func (r *promptResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				Description: "Prompt template text. Use `{{variable}}` for user-fillable placeholders.",
 			},
 			"is_active": schema.BoolAttribute{
-				Optional:      true,
-				Computed:      true,
-				Description:   "Whether the prompt is active and available to users. Defaults to `true`.",
-				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+				Optional:            true,
+				Computed:            true,
+				Description:         isActiveDesc,
+				MarkdownDescription: isActiveDesc,
+				PlanModifiers:       []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
 			},
 			"tags": schema.ListAttribute{
 				ElementType:   types.StringType,
@@ -164,10 +168,6 @@ func (r *promptResource) Create(ctx context.Context, req resource.CreateRequest,
 		Content: plan.Content.ValueString(),
 	}
 
-	if !plan.IsActive.IsNull() && !plan.IsActive.IsUnknown() {
-		v := plan.IsActive.ValueBool()
-		form.IsActive = &v
-	}
 	if !plan.Tags.IsNull() && !plan.Tags.IsUnknown() {
 		var tags []string
 		resp.Diagnostics.Append(plan.Tags.ElementsAs(ctx, &tags, false)...)
@@ -206,6 +206,11 @@ func (r *promptResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 
+	// The create endpoint ignores is_active; reconcile it through the toggle
+	// endpoint. On failure the prompt exists, so state is still saved (the
+	// resource ends up tainted) instead of leaking an unmanaged prompt.
+	created, activeErr := r.reconcileIsActive(ctx, created, plan.IsActive)
+
 	state, diags := promptResponseToModel(ctx, r.client, created)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -213,6 +218,9 @@ func (r *promptResource) Create(ctx context.Context, req resource.CreateRequest,
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+	if activeErr != nil {
+		resp.Diagnostics.AddError("Set prompt is_active failed", activeErr.Error())
+	}
 }
 
 // Read refreshes state from the API.
@@ -272,10 +280,6 @@ func (r *promptResource) Update(ctx context.Context, req resource.UpdateRequest,
 		Content: plan.Content.ValueString(),
 	}
 
-	if !plan.IsActive.IsNull() && !plan.IsActive.IsUnknown() {
-		v := plan.IsActive.ValueBool()
-		form.IsActive = &v
-	}
 	if !plan.Tags.IsNull() && !plan.Tags.IsUnknown() {
 		var tags []string
 		resp.Diagnostics.Append(plan.Tags.ElementsAs(ctx, &tags, false)...)
@@ -314,6 +318,11 @@ func (r *promptResource) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 
+	// The update endpoint leaves is_active untouched; reconcile it through the
+	// toggle endpoint. On failure, state keeps the server's actual value so the
+	// next plan shows the remaining diff.
+	updatedPrompt, activeErr := r.reconcileIsActive(ctx, updatedPrompt, plan.IsActive)
+
 	newState, diags := promptResponseToModel(ctx, r.client, updatedPrompt)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -321,6 +330,39 @@ func (r *promptResource) Update(ctx context.Context, req resource.UpdateRequest,
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &newState)...)
+	if activeErr != nil {
+		resp.Diagnostics.AddError("Set prompt is_active failed", activeErr.Error())
+	}
+}
+
+// promptIsActive reads is_active from an API response; Open WebUI defaults it
+// to true when the field is absent.
+func promptIsActive(p *client.PromptModel) bool {
+	return p.IsActive == nil || *p.IsActive
+}
+
+// reconcileIsActive brings a prompt's is_active flag to the planned value.
+// Open WebUI only exposes a toggle (no setter), so it calls it once, and only
+// when the planned value is known and differs from the server's. It returns
+// the latest known server state even when it also returns an error.
+func (r *promptResource) reconcileIsActive(ctx context.Context, current *client.PromptModel, planned types.Bool) (*client.PromptModel, error) {
+	if planned.IsNull() || planned.IsUnknown() {
+		return current, nil
+	}
+	want := planned.ValueBool()
+	if promptIsActive(current) == want {
+		return current, nil
+	}
+
+	toggled, err := r.client.TogglePrompt(ctx, current.ID)
+	if err != nil {
+		return current, fmt.Errorf("toggle prompt %q to is_active=%t: %w", current.ID, want, err)
+	}
+	if promptIsActive(toggled) != want {
+		return toggled, fmt.Errorf("prompt %q has is_active=%t after toggling to is_active=%t; the flag was probably changed concurrently, re-run apply", current.ID, promptIsActive(toggled), want)
+	}
+
+	return toggled, nil
 }
 
 // Delete removes the prompt.

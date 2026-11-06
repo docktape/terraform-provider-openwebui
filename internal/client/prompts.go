@@ -9,11 +9,12 @@ import (
 )
 
 // PromptForm represents the payload for creating or updating prompt definitions.
+// Open WebUI's form has no is_active: create always yields an active prompt and
+// update leaves the flag untouched. Use TogglePrompt to change it.
 type PromptForm struct {
 	Command       string         `json:"command"`
 	Name          string         `json:"name"`
 	Content       string         `json:"content"`
-	IsActive      *bool          `json:"is_active,omitempty"`
 	Tags          []string       `json:"tags,omitempty"`
 	Data          map[string]any `json:"data,omitempty"`
 	Meta          map[string]any `json:"meta,omitempty"`
@@ -100,6 +101,19 @@ func (c *Client) UpdatePrompt(ctx context.Context, id string, form PromptForm) (
 	var resp PromptModel
 	path := fmt.Sprintf("prompts/id/%s/update", url.PathEscape(id))
 	if err := c.do(ctx, http.MethodPost, path, nil, form, &resp); err != nil {
+		return nil, err
+	}
+
+	return &resp, nil
+}
+
+// TogglePrompt flips a prompt's is_active flag and returns the updated prompt.
+// The endpoint takes no value, so callers must compare the result with the
+// state they want.
+func (c *Client) TogglePrompt(ctx context.Context, id string) (*PromptModel, error) {
+	var resp PromptModel
+	path := fmt.Sprintf("prompts/id/%s/toggle", url.PathEscape(id))
+	if err := c.do(ctx, http.MethodPost, path, nil, nil, &resp); err != nil {
 		return nil, err
 	}
 
