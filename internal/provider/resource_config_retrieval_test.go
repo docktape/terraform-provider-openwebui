@@ -289,12 +289,16 @@ func TestRetrievalApplyResultChecks(t *testing.T) {
 		t.Errorf("expected a reranker-load error, got %v", diags)
 	}
 
+	// A response that omits the newer keys reads them as null (lenient
+	// decoding), and a configured value is not an error here.
 	older, _ := retrievalConfigModelFromAPI(context.Background(), decodeStockRetrieval(t, `{"TOP_K": 3}`))
+	if !older.RAGTokenizerModel.IsNull() || !older.MistralOCRUseBase64.IsNull() {
+		t.Errorf("omitted keys must read as null: %v %v", older.RAGTokenizerModel, older.MistralOCRUseBase64)
+	}
 	plan = unknownRetrievalModel()
 	plan.RAGTokenizerModel = types.StringValue("")
-	diags = checkRetrievalApplyResult(plan, older)
-	if !diags.HasError() || !strings.Contains(diags[0].Detail(), "v0.10.0") {
-		t.Errorf("expected a version error, got %v", diags)
+	if diags = checkRetrievalApplyResult(plan, older); diags.HasError() {
+		t.Errorf("only the hybrid-search check remains: %v", diags)
 	}
 }
 
@@ -568,9 +572,9 @@ func TestReconcileUnconfiguredRetrieval(t *testing.T) {
 	}
 }
 
-// TestRetrievalApplyResultIgnoresUnconfigured: a hybrid-search flip or a
-// missing newer key never fails the apply when the configuration does not set
-// the attribute, even if the plan carries a prior-state value for it.
+// TestRetrievalApplyResultIgnoresUnconfigured: a hybrid-search flip never
+// fails the apply when the configuration does not set the attribute, even if
+// the plan carries a prior-state value for it.
 func TestRetrievalApplyResultIgnoresUnconfigured(t *testing.T) {
 	older, _ := retrievalConfigModelFromAPI(context.Background(), decodeStockRetrieval(t, `{"TOP_K": 3, "ENABLE_RAG_HYBRID_SEARCH": false}`))
 	var config retrievalConfigModel

@@ -3,12 +3,10 @@ package provider
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"regexp"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -347,8 +345,8 @@ func (r *webSearchConfigResource) ImportState(ctx context.Context, req resource.
 // left out is sent back exactly as Open WebUI currently has it.
 //
 // The plan is still what the written state must agree with: configured
-// attributes are checked by checkWebSearchApplyResult, and unconfigured ones
-// are reconciled by reconcileUnconfiguredAttributes.
+// attributes are kept by preserveWebSearchConfig, and unconfigured ones are
+// reconciled by reconcileUnconfiguredAttributes.
 func applyWebSearchConfig(ctx context.Context, apiClient *client.Client, config, plan webSearchConfigModel) (webSearchConfigModel, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
@@ -380,10 +378,6 @@ func applyWebSearchConfig(ctx context.Context, apiClient *client.Client, config,
 		return webSearchConfigModel{}, diags
 	}
 
-	diags.Append(checkWebSearchApplyResult(config, fresh)...)
-	if diags.HasError() {
-		return webSearchConfigModel{}, diags
-	}
 	state, reconcileDiags := reconcileUnconfiguredAttributes(config, plan, preserveWebSearchConfig(plan, fresh),
 		"changed outside Terraform since the last refresh, or by Open WebUI during this apply, for example a null domain filter list stored as []")
 	diags.Append(reconcileDiags...)
@@ -581,35 +575,4 @@ func webSearchConfigModelFromAPI(ctx context.Context, c client.WebSearchConfig) 
 func preserveWebSearchConfig(preferred, fresh webSearchConfigModel) webSearchConfigModel {
 	fresh.LinkupSearchParamsJSON = preserveEquivalentJSON(preferred.LinkupSearchParamsJSON, fresh.LinkupSearchParamsJSON)
 	return fresh
-}
-
-// checkWebSearchApplyResult turns a configured setting that the server does
-// not know (an older Open WebUI release ignores unknown web keys and reads
-// them back as null) into a clear error, instead of Terraform's generic
-// "inconsistent result after apply". Attributes the configuration leaves out
-// are never checked here.
-func checkWebSearchApplyResult(config, fresh webSearchConfigModel) diag.Diagnostics {
-	var diags diag.Diagnostics
-	known := func(v attr.Value) bool { return !v.IsNull() && !v.IsUnknown() }
-	for _, c := range []struct {
-		name    string
-		planned bool
-		missing bool
-		version string
-	}{
-		{"enable_web_search_confirmation", known(config.EnableWebSearchConfirmation), fresh.EnableWebSearchConfirmation.IsNull(), "v0.10.0"},
-		{"web_search_confirmation_content", known(config.WebSearchConfirmationContent), fresh.WebSearchConfirmationContent.IsNull(), "v0.10.0"},
-		{"serphouse_api_key", known(config.SerphouseAPIKey), fresh.SerphouseAPIKey.IsNull(), "v0.10.0"},
-		{"serphouse_domain", known(config.SerphouseDomain), fresh.SerphouseDomain.IsNull(), "v0.10.0"},
-		{"microsoft_web_iq_api_base_url", known(config.MicrosoftWebIQAPIBaseURL), fresh.MicrosoftWebIQAPIBaseURL.IsNull(), "v0.10.0"},
-		{"microsoft_web_iq_api_key", known(config.MicrosoftWebIQAPIKey), fresh.MicrosoftWebIQAPIKey.IsNull(), "v0.10.0"},
-		{"microsoft_web_iq_language", known(config.MicrosoftWebIQLanguage), fresh.MicrosoftWebIQLanguage.IsNull(), "v0.10.0"},
-		{"openserp_base_url", known(config.OpenSERPBaseURL), fresh.OpenSERPBaseURL.IsNull(), "v0.11.0"},
-	} {
-		if c.planned && c.missing {
-			diags.AddAttributeError(path.Root(c.name), "Setting not supported by this Open WebUI version",
-				fmt.Sprintf("%s was added in Open WebUI %s; this server ignored it. Remove it from the configuration or upgrade Open WebUI.", c.name, c.version))
-		}
-	}
-	return diags
 }

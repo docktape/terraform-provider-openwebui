@@ -279,9 +279,8 @@ func TestWebSearchModelFromAPIShapes(t *testing.T) {
 	}
 }
 
-// TestWebSearchModelFromOlderServer: the keys absent on Open WebUI v0.9.6
-// (confirmation, Serphouse, Microsoft Web IQ: v0.10.0; OpenSERP: v0.11.0)
-// read as null.
+// TestWebSearchModelFromOlderServer: keys a server response omits (for
+// example a server without OpenSERP) read as null instead of failing.
 func TestWebSearchModelFromOlderServer(t *testing.T) {
 	m, diags := webSearchConfigModelFromAPI(context.Background(), decodeStockWeb(t, `{"ENABLE_WEB_SEARCH": false, "WEB_SEARCH_RESULT_COUNT": 3}`))
 	if diags.HasError() {
@@ -297,29 +296,6 @@ func TestWebSearchModelFromOlderServer(t *testing.T) {
 		if !v.IsNull() {
 			t.Errorf("%s must be null", name)
 		}
-	}
-}
-
-func TestWebSearchApplyResultChecks(t *testing.T) {
-	older, _ := webSearchConfigModelFromAPI(context.Background(), decodeStockWeb(t, `{"ENABLE_WEB_SEARCH": true}`))
-	config := fillWebSearchModel(false)
-	if diags := checkWebSearchApplyResult(config, older); diags.HasError() {
-		t.Fatalf("unconfigured attributes must not be checked: %v", diags)
-	}
-	config.OpenSERPBaseURL = types.StringValue("http://openserp:7000")
-	config.SerphouseDomain = types.StringValue("bing.com")
-	diags := checkWebSearchApplyResult(config, older)
-	if diags.ErrorsCount() != 2 {
-		t.Fatalf("expected 2 version errors, got %v", diags)
-	}
-	details := diags[0].Detail() + diags[1].Detail()
-	if !strings.Contains(details, "openserp_base_url was added in Open WebUI v0.11.0") || !strings.Contains(details, "serphouse_domain was added in Open WebUI v0.10.0") {
-		t.Errorf("unexpected details: %s", details)
-	}
-
-	current, _ := webSearchConfigModelFromAPI(context.Background(), decodeStockWeb(t, stockWebJSON))
-	if diags := checkWebSearchApplyResult(config, current); diags.HasError() {
-		t.Errorf("a current server must pass: %v", diags)
 	}
 }
 

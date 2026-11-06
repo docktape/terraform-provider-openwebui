@@ -63,8 +63,8 @@ func TestGetAudioConfig(t *testing.T) {
 	if string(got.TTS.OpenAIParams) != "{}" {
 		t.Errorf("expected raw {} params, got %s", got.TTS.OpenAIParams)
 	}
-	if got.STT.OpenAIAPIRequestFormat == nil || *got.STT.OpenAIAPIRequestFormat != "multipart" {
-		t.Errorf("unexpected request format %v", got.STT.OpenAIAPIRequestFormat)
+	if got.STT.OpenAIAPIRequestFormat != "multipart" {
+		t.Errorf("unexpected request format %q", got.STT.OpenAIAPIRequestFormat)
 	}
 	if got.STT.SupportedContentTypes == nil || len(got.STT.SupportedContentTypes) != 0 {
 		t.Errorf("expected empty non-nil content types, got %#v", got.STT.SupportedContentTypes)
@@ -77,7 +77,7 @@ func TestGetAudioConfig(t *testing.T) {
 	}
 }
 
-// Pre-v0.10.2 servers have no OPENAI_API_REQUEST_FORMAT key; AZURE_MAX_SPEAKERS
+// A response without OPENAI_API_REQUEST_FORMAT decodes to ""; AZURE_MAX_SPEAKERS
 // is decoded leniently in case a number was stored; OPENAI_PARAMS may be null.
 func TestGetAudioConfigOlderAndLenientShapes(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -90,8 +90,8 @@ func TestGetAudioConfigOlderAndLenientShapes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetAudioConfig failed: %v", err)
 	}
-	if got.STT.OpenAIAPIRequestFormat != nil {
-		t.Errorf("absent request format must stay nil, got %v", *got.STT.OpenAIAPIRequestFormat)
+	if got.STT.OpenAIAPIRequestFormat != "" {
+		t.Errorf("absent request format must decode to an empty string, got %q", got.STT.OpenAIAPIRequestFormat)
 	}
 	if got.STT.AzureMaxSpeakers != "4" {
 		t.Errorf("expected numeric max speakers as \"4\", got %q", got.STT.AzureMaxSpeakers)
@@ -119,7 +119,6 @@ func TestSetAudioConfigEveryWireKey(t *testing.T) {
 	c, server := newConfigTestClient(handler)
 	defer server.Close()
 
-	format := "json"
 	form := AudioConfigForm{
 		TTS: AudioTTSConfigForm{
 			OpenAIAPIBaseURL: "https://tts.example/v1", OpenAIAPIKey: "tts-openai-key", OpenAIParams: json.RawMessage(`{"speed":1.5}`),
@@ -128,7 +127,7 @@ func TestSetAudioConfigEveryWireKey(t *testing.T) {
 			MistralAPIKey: "tts-mistral-key", MistralAPIBaseURL: "https://mistral.example/v1",
 		},
 		STT: AudioSTTConfigForm{
-			OpenAIAPIBaseURL: "https://stt.example/v1", OpenAIAPIKey: "stt-openai-key", OpenAIAPIRequestFormat: &format,
+			OpenAIAPIBaseURL: "https://stt.example/v1", OpenAIAPIKey: "stt-openai-key", OpenAIAPIRequestFormat: "json",
 			Engine: "openai", Model: "whisper-1", SupportedContentTypes: []string{"audio/*"}, AllowedExtensions: []string{"mp3"},
 			WhisperModel: "base", DeepgramAPIKey: "dg-key", AzureAPIKey: "az-key", AzureRegion: "eastus",
 			AzureLocales: "en-US,de-DE", AzureBaseURL: "https://az-stt.example", AzureMaxSpeakers: "3",
@@ -173,8 +172,8 @@ func TestSetAudioConfigEveryWireKey(t *testing.T) {
 }
 
 // Nil lists must go out as [] (list[str] is not nullable), nil params as null
-// (Optional[dict]), and a nil request format is omitted so the backend default
-// applies on v0.10.2+ and older servers never see the key.
+// (Optional[dict]), and the request format is always sent (a zero value goes
+// out as "").
 func TestSetAudioConfigZeroValues(t *testing.T) {
 	var body map[string]map[string]any
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -198,8 +197,8 @@ func TestSetAudioConfigZeroValues(t *testing.T) {
 			t.Errorf("expected [] for %s, got %#v", k, body["stt"][k])
 		}
 	}
-	if _, ok := body["stt"]["OPENAI_API_REQUEST_FORMAT"]; ok {
-		t.Errorf("nil OPENAI_API_REQUEST_FORMAT must be omitted")
+	if v, ok := body["stt"]["OPENAI_API_REQUEST_FORMAT"]; !ok || v != "" {
+		t.Errorf("OPENAI_API_REQUEST_FORMAT must always be sent, got %#v (present=%v)", v, ok)
 	}
 	if body["stt"]["MISTRAL_USE_CHAT_COMPLETIONS"] != false || body["tts"]["ENGINE"] != "" {
 		t.Errorf("zero scalars must be sent explicitly: %v", body)

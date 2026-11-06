@@ -945,13 +945,11 @@ func (f AudioTTSConfigForm) MarshalJSON() ([]byte, error) {
 // AudioSTTConfigForm mirrors the STTConfigForm Pydantic model. Every scalar is
 // required by the model. SUPPORTED_CONTENT_TYPES and ALLOWED_EXTENSIONS are
 // list[str] = [] (not nullable), so nil slices are sent as []; omitting them
-// would reset them to [] server-side. OPENAI_API_REQUEST_FORMAT was added in
-// Open WebUI v0.10.2 (str = "multipart"); older servers neither return nor
-// accept it, so nil is omitted.
+// would reset them to [] server-side.
 type AudioSTTConfigForm struct {
 	OpenAIAPIBaseURL          string   `json:"OPENAI_API_BASE_URL"`
 	OpenAIAPIKey              string   `json:"OPENAI_API_KEY"`
-	OpenAIAPIRequestFormat    *string  `json:"OPENAI_API_REQUEST_FORMAT,omitempty"`
+	OpenAIAPIRequestFormat    string   `json:"OPENAI_API_REQUEST_FORMAT"`
 	Engine                    string   `json:"ENGINE"`
 	Model                     string   `json:"MODEL"`
 	SupportedContentTypes     []string `json:"SUPPORTED_CONTENT_TYPES"`

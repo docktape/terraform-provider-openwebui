@@ -66,7 +66,7 @@ func (r *ldapServerConfigResource) Schema(_ context.Context, _ resource.SchemaRe
 	required := func(desc string) schema.StringAttribute {
 		return schema.StringAttribute{Required: true, Description: desc, MarkdownDescription: desc, Validators: []validator.String{stringvalidator.LengthAtLeast(1)}}
 	}
-	const v011 = " Added in Open WebUI v0.11.0; older releases ignore it and read it back as null, so setting it against an older server fails the apply with an inconsistent-result error."
+	const v011 = " Requires Open WebUI v0.11.0+."
 	const keep = " When unset, keeps the current server value on first apply and the last-read (state) value afterwards; a never-configured Open WebUI has "
 	const portDesc = "LDAP server port." + keep + "`389`. Once it holds a value it cannot be set back to null from Terraform."
 	appPasswordDesc := "Password used to bind as `app_dn`." + keep + "an empty string. Open WebUI returns this value in plain text from its read endpoint, so it is also kept in Terraform state."
@@ -288,8 +288,7 @@ func overlayLDAPServerConfigPlan(current client.LDAPServerConfigForm, m ldapServ
 // ValidateConfig only sees the configuration, so it cannot catch a blank value
 // kept from the server or from state (Open WebUI stores one while group
 // management is off); without this check it would surface as an HTTP 400. A
-// nil value means a pre-v0.11.0 server without group settings, which is left
-// to the documented inconsistent-result error.
+// nil value is tolerated and not checked.
 func checkLDAPServerGroupAttribute(form client.LDAPServerConfigForm) diag.Diagnostics {
 	var diags diag.Diagnostics
 	if form.EnableGroupManagement != nil && *form.EnableGroupManagement &&
