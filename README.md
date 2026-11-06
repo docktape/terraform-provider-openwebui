@@ -14,12 +14,12 @@ audio, tasks, and more) in any Open WebUI deployment.
 | Component      | Requirement                                             |
 | -------------- | ------------------------------------------------------- |
 | Terraform      | 1.6 or newer                                            |
-| Open WebUI     | v0.9.0 – v0.11.0                                        |
+| Open WebUI     | v0.11.0 – v0.12.0                                       |
 | Go             | 1.25+ (only required to build the provider)             |
 
-Attributes backed by API endpoints that appeared in a later patch release are
-marked optional and noted in their schema descriptions so older deployments keep
-working.
+Attributes that need a newer Open WebUI than v0.11.0 (added in a later patch
+release or in v0.12.0) are marked optional and noted in their schema
+descriptions, so the provider keeps working against v0.11.0.
 
 ## Provider Configuration
 
@@ -84,7 +84,7 @@ variable "openwebui_token" {
 | `openwebui_admin_config`               | Signup, API key, JWT, and feature toggles          |
 | `openwebui_ldap_config`                | LDAP authentication toggle                         |
 | `openwebui_ldap_server_config`         | LDAP server connection and group sync              |
-| `openwebui_oauth_config`               | Generic OIDC provider and OAuth mapping (v0.10.0+) |
+| `openwebui_oauth_config`               | Generic OIDC provider and OAuth mapping            |
 | `openwebui_oauth_client`               | OAuth client registrations                         |
 | `openwebui_images_config`              | Image generation and editing engines               |
 | `openwebui_audio_config`               | Text-to-speech and speech-to-text engines          |

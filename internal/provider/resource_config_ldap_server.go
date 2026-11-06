@@ -66,7 +66,6 @@ func (r *ldapServerConfigResource) Schema(_ context.Context, _ resource.SchemaRe
 	required := func(desc string) schema.StringAttribute {
 		return schema.StringAttribute{Required: true, Description: desc, MarkdownDescription: desc, Validators: []validator.String{stringvalidator.LengthAtLeast(1)}}
 	}
-	const v011 = " Requires Open WebUI v0.11.0+."
 	const keep = " When unset, keeps the current server value on first apply and the last-read (state) value afterwards; a never-configured Open WebUI has "
 	const portDesc = "LDAP server port." + keep + "`389`. Once it holds a value it cannot be set back to null from Terraform."
 	appPasswordDesc := "Password used to bind as `app_dn`." + keep + "an empty string. Open WebUI returns this value in plain text from its read endpoint, so it is also kept in Terraform state."
@@ -104,9 +103,9 @@ func (r *ldapServerConfigResource) Schema(_ context.Context, _ resource.SchemaRe
 			"certificate_path":        str("Path, on the Open WebUI server, to a CA certificate file used to verify the LDAP server. An empty string means none." + keep + "an empty string. Once it holds a value it cannot be set back to null from Terraform; use an empty string instead."),
 			"validate_cert":           b("Whether to validate the LDAP server's TLS certificate." + keep + "`true`."),
 			"ciphers":                 str("TLS cipher suite string." + keep + "`ALL`."),
-			"enable_group_management": b("Whether LDAP group membership is synchronised into Open WebUI groups. Requires a non-blank `attribute_for_groups`: when both are configured, a blank attribute is rejected at plan time; when `attribute_for_groups` is left unset and the value it would keep (from the server or state) is blank, the apply fails with an error before anything is written. Set `attribute_for_groups` explicitly whenever you enable this." + keep + "`false`." + v011),
-			"enable_group_creation":   b("Whether groups found in LDAP are created in Open WebUI when they do not exist." + keep + "`false`." + v011),
-			"attribute_for_groups":    str("LDAP attribute that lists a user's group memberships. Must not be blank when `enable_group_management` is `true` (see that attribute for when this is checked). Open WebUI stores a blank value while group management is off." + keep + "`memberOf`." + v011),
+			"enable_group_management": b("Whether LDAP group membership is synchronised into Open WebUI groups. Requires a non-blank `attribute_for_groups`: when both are configured, a blank attribute is rejected at plan time; when `attribute_for_groups` is left unset and the value it would keep (from the server or state) is blank, the apply fails with an error before anything is written. Set `attribute_for_groups` explicitly whenever you enable this." + keep + "`false`."),
+			"enable_group_creation":   b("Whether groups found in LDAP are created in Open WebUI when they do not exist." + keep + "`false`."),
+			"attribute_for_groups":    str("LDAP attribute that lists a user's group memberships. Must not be blank when `enable_group_management` is `true` (see that attribute for when this is checked). Open WebUI stores a blank value while group management is off." + keep + "`memberOf`."),
 		},
 	}
 }
@@ -243,7 +242,7 @@ func (r *ldapServerConfigResource) ImportState(ctx context.Context, req resource
 
 // overlayLDAPServerConfigPlan returns current with every known (non-null,
 // non-unknown) plan value applied; every other field keeps the value just
-// read from the server. Fields an older server does not return stay nil and
+// read from the server. Fields the server does not return stay nil and
 // are omitted from the request.
 func overlayLDAPServerConfigPlan(current client.LDAPServerConfigForm, m ldapServerConfigModel) client.LDAPServerConfigForm {
 	f := current

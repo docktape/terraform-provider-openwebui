@@ -100,9 +100,9 @@ func TestLDAPServerOverlayAppliesKnownValues(t *testing.T) {
 	}
 }
 
-// Against an older server the group fields are absent: unset plan values
-// leave them nil, so the request omits them.
-func TestLDAPServerOverlayOlderServer(t *testing.T) {
+// When the server omits the group fields, unset plan values leave them nil,
+// so the request omits them.
+func TestLDAPServerOverlayOmittedGroupFields(t *testing.T) {
 	m := ldapServerConfigModel{
 		Label: types.StringValue("L"), Host: types.StringValue("H"), SearchBase: types.StringValue("sb"),
 		Port: types.Int64Unknown(), AttributeForMail: types.StringUnknown(), AttributeForUsername: types.StringUnknown(),
@@ -113,7 +113,7 @@ func TestLDAPServerOverlayOlderServer(t *testing.T) {
 	}
 	f := overlayLDAPServerConfigPlan(client.LDAPServerConfigForm{Label: "x", Host: "y", SearchBase: "z", AppDN: "dn"}, m)
 	if f.EnableGroupManagement != nil || f.EnableGroupCreation != nil || f.AttributeForGroups != nil || f.AppDN != "dn" {
-		t.Fatalf("unexpected overlay on older server form: %+v", f)
+		t.Fatalf("unexpected overlay on form without group fields: %+v", f)
 	}
 }
 
@@ -145,9 +145,8 @@ func TestLDAPServerModelFromFormRoundTrip(t *testing.T) {
 	}
 }
 
-// Older servers omit the group keys and may return a null port; both must
-// flatten to null (not zero values).
-func TestLDAPServerModelFromFormOlderServer(t *testing.T) {
+// Omitted group keys and a null port must flatten to null (not zero values).
+func TestLDAPServerModelFromFormOmittedKeys(t *testing.T) {
 	m := ldapServerConfigModelFromForm(client.LDAPServerConfigForm{Label: "L", Host: "H", SearchBase: "sb"})
 	if !m.Port.IsNull() || !m.EnableGroupManagement.IsNull() || !m.EnableGroupCreation.IsNull() || !m.AttributeForGroups.IsNull() {
 		t.Fatalf("expected null optional fields, got %+v", m)

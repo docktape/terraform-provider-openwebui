@@ -130,8 +130,6 @@ func (r *retrievalConfigResource) Metadata(_ context.Context, req resource.Metad
 }
 
 const (
-	noteV0100        = " Added in Open WebUI v0.10.0; on older servers the value is ignored and reads back as null, so setting it fails the apply."
-	noteV0110        = " Added in Open WebUI v0.11.0; on older servers the value is ignored and reads back as null, so setting it fails the apply."
 	retrievalJSONTip = " Compared semantically: key order and whitespace differences are not drift. Use `{}` for none (Open WebUI cannot store null here once set)."
 	retrievalLimit   = " Set `-1` for no limit: Open WebUI stores it as null, and this resource keeps showing `-1` while the server value stays null. `0` is stored as 0 and is not \"no limit\"."
 	retrievalNoComp  = " Set `-1` for no compression: Open WebUI stores it as null, and this resource keeps showing `-1` while the server value stays null."
@@ -185,7 +183,7 @@ func (r *retrievalConfigResource) Schema(_ context.Context, _ resource.SchemaReq
 			"hybrid_bm25_weight":                      f("Weight of BM25 in hybrid search; the vector search weight is `1 - hybrid_bm25_weight`. Server default: `0.5`."),
 
 			"content_extraction_engine":                     str("Document content extraction engine: `\"\"` (built-in loaders), `external`, `tika`, `docling`, `datalab_marker`, `document_intelligence`, `mistral_ocr`, `mineru` or `paddleocr_vl`. Server default: `\"\"`."),
-			"content_extraction_supported_media_mime_types": list("MIME type patterns of image/video uploads sent to the content extraction engine. Null (the server default) means only the `external` engine receives media; `[]` means none does. Once set it cannot be returned to null through the API." + noteV0110),
+			"content_extraction_supported_media_mime_types": list("MIME type patterns of image/video uploads sent to the content extraction engine. Null (the server default) means only the `external` engine receives media; `[]` means none does. Once set it cannot be returned to null through the API."),
 			"pdf_extract_images":                            b("Whether images in PDFs are extracted and OCR'd by the built-in loader. Server default: `false`."),
 			"pdf_loader_mode":                               str("Built-in PDF loader mode: `page` or `single`. Server default: `page`."),
 
@@ -203,7 +201,7 @@ func (r *retrievalConfigResource) Schema(_ context.Context, _ resource.SchemaReq
 
 			"external_document_loader_url":          str("URL of the external document loader."),
 			"external_document_loader_api_key":      secret("API key for the external document loader."),
-			"external_document_loader_headers_json": secret("JSON object of extra HTTP headers sent to the external document loader, for example `jsonencode({ \"X-Tenant\" = \"a\" })`. Sensitive because headers commonly carry credentials. Server default: `{}`."+retrievalJSONTip+jsonNumberNote+noteV0100, jsonObjectValidator()),
+			"external_document_loader_headers_json": secret("JSON object of extra HTTP headers sent to the external document loader, for example `jsonencode({ \"X-Tenant\" = \"a\" })`. Sensitive because headers commonly carry credentials. Server default: `{}`."+retrievalJSONTip+jsonNumberNote, jsonObjectValidator()),
 
 			"tika_server_url":                str("Apache Tika server URL. Server default: `http://tika:9998`."),
 			"docling_server_url":             str("Docling server URL. Server default: `http://docling:5001`."),
@@ -214,14 +212,14 @@ func (r *retrievalConfigResource) Schema(_ context.Context, _ resource.SchemaReq
 			"document_intelligence_model":    str("Azure Document Intelligence model. Server default: `prebuilt-layout`."),
 			"mistral_ocr_api_base_url":       str("Mistral OCR API base URL. Server default: `https://api.mistral.ai/v1`."),
 			"mistral_ocr_api_key":            secret("Mistral OCR API key."),
-			"mistral_ocr_use_base64":         b("Whether documents are sent to Mistral OCR inline as base64 instead of being uploaded. Server default: `false`." + noteV0100),
+			"mistral_ocr_use_base64":         b("Whether documents are sent to Mistral OCR inline as base64 instead of being uploaded. Server default: `false`."),
 			"paddleocr_vl_base_url":          str("PaddleOCR-VL server base URL. Server default: `http://localhost:8080`."),
 			"paddleocr_vl_token":             secret("PaddleOCR-VL access token."),
 
 			"mineru_api_mode":        str("MinerU API mode: `local` or `cloud`. Server default: `local`."),
 			"mineru_api_url":         str("MinerU API URL. Server default: `http://localhost:8000`."),
 			"mineru_api_key":         secret("MinerU API key (cloud mode)."),
-			"mineru_api_timeout":     i("MinerU request timeout in seconds. Open WebUI v0.9.6 stores it as a string and v0.10.0+ as an integer; both are read as a number. Server default: `300`."),
+			"mineru_api_timeout":     i("MinerU request timeout in seconds. Open WebUI may return it as a string or an integer; both are read as a number. Server default: `300`."),
 			"mineru_params_json":     str("JSON object of MinerU parameters. Server default: `{}`."+retrievalJSONTip+jsonNumberNote, jsonObjectValidator()),
 			"mineru_file_extensions": list("File extensions routed to MinerU. Server default: `[\"pdf\"]`."),
 
@@ -233,7 +231,7 @@ func (r *retrievalConfigResource) Schema(_ context.Context, _ resource.SchemaReq
 			"rag_external_reranker_timeout": str("External reranker timeout in whole seconds as a string; `\"\"` means the system default. Server default: `\"\"`.", rerankerTimeoutValidator),
 
 			"text_splitter":                        str("Text splitter: `\"\"`/`character` or `token`. Server default: `\"\"`."),
-			"rag_tokenizer_model":                  str("Hugging Face tokenizer used by the `token` splitter. Empty means tiktoken. Must not start or end with whitespace (Open WebUI strips it)."+noteV0100, noEdgeWhitespaceValidator),
+			"rag_tokenizer_model":                  str("Hugging Face tokenizer used by the `token` splitter. Empty means tiktoken. Must not start or end with whitespace (Open WebUI strips it).", noEdgeWhitespaceValidator),
 			"enable_markdown_header_text_splitter": b("Whether Markdown documents are split on headers first. Server default: `true`."),
 			"chunk_size":                           i("Chunk size (characters or tokens, depending on `text_splitter`). Server default: `1000`."),
 			"chunk_min_size_target":                i("Chunks smaller than this are merged with neighbours; `0` disables merging. Server default: `0`."),

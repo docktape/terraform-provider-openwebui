@@ -10,7 +10,7 @@ import (
 
 // WebSearchConfig is the nested `web` object (Open WebUI's WebConfig) of the
 // GET /retrieval/config response. Every field is a pointer, nil slice or raw
-// JSON so that a key absent on an older server, or served as null, reads as
+// JSON so that a key the server omits, or serves as null, reads as
 // nil. Lists keep the null/[] distinction. The integer fields are decoded
 // leniently (see UnmarshalJSON).
 //
@@ -307,7 +307,7 @@ type WebSearchUpdateResult struct {
 }
 
 // webSearchNonNullableKeys are the WebConfig fields whose annotation is not
-// Optional on every release from v0.9.6 to v0.11.0:
+// Optional at v0.11.0:
 // `WEB_SEARCH_DOMAIN_FILTER_LIST: list[str | None] = []` and
 // `YOUTUBE_LOADER_LANGUAGE: list[str | None] = None`. Pydantic rejects an
 // explicit null for them with HTTP 422 ("Input should be a valid list"), while

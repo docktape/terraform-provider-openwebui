@@ -94,7 +94,7 @@ func TestGetRetrievalConfig(t *testing.T) {
 }
 
 // TestGetRetrievalConfigLenientInts covers the int|str shapes the server can
-// return: MINERU_API_TIMEOUT as an int (written by v0.10+), the file limits as
+// return: MINERU_API_TIMEOUT as an int (as the update form writes it), the file limits as
 // numeric strings (Union[int, str] in ConfigForm) or "".
 func TestGetRetrievalConfigLenientInts(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -124,7 +124,7 @@ func TestGetRetrievalConfigLenientInts(t *testing.T) {
 		t.Errorf("TOP_K/CHUNK_OVERLAP: %v / %v", got.TopK, got.ChunkOverlap)
 	}
 	if got.RAGTemplate != nil || got.Web != nil {
-		t.Errorf("absent keys should decode as nil (older servers)")
+		t.Errorf("absent keys should decode as nil")
 	}
 }
 

@@ -227,17 +227,17 @@ func TestRetrievalModelFromAPIShapes(t *testing.T) {
 	}
 }
 
-// TestRetrievalModelFromOlderServer covers keys missing on Open WebUI v0.9.6
-// (no CONTENT_EXTRACTION_SUPPORTED_MEDIA_MIME_TYPES, EXTERNAL_DOCUMENT_LOADER_HEADERS,
-// RAG_TOKENIZER_MODEL, MISTRAL_OCR_USE_BASE64) and MINERU_API_TIMEOUT stored as
-// a string: absent keys read as null.
-func TestRetrievalModelFromOlderServer(t *testing.T) {
+// TestRetrievalModelFromOmittedKeys covers a response that omits
+// CONTENT_EXTRACTION_SUPPORTED_MEDIA_MIME_TYPES, EXTERNAL_DOCUMENT_LOADER_HEADERS,
+// RAG_TOKENIZER_MODEL and MISTRAL_OCR_USE_BASE64 and stores MINERU_API_TIMEOUT
+// as a string: omitted keys read as null.
+func TestRetrievalModelFromOmittedKeys(t *testing.T) {
 	m, diags := retrievalConfigModelFromAPI(context.Background(), decodeStockRetrieval(t, `{"TOP_K": 3, "MINERU_API_TIMEOUT": "60"}`))
 	if diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
 	if !m.ExternalDocumentLoaderHeadersJSON.IsNull() || !m.RAGTokenizerModel.IsNull() || !m.MistralOCRUseBase64.IsNull() || !m.ContentExtractionSupportedMediaMimeTypes.IsNull() {
-		t.Error("keys absent on older servers must be null")
+		t.Error("keys omitted by the server must be null")
 	}
 	if m.MinerUAPITimeout.ValueInt64() != 60 {
 		t.Errorf("MINERU_API_TIMEOUT: %v", m.MinerUAPITimeout)

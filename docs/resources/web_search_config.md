@@ -61,7 +61,7 @@ resource "openwebui_web_search_config" "example" {
 - `ddgs_backend` (String) Backend of the `duckduckgo` (DDGS) engine. Server default: `auto`.
 - `enable_web_loader_ssl_verification` (Boolean) Whether the web loader verifies TLS certificates. Server default: `true`.
 - `enable_web_search` (Boolean) Whether web search is enabled. Server default: `false`.
-- `enable_web_search_confirmation` (Boolean) Whether users must confirm before a query is sent to the web search provider. Server default: `false`. Added in Open WebUI v0.10.0; on older servers the value is ignored and reads back as null, so setting it fails the apply.
+- `enable_web_search_confirmation` (Boolean) Whether users must confirm before a query is sent to the web search provider. Server default: `false`.
 - `exa_api_key` (String, Sensitive) Exa API key.
 - `external_web_loader_api_key` (String, Sensitive) API key of the external web loader.
 - `external_web_loader_url` (String) URL of the external web loader (`external` loader).
@@ -77,12 +77,12 @@ resource "openwebui_web_search_config" "example" {
 - `kagi_search_api_key` (String, Sensitive) Kagi Search API key.
 - `linkup_api_key` (String, Sensitive) Linkup API key.
 - `linkup_search_params_json` (String) JSON object of extra Linkup search parameters, for example `jsonencode({ depth = "deep" })`. Server default: `{}`. Compared semantically: key order and whitespace differences are not drift. Use `{}` for none (Open WebUI cannot store null here once set). Number literals must survive Open WebUI's Python JSON round trip: integers are exact (up to Python's 4300-digit limit), but a fraction or exponent that a 64-bit float cannot hold exactly (for example `9007199254740993.0`) or that overflows it (`1e400`) is rejected at plan time.
-- `microsoft_web_iq_api_base_url` (String) Microsoft Web IQ API base URL (search engine and web loader). Server default: `https://api.microsoft.ai/v3`. Added in Open WebUI v0.10.0; on older servers the value is ignored and reads back as null, so setting it fails the apply.
-- `microsoft_web_iq_api_key` (String, Sensitive) Microsoft Web IQ API key. Added in Open WebUI v0.10.0; on older servers the value is ignored and reads back as null, so setting it fails the apply.
-- `microsoft_web_iq_language` (String) Microsoft Web IQ language. Server default: `en`. Added in Open WebUI v0.10.0; on older servers the value is ignored and reads back as null, so setting it fails the apply.
+- `microsoft_web_iq_api_base_url` (String) Microsoft Web IQ API base URL (search engine and web loader). Server default: `https://api.microsoft.ai/v3`.
+- `microsoft_web_iq_api_key` (String, Sensitive) Microsoft Web IQ API key.
+- `microsoft_web_iq_language` (String) Microsoft Web IQ language. Server default: `en`.
 - `mojeek_search_api_key` (String, Sensitive) Mojeek Search API key.
 - `ollama_cloud_web_search_api_key` (String, Sensitive) Ollama Cloud API key (`ollama_cloud` engine).
-- `openserp_base_url` (String) OpenSERP base URL (`openserp` engine). Server default: `http://localhost:7000`. Added in Open WebUI v0.11.0; on older servers the value is ignored and reads back as null, so setting it fails the apply.
+- `openserp_base_url` (String) OpenSERP base URL (`openserp` engine). Server default: `http://localhost:7000`.
 - `perplexity_api_key` (String, Sensitive) Perplexity API key (`perplexity` and `perplexity_search` engines).
 - `perplexity_model` (String) Perplexity model (`perplexity` engine). Server default: `sonar`.
 - `perplexity_search_api_url` (String) Perplexity Search API URL (`perplexity_search` engine). Server default: `https://api.perplexity.ai/search`.
@@ -96,8 +96,8 @@ resource "openwebui_web_search_config" "example" {
 - `serpapi_api_key` (String, Sensitive) SerpApi API key.
 - `serpapi_engine` (String) SerpApi engine, for example `google`. Empty means the SerpApi default.
 - `serper_api_key` (String, Sensitive) Serper API key.
-- `serphouse_api_key` (String, Sensitive) Serphouse API key. Added in Open WebUI v0.10.0; on older servers the value is ignored and reads back as null, so setting it fails the apply.
-- `serphouse_domain` (String) Search engine domain Serphouse queries. Server default: `google.com`. Added in Open WebUI v0.10.0; on older servers the value is ignored and reads back as null, so setting it fails the apply.
+- `serphouse_api_key` (String, Sensitive) Serphouse API key.
+- `serphouse_domain` (String) Search engine domain Serphouse queries. Server default: `google.com`.
 - `serply_api_key` (String, Sensitive) Serply API key.
 - `serpstack_api_key` (String, Sensitive) Serpstack API key.
 - `serpstack_https` (Boolean) Whether Serpstack is called over HTTPS. Server default: `true`.
@@ -110,9 +110,9 @@ resource "openwebui_web_search_config" "example" {
 - `web_loader_engine` (String) Web page loader: `""` or `safe_web` (built-in), `playwright`, `firecrawl`, `tavily`, `external` or `microsoft_web_iq`. Open WebUI does not validate the value when saving, but every page load fails with any other value. Server default: `""`.
 - `web_loader_timeout` (String) Timeout of the built-in and `microsoft_web_iq` loaders in seconds, as a string; `""` means the default. Must be empty or a plain decimal number such as `10` or `2.5` (no sign, exponent or unit; Open WebUI silently ignores anything it cannot convert). Server default: `""`.
 - `web_search_concurrent_requests` (Number) Maximum number of search queries run in parallel; `0` means unlimited. Must be at least `0` (Open WebUI fails every search with a negative value). Server default: `0`.
-- `web_search_confirmation_content` (String) Text of the confirmation prompt shown when `enable_web_search_confirmation` is on. Server default: `Your query will be sent to the configured web search provider.` Added in Open WebUI v0.10.0; on older servers the value is ignored and reads back as null, so setting it fails the apply.
+- `web_search_confirmation_content` (String) Text of the confirmation prompt shown when `enable_web_search_confirmation` is on. Server default: `Your query will be sent to the configured web search provider.`
 - `web_search_domain_filter_list` (List of String) Domains search results are restricted to; an entry starting with `!` blocks that domain instead. `[]` means no filter. Server default: `[]`.
-- `web_search_engine` (String) Web search engine: one of `searxng`, `yacy`, `google_pse`, `brave`, `brave_llm_context`, `kagi`, `mojeek`, `bocha`, `serpstack`, `serper`, `serphouse`, `serply`, `duckduckgo`, `tavily`, `searchapi`, `serpapi`, `jina`, `bing`, `exa`, `perplexity`, `perplexity_search`, `microsoft_web_iq`, `sougou`, `firecrawl`, `external`, `yandex`, `youcom`, `linkup`, `ollama_cloud` or `openserp` (Open WebUI v0.11.0; older releases support fewer). `azure` exists too, but its settings are environment variables only. Open WebUI does not validate the value. Server default: `""`.
+- `web_search_engine` (String) Web search engine: one of `searxng`, `yacy`, `google_pse`, `brave`, `brave_llm_context`, `kagi`, `mojeek`, `bocha`, `serpstack`, `serper`, `serphouse`, `serply`, `duckduckgo`, `tavily`, `searchapi`, `serpapi`, `jina`, `bing`, `exa`, `perplexity`, `perplexity_search`, `microsoft_web_iq`, `sougou`, `firecrawl`, `external`, `yandex`, `youcom`, `linkup`, `ollama_cloud` or `openserp`. `azure` exists too, but its settings are environment variables only. Open WebUI does not validate the value. Server default: `""`.
 - `web_search_result_count` (Number) Number of search results used per query. Server default: `3`.
 - `web_search_trust_env` (Boolean) Whether web search and web loader requests honour the proxy environment variables (`http_proxy`, `https_proxy`, ...). Server default: `true`.
 - `yacy_password` (String, Sensitive) YaCy password.

@@ -3,7 +3,6 @@ variable "oidc_client_secret" {
   sensitive = true
 }
 
-# Requires Open WebUI v0.10.0 or later.
 resource "openwebui_oauth_config" "example" {
   oauth_provider_name = "Corporate SSO"
   openid_provider_url = "https://idp.example.com/.well-known/openid-configuration"

@@ -66,7 +66,7 @@ resource "openwebui_images_config" "example" {
 - `image_edit_size` (String) Edited image size, for example `1024x1024`. Empty keeps the input size. Server default: empty string.
 - `image_generation_engine` (String) Image generation engine: `openai`, `gemini`, `comfyui` or `automatic1111` (an empty string is treated as `automatic1111`). Server default: `openai`.
 - `image_generation_model` (String) Model used for image generation. Empty means the engine's default.
-- `image_size` (String) Generated image size as `WIDTHxHEIGHT` (for example `512x512`), `auto`, or an empty string. Open WebUI only accepts `auto` when `image_generation_model` matches its `IMAGE_AUTO_SIZE_MODELS_REGEX_PATTERN` (default `^gpt-image`). On Open WebUI v0.9.6 the server writes the generation toggles, engine and model before it rejects `auto` for a non-matching model with HTTP 400, so such a failed apply can still leave those values changed. Server default: `512x512`.
+- `image_size` (String) Generated image size as `WIDTHxHEIGHT` (for example `512x512`), `auto`, or an empty string. Open WebUI only accepts `auto` when `image_generation_model` matches its `IMAGE_AUTO_SIZE_MODELS_REGEX_PATTERN` (default `^gpt-image`). Server default: `512x512`.
 - `image_steps` (Number) Number of sampling steps (ComfyUI and AUTOMATIC1111). Must be 0 or greater. Server default: `50`.
 - `images_edit_comfyui_api_key` (String, Sensitive) Bearer token for the ComfyUI image editing API.
 - `images_edit_comfyui_base_url` (String) Base URL of the ComfyUI API used for image editing, without leading or trailing slashes (Open WebUI strips them).

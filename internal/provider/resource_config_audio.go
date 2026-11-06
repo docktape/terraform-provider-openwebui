@@ -164,7 +164,7 @@ func (r *audioConfigResource) Schema(_ context.Context, _ resource.SchemaRequest
 			"stt": nested("Speech-to-text settings. Omit the block, or any attribute in it, to keep the last-read (state) values.", map[string]schema.Attribute{
 				"openai_api_base_url":       str("Base URL of the OpenAI-compatible transcription API. Server default: the `OPENAI_API_BASE_URL` setting."),
 				"openai_api_key":            secret("API key for the OpenAI-compatible transcription API."),
-				"openai_api_request_format": str("How audio is sent to the OpenAI-compatible transcription API: `multipart` (file upload) or `json` (base64 in a JSON body). Server default: `multipart`. Added in Open WebUI v0.10.2; setting it against an older server fails the apply (the check runs at apply time, after the current configuration is read and before anything is written)."),
+				"openai_api_request_format": str("How audio is sent to the OpenAI-compatible transcription API: `multipart` (file upload) or `json` (base64 in a JSON body). Server default: `multipart`."),
 				"engine":                    str("Speech-to-text engine: empty for local Whisper, `openai`, `web` (browser), `deepgram`, `azure` or `mistral`. Server default: empty. Leaving it empty makes every apply reload `whisper_model` (see the resource notes)."),
 				"model":                     str("Speech-to-text model for the remote engines, for example `whisper-1`."),
 				"supported_content_types":   list("MIME types accepted for transcription, for example `[\"audio/*\"]`. An empty list means Open WebUI's built-in default (`audio/*` and `video/webm`). Server default: `[]`."),

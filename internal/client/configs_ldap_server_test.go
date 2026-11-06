@@ -50,9 +50,9 @@ func TestGetLDAPServerConfig(t *testing.T) {
 	}
 }
 
-// TestGetLDAPServerConfigOlderServer covers a v0.9.6-shaped response that has
-// no group keys and a null port.
-func TestGetLDAPServerConfigOlderServer(t *testing.T) {
+// TestGetLDAPServerConfigOmittedKeys covers a response that has no group keys
+// and a null port.
+func TestGetLDAPServerConfigOmittedKeys(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"label":"l","host":"h","port":null,"app_dn":"","app_dn_password":"","search_base":"b"}`))

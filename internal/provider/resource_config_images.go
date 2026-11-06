@@ -117,7 +117,7 @@ func (r *imagesConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 			"enable_image_prompt_generation": b("Whether a task model rewrites the user's request into an image prompt before generation. Server default: `true`."),
 			"image_generation_engine":        str("Image generation engine: `openai`, `gemini`, `comfyui` or `automatic1111` (an empty string is treated as `automatic1111`). Server default: `openai`."),
 			"image_generation_model":         str("Model used for image generation. Empty means the engine's default."),
-			"image_size":                     str("Generated image size as `WIDTHxHEIGHT` (for example `512x512`), `auto`, or an empty string. Open WebUI only accepts `auto` when `image_generation_model` matches its `IMAGE_AUTO_SIZE_MODELS_REGEX_PATTERN` (default `^gpt-image`). On Open WebUI v0.9.6 the server writes the generation toggles, engine and model before it rejects `auto` for a non-matching model with HTTP 400, so such a failed apply can still leave those values changed. Server default: `512x512`.", imageSizeValidator),
+			"image_size":                     str("Generated image size as `WIDTHxHEIGHT` (for example `512x512`), `auto`, or an empty string. Open WebUI only accepts `auto` when `image_generation_model` matches its `IMAGE_AUTO_SIZE_MODELS_REGEX_PATTERN` (default `^gpt-image`). Server default: `512x512`.", imageSizeValidator),
 			"image_steps": schema.Int64Attribute{
 				Optional:            true,
 				Computed:            true,

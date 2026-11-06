@@ -562,7 +562,7 @@ func (c *Client) SetLDAPConfig(ctx context.Context, form LDAPConfigForm) (*LDAPC
 // lowercase snake_case keys in both directions.
 //
 // The non-nullable fields that have a server-side default are pointers tagged
-// omitempty: a nil value (for example a group field an older server does not
+// omitempty: a nil value (for example a group field the server does not
 // return) is omitted and the server default applies, because the model
 // rejects null for them. The nullable fields (port, certificate_path,
 // ciphers) are always sent, so a nil value is written as null rather than
@@ -610,7 +610,7 @@ func (c *Client) SetLDAPServerConfig(ctx context.Context, form LDAPServerConfigF
 
 // OAuthConfigForm mirrors the OAuthConfigForm Pydantic model served by GET and
 // accepted by POST /auths/admin/config/oauth (backend/open_webui/routers/
-// auths.py; the endpoint exists from Open WebUI v0.10.0). Every field is
+// auths.py). Every field is
 // Optional[...] = None server-side and the handler stores
 // model_dump(exclude_none=True), so the POST is a genuine partial update: a
 // nil (omitted) field leaves the stored value untouched and there is no way to
@@ -619,7 +619,7 @@ func (c *Client) SetLDAPServerConfig(ctx context.Context, form LDAPServerConfigF
 // Three fields are unions on the server and get custom wire handling (see
 // MarshalJSON/UnmarshalJSON): OAuthTimeout and OAuthClientTimeout are int|str
 // and OAuthGroupDefaultShare is bool|str. All three are exposed as *string.
-// ENABLE_OAUTH was added in v0.11.0 and is absent from v0.10.x responses.
+// ENABLE_OAUTH exists from v0.11.0.
 type OAuthConfigForm struct {
 	EnableOAuth                   *bool   `json:"ENABLE_OAUTH,omitempty"`
 	EnableOAuthSignup             *bool   `json:"ENABLE_OAUTH_SIGNUP,omitempty"`
@@ -751,7 +751,7 @@ func decodeScalarAsString(raw json.RawMessage) (*string, error) {
 	return nil, fmt.Errorf("expected a JSON string, number or boolean, got %s", string(raw))
 }
 
-// GetOAuthConfig retrieves the OIDC/OAuth configuration (Open WebUI v0.10.0+).
+// GetOAuthConfig retrieves the OIDC/OAuth configuration.
 // OAUTH_CLIENT_SECRET is returned in plain text.
 func (c *Client) GetOAuthConfig(ctx context.Context) (*OAuthConfigForm, error) {
 	var resp OAuthConfigForm
@@ -774,9 +774,8 @@ func (c *Client) SetOAuthConfig(ctx context.Context, form OAuthConfigForm) (*OAu
 
 // ImagesConfigForm mirrors the ImagesConfig Pydantic model served by GET
 // /images/config and accepted by POST /images/config/update
-// (backend/open_webui/routers/images.py; identical shape from v0.9.6 through
-// v0.11.0). Every one of the 33 fields is required by the model (none has a
-// default), so the POST is a full-object write: the body must carry every key
+// (backend/open_webui/routers/images.py; shape as of v0.11.0). Every one of the 33 fields is required by the
+// model (none has a default), so the POST is a full-object write: the body must carry every key
 // and nothing is omitted. Callers that only want to change some settings must
 // read the current config first and send it back with their changes.
 //
@@ -912,9 +911,8 @@ func (c *Client) SetImagesConfig(ctx context.Context, form ImagesConfigForm) (*I
 }
 
 // AudioTTSConfigForm mirrors the TTSConfigForm Pydantic model
-// (backend/open_webui/routers/audio.py; identical from v0.9.6 through
-// v0.11.0). Every field except OPENAI_PARAMS is required by the model.
-// OPENAI_PARAMS is Optional[dict] = None and is kept as raw JSON so the stored
+// (backend/open_webui/routers/audio.py; shape as of v0.11.0). Every field except OPENAI_PARAMS is required by the
+// model. OPENAI_PARAMS is Optional[dict] = None and is kept as raw JSON so the stored
 // value (object or null) round-trips unchanged; nil is sent as null.
 type AudioTTSConfigForm struct {
 	OpenAIAPIBaseURL        string          `json:"OPENAI_API_BASE_URL"`

@@ -103,7 +103,6 @@ func (r *oauthConfigResource) Schema(_ context.Context, _ resource.SchemaRequest
 	const nullNote = " Null until set. Once set it cannot be returned to null from Terraform (Open WebUI's partial update ignores null), but an empty string is equivalent: Open WebUI only checks this setting for truthiness."
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Manages Open WebUI's single generic OIDC provider configuration and cross-cutting OAuth behavior (role/group mapping, domain allowlist, claims). Configuring per-provider (Google/Microsoft/GitHub) client credentials is done via environment variables, not this resource.\n\n" +
-			"~> **Requires Open WebUI v0.10.0+.** This endpoint did not exist in earlier releases.\n\n" +
 			"~> This resource applies a partial update: only attributes that have a value in the plan are sent, and everything else is left untouched on the server. Removing an attribute from your configuration therefore does not reset it to its default; set it to the value you want instead (an empty string clears a string attribute). Open WebUI cannot store null for these settings.\n\n" +
 			"~> `oauth_client_secret` is stored in Terraform state because Open WebUI returns it in plain text. Protect your state accordingly.\n\n" +
 			"~> Be careful with `oauth_auto_redirect` and `enable_oauth`: a misconfigured provider combined with auto-redirect can lock password-based admins out of the sign-in page.",
@@ -114,7 +113,7 @@ func (r *oauthConfigResource) Schema(_ context.Context, _ resource.SchemaRequest
 				MarkdownDescription: "Singleton identifier.",
 				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
-			"enable_oauth":                      b("Master switch for OAuth login. Server default: `true`. Added in Open WebUI v0.11.0. Setting it against a v0.10.x server fails the apply with an error before anything is written (the provider reads the configuration first and checks that the server reports this setting); left unset, it reads back as null there."),
+			"enable_oauth":                      b("Master switch for OAuth login. Server default: `true`."),
 			"enable_oauth_signup":               b("Whether new users may sign up through OAuth. Server default: `false`."),
 			"oauth_merge_accounts_by_email":     b("Whether an OAuth login is merged into an existing local account with the same email. Only enable this for identity providers that verify email ownership. Server default: `false`."),
 			"oauth_auto_redirect":               b("Whether the sign-in page redirects straight to the OAuth provider. Enabling it can lock password-based admins out of the UI. Server default: `false`."),
