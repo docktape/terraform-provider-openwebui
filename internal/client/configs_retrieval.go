@@ -328,5 +328,5 @@ func (c *Client) UpdateRetrievalConfig(ctx context.Context, form RetrievalConfig
 // postRetrievalConfig sends the update and decodes the response into out
 // (nil discards it); callers hold retrievalMu.
 func (c *Client) postRetrievalConfig(ctx context.Context, form RetrievalConfigUpdateForm, out any) error {
-	return c.do(ctx, http.MethodPost, "retrieval/config/update", nil, form, out)
+	return c.doModelReload(ctx, http.MethodPost, "retrieval/config/update", form, out)
 }

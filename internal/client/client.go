@@ -41,6 +41,10 @@ type Client struct {
 	rootURL    string // scheme://host[:port], no path — used for /openai and /ollama endpoints
 	token      string
 	httpClient *http.Client
+	// modelReloadHTTPClient shares httpClient's Transport (and so its TLS
+	// settings) with a longer timeout, for the few requests during which
+	// Open WebUI loads a model synchronously (see doModelReload).
+	modelReloadHTTPClient *http.Client
 
 	// retrievalMu serializes the writes to /retrieval/config/update (see
 	// UpdateRetrievalConfig).
@@ -74,7 +78,7 @@ func NewClient(endpoint, token string, insecure bool) (*Client, error) {
 	root := strings.TrimRight(parsedRoot.String(), "/")
 
 	hc := &http.Client{
-		Timeout: 30 * time.Second,
+		Timeout: defaultTimeout,
 	}
 
 	if insecure {
@@ -88,15 +92,38 @@ func NewClient(endpoint, token string, insecure bool) (*Client, error) {
 	}
 
 	return &Client{
-		baseURL:    base,
-		rootURL:    root,
-		token:      token,
-		httpClient: hc,
+		baseURL:               base,
+		rootURL:               root,
+		token:                 token,
+		httpClient:            hc,
+		modelReloadHTTPClient: &http.Client{Transport: hc.Transport, Timeout: modelReloadTimeout},
 	}, nil
 }
 
+const (
+	// defaultTimeout bounds every request except the model-reloading ones.
+	defaultTimeout = 30 * time.Second
+	// modelReloadTimeout bounds the requests during which Open WebUI loads
+	// (and on first use downloads) an embedding or reranking model before it
+	// answers: POST /retrieval/embedding/update, and POST
+	// /retrieval/config/update while hybrid search is on.
+	modelReloadTimeout = 10 * time.Minute
+)
+
 // do performs an HTTP request against the API.
 func (c *Client) do(ctx context.Context, method, path string, query url.Values, payload any, out any) error {
+	return c.doWith(ctx, c.httpClient, method, path, query, payload, out)
+}
+
+// doModelReload is do for a request during which Open WebUI may load a
+// model synchronously; it waits up to modelReloadTimeout instead of the
+// default timeout.
+func (c *Client) doModelReload(ctx context.Context, method, path string, payload any, out any) error {
+	return c.doWith(ctx, c.modelReloadHTTPClient, method, path, nil, payload, out)
+}
+
+// doWith performs an HTTP request against the API with the given client.
+func (c *Client) doWith(ctx context.Context, hc *http.Client, method, path string, query url.Values, payload any, out any) error {
 	var body io.Reader
 
 	if payload != nil {
@@ -136,7 +163,7 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 		req.Header.Set("Authorization", "Bearer "+c.token)
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := hc.Do(req)
 	if err != nil {
 		return fmt.Errorf("perform request: %w", err)
 	}
