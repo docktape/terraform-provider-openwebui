@@ -4,8 +4,10 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 )
@@ -55,42 +57,70 @@ func TestClientTimeoutDefaults(t *testing.T) {
 	}
 }
 
-// TestModelReloadRequestsUseLongTimeout: with a short default timeout and a
-// longer model-reload timeout (shortened for the test), an ordinary request
-// slower than the default times out, while the three model-reloading POSTs
-// (embedding update, retrieval config update, web-only retrieval update)
-// wait for the slow server. A POST slower than the model-reload timeout still
-// times out, so that timeout is really applied.
+// TestModelReloadRequestsUseLongTimeout: with the default timeout shortened
+// to 1 s and the model-reload timeout to 10 s, an ordinary request slower than
+// the default (1.5 s) times out, while the three model-reloading POSTs
+// (embedding update, retrieval config update, web-only retrieval update) wait
+// for the equally slow server. A second client whose model-reload timeout is
+// 1 s times out on the slow POST, so that timeout is really applied. The GETs
+// that precede the POSTs answer immediately, so the 1 s default leaves them a
+// wide margin. The checks run concurrently (about 1.5 s in total).
 func TestModelReloadRequestsUseLongTimeout(t *testing.T) {
-	server := slowPostServer(t, 150*time.Millisecond, false)
+	const delay = 1500 * time.Millisecond
+	server := slowPostServer(t, delay, false)
 	defer server.Close()
-	c, err := NewClient(server.URL, "token", false)
-	if err != nil {
-		t.Fatal(err)
+	newClient := func(reload time.Duration) *Client {
+		c, err := NewClient(server.URL, "token", false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		c.httpClient.Timeout = time.Second
+		c.modelReloadHTTPClient.Timeout = reload
+		return c
 	}
-	c.httpClient.Timeout = 50 * time.Millisecond
-	c.modelReloadHTTPClient.Timeout = 5 * time.Second
+	c, short := newClient(10*time.Second), newClient(time.Second)
 	ctx := context.Background()
+	size, topK, count := int64(42), int64(9), int64(9)
 
-	if err := c.do(ctx, http.MethodGet, "slow", nil, nil, nil); !isTimeout(err) {
-		t.Errorf("an ordinary request must time out at the default timeout, got %v", err)
+	checks := map[string]func() error{
+		"ordinary request times out": func() error {
+			if err := c.do(ctx, http.MethodGet, "slow", nil, nil, nil); !isTimeout(err) {
+				return fmt.Errorf("must time out at the default timeout, got %v", err)
+			}
+			return nil
+		},
+		"embedding update": func() error {
+			return c.UpdateRetrievalEmbeddingConfig(ctx, RetrievalEmbeddingConfigUpdate{RAGEmbeddingBatchSize: &size})
+		},
+		"retrieval config update": func() error {
+			return c.UpdateRetrievalConfig(ctx, RetrievalConfigUpdateForm{TopK: &topK})
+		},
+		"web search update": func() error {
+			_, err := c.UpdateWebSearchConfig(ctx, WebSearchConfigUpdate{WebSearchResultCount: &count})
+			return err
+		},
+		"model-reload timeout applies": func() error {
+			if err := short.UpdateRetrievalEmbeddingConfig(ctx, RetrievalEmbeddingConfigUpdate{RAGEmbeddingBatchSize: &size}); !isTimeout(err) {
+				return fmt.Errorf("a POST slower than the model-reload timeout must time out, got %v", err)
+			}
+			return nil
+		},
 	}
-	size := int64(42)
-	if err := c.UpdateRetrievalEmbeddingConfig(ctx, RetrievalEmbeddingConfigUpdate{RAGEmbeddingBatchSize: &size}); err != nil {
-		t.Errorf("embedding update: %v", err)
+	var wg sync.WaitGroup
+	errs := make(chan string, len(checks))
+	for name, check := range checks {
+		wg.Add(1)
+		go func(name string, check func() error) {
+			defer wg.Done()
+			if err := check(); err != nil {
+				errs <- name + ": " + err.Error()
+			}
+		}(name, check)
 	}
-	topK := int64(9)
-	if err := c.UpdateRetrievalConfig(ctx, RetrievalConfigUpdateForm{TopK: &topK}); err != nil {
-		t.Errorf("retrieval config update: %v", err)
-	}
-	count := int64(9)
-	if _, err := c.UpdateWebSearchConfig(ctx, WebSearchConfigUpdate{WebSearchResultCount: &count}); err != nil {
-		t.Errorf("web search update: %v", err)
-	}
-
-	c.modelReloadHTTPClient.Timeout = 50 * time.Millisecond
-	if err := c.UpdateRetrievalEmbeddingConfig(ctx, RetrievalEmbeddingConfigUpdate{RAGEmbeddingBatchSize: &size}); !isTimeout(err) {
-		t.Errorf("a POST slower than the model-reload timeout must time out, got %v", err)
+	wg.Wait()
+	close(errs)
+	for msg := range errs {
+		t.Error(msg)
 	}
 }
 
