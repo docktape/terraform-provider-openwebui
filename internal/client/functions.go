@@ -49,6 +49,11 @@ func (c *Client) GetFunction(ctx context.Context, id string) (*FunctionModel, er
 	var resp FunctionModel
 	path := "functions/id/" + url.PathEscape(id)
 	if err := c.do(ctx, http.MethodGet, path, nil, nil, &resp); err != nil {
+		// A missing function is 401 with a NOT_FOUND detail body at every
+		// supported release, not 404.
+		if isNotFoundDetail(err, http.StatusUnauthorized) {
+			return nil, ErrNotFound
+		}
 		return nil, err
 	}
 	return &resp, nil

@@ -16,7 +16,6 @@ type User struct {
 	Role         string  `json:"role"`
 	ProfileImage string  `json:"profile_image_url"`
 	Bio          *string `json:"bio"`
-	OAuthSubject *string `json:"oauth_sub"`
 	LastActiveAt int64   `json:"last_active_at"`
 	UpdatedAt    int64   `json:"updated_at"`
 	CreatedAt    int64   `json:"created_at"`
@@ -29,9 +28,8 @@ type listUsersResponse struct {
 }
 
 // SearchUsers finds users whose username, email, or name matches the provided query.
-// The API paginates server-side (fixed page size); the limit argument is retained
-// for call-site compatibility but is no longer a supported query parameter.
-func (c *Client) SearchUsers(ctx context.Context, query string, limit int) ([]User, error) {
+// The API paginates server-side with a fixed page size and accepts no limit parameter.
+func (c *Client) SearchUsers(ctx context.Context, query string) ([]User, error) {
 	values := url.Values{}
 	if query != "" {
 		values.Set("query", query)
@@ -50,6 +48,11 @@ func (c *Client) GetUser(ctx context.Context, id string) (*User, error) {
 	var resp User
 	path := fmt.Sprintf("users/%s", url.PathEscape(id))
 	if err := c.do(ctx, http.MethodGet, path, nil, nil, &resp); err != nil {
+		// A missing user is 400 with a USER_NOT_FOUND detail body at every
+		// supported release, not 404.
+		if isNotFoundDetail(err, http.StatusBadRequest) {
+			return nil, ErrNotFound
+		}
 		return nil, err
 	}
 
