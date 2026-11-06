@@ -1790,3 +1790,152 @@ resource "openwebui_retrieval_embedding_config" "test" {
 		},
 	})
 }
+
+// TestAccRetrievalEmbeddingConfigRemoteEngine verifies the connection blocks
+// live, which needs a remote engine (Open WebUI ignores the blocks for the
+// local engine): it switches the embedding engine to "openai" with dummy
+// connection values. Opt-in, because for a few seconds the instance has no
+// working embedding engine: set OPENWEBUI_TEST_ALLOW_ENGINE_SWITCH=1 (in
+// addition to TF_ACC) to run it. Per Open WebUI v0.11.0's
+// update_embedding_config, selecting a remote engine only stores the values
+// and builds the embedding function lazily: no network call and no model
+// download happen during the update. The captured engine, model, scalars and
+// all three blocks are restored on cleanup (also after a failure), and the
+// restored settings must equal the capture.
+func TestAccRetrievalEmbeddingConfigRemoteEngine(t *testing.T) {
+	testAccPreCheck(t)
+	testAccRequireEnv(t, "OPENWEBUI_TEST_ALLOW_ENGINE_SWITCH")
+	const name = "openwebui_retrieval_embedding_config.test"
+	remote := map[string]bool{"ollama": true, "openai": true, "azure_openai": true}
+
+	original := testAccRetrievalRaw(t, http.MethodGet, "retrieval/embedding", nil)
+	originalJSON, _ := json.Marshal(original)
+	engine, _ := original["RAG_EMBEDDING_ENGINE"].(string)
+	t.Cleanup(func() {
+		// The blocks are stored only with a remote engine: restore them
+		// first, then the captured engine and scalars.
+		restore := map[string]any{}
+		for k, v := range original {
+			if k != "status" {
+				restore[k] = v
+			}
+		}
+		if !remote[engine] {
+			restore["RAG_EMBEDDING_ENGINE"] = "openai"
+		}
+		testAccRetrievalRaw(t, http.MethodPost, "retrieval/embedding/update", restore)
+		if !remote[engine] {
+			scalars := map[string]any{}
+			for _, k := range []string{"RAG_EMBEDDING_ENGINE", "RAG_EMBEDDING_MODEL", "RAG_EMBEDDING_BATCH_SIZE", "ENABLE_ASYNC_EMBEDDING", "RAG_EMBEDDING_CONCURRENT_REQUESTS"} {
+				scalars[k] = original[k]
+			}
+			testAccRetrievalRaw(t, http.MethodPost, "retrieval/embedding/update", scalars)
+		}
+		after, _ := json.Marshal(testAccRetrievalRaw(t, http.MethodGet, "retrieval/embedding", nil))
+		if string(after) != string(originalJSON) {
+			t.Errorf("the embedding settings were not restored (%d bytes before, %d after)", len(originalJSON), len(after))
+		}
+	})
+
+	// serverBlocks checks the stored connection blocks; only key names are
+	// reported.
+	serverBlocks := func(want map[string]map[string]string) resource.TestCheckFunc {
+		return func(_ *terraform.State) error {
+			current := testAccRetrievalRaw(t, http.MethodGet, "retrieval/embedding", nil)
+			if current["RAG_EMBEDDING_ENGINE"] != "openai" {
+				return fmt.Errorf("RAG_EMBEDDING_ENGINE is not openai")
+			}
+			for block, fields := range want {
+				stored, _ := current[block].(map[string]any)
+				for field, value := range fields {
+					if stored[field] != value {
+						return fmt.Errorf("%s.%s differs from the expected value", block, field)
+					}
+				}
+			}
+			return nil
+		}
+	}
+
+	openaiOnly := testAccProviderConfig() + `
+resource "openwebui_retrieval_embedding_config" "test" {
+  rag_embedding_engine = "openai"
+  rag_embedding_model  = "text-embedding-3-small"
+  openai_config = {
+    url = "http://127.0.0.1:9/v1"
+    key = "acc-test-dummy-openai"
+  }
+}`
+	allBlocks := testAccProviderConfig() + `
+resource "openwebui_retrieval_embedding_config" "test" {
+  rag_embedding_engine = "openai"
+  rag_embedding_model  = "text-embedding-3-small"
+  openai_config = {
+    url = "http://127.0.0.1:9/v1"
+    key = "acc-test-dummy-openai"
+  }
+  ollama_config = {
+    url = "http://127.0.0.1:9"
+    key = "acc-test-dummy-ollama"
+  }
+  azure_openai_config = {
+    url     = "http://127.0.0.1:9/azure"
+    key     = "acc-test-dummy-azure"
+    version = "2024-02-01"
+  }
+}`
+	// ollama_config and azure_openai_config are no longer configured (not
+	// sent, kept); openai_config sets only its url (the key is kept).
+	partial := testAccProviderConfig() + `
+resource "openwebui_retrieval_embedding_config" "test" {
+  rag_embedding_engine = "openai"
+  rag_embedding_model  = "text-embedding-3-small"
+  openai_config = {
+    url = "http://127.0.0.1:9/v2"
+  }
+}`
+	openai := map[string]string{"url": "http://127.0.0.1:9/v1", "key": "acc-test-dummy-openai"}
+	ollama := map[string]string{"url": "http://127.0.0.1:9", "key": "acc-test-dummy-ollama"}
+	azure := map[string]string{"url": "http://127.0.0.1:9/azure", "key": "acc-test-dummy-azure", "version": "2024-02-01"}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: openaiOnly,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "rag_embedding_engine", "openai"),
+					resource.TestCheckResourceAttr(name, "openai_config.url", openai["url"]),
+					resource.TestCheckResourceAttr(name, "openai_config.key", openai["key"]),
+					serverBlocks(map[string]map[string]string{"openai_config": openai}),
+				),
+			},
+			{Config: openaiOnly, PlanOnly: true},
+			{
+				Config: allBlocks,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "ollama_config.key", ollama["key"]),
+					resource.TestCheckResourceAttr(name, "azure_openai_config.version", azure["version"]),
+					serverBlocks(map[string]map[string]string{"openai_config": openai, "ollama_config": ollama, "azure_openai_config": azure}),
+				),
+			},
+			{Config: allBlocks, PlanOnly: true},
+			{
+				Config: partial,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "openai_config.url", "http://127.0.0.1:9/v2"),
+					resource.TestCheckResourceAttr(name, "openai_config.key", openai["key"]),
+					resource.TestCheckResourceAttr(name, "ollama_config.url", ollama["url"]),
+					resource.TestCheckResourceAttr(name, "azure_openai_config.key", azure["key"]),
+					serverBlocks(map[string]map[string]string{
+						"openai_config":       {"url": "http://127.0.0.1:9/v2", "key": openai["key"]},
+						"ollama_config":       ollama,
+						"azure_openai_config": azure,
+					}),
+				),
+			},
+			{Config: partial, PlanOnly: true},
+		},
+	})
+}
