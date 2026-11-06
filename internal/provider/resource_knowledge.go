@@ -31,8 +31,6 @@ type knowledgeResourceModel struct {
 	ID          types.String `tfsdk:"id"`
 	Name        types.String `tfsdk:"name"`
 	Description types.String `tfsdk:"description"`
-	DataJSON    types.String `tfsdk:"data_json"`
-	MetaJSON    types.String `tfsdk:"meta_json"`
 	ReadGroups  types.List   `tfsdk:"read_groups"`
 	WriteGroups types.List   `tfsdk:"write_groups"`
 	CreatedAt   types.String `tfsdk:"created_at"`
@@ -67,18 +65,6 @@ func (r *knowledgeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			"description": schema.StringAttribute{
 				Required:    true,
 				Description: "Description shown in the Open WebUI interface.",
-			},
-			"data_json": schema.StringAttribute{
-				Optional:      true,
-				Computed:      true,
-				Description:   "Deprecated: Open WebUI's knowledge create/update API no longer accepts a `data` field, so this attribute has no effect on the server and always reads back as unset. Kept only for backward compatibility with existing configurations; will be removed in a future major version.",
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
-			},
-			"meta_json": schema.StringAttribute{
-				Optional:      true,
-				Computed:      true,
-				Description:   "Deprecated: Open WebUI's knowledge create/update API no longer accepts a `meta` field in the request body — `meta` is only ever set internally by Open WebUI's external-knowledge sync flow. Setting this attribute has no effect on the server. Kept only for backward compatibility with existing configurations; will be removed in a future major version.",
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"read_groups": schema.ListAttribute{
 				ElementType:         types.StringType,
@@ -148,8 +134,6 @@ func (r *knowledgeResource) Create(ctx context.Context, req resource.CreateReque
 	writeIDs := resolveGroupNamesToIDs(ctx, r.client, writeNames, path.Root("write_groups"), &resp.Diagnostics)
 
 	form.AccessControl = buildAccessControl(readIDs, writeIDs)
-	form.Data = decodeOptionalJSON(plan.DataJSON, path.Root("data_json"), &resp.Diagnostics)
-	form.Meta = decodeOptionalJSON(plan.MetaJSON, path.Root("meta_json"), &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -233,8 +217,6 @@ func (r *knowledgeResource) Update(ctx context.Context, req resource.UpdateReque
 	writeIDs := resolveGroupNamesToIDs(ctx, r.client, writeNames, path.Root("write_groups"), &resp.Diagnostics)
 
 	form.AccessControl = buildAccessControl(readIDs, writeIDs)
-	form.Data = decodeOptionalJSON(plan.DataJSON, path.Root("data_json"), &resp.Diagnostics)
-	form.Meta = decodeOptionalJSON(plan.MetaJSON, path.Root("meta_json"), &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -293,16 +275,6 @@ func (r *knowledgeResource) ImportState(ctx context.Context, req resource.Import
 func knowledgeResponseToModel(ctx context.Context, apiClient *client.Client, resp client.KnowledgeFilesResponse) (knowledgeResourceModel, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	data, err := encodeOptionalJSON(resp.Data)
-	if err != nil {
-		diags.AddError("Serialize data", err.Error())
-	}
-
-	meta, err := encodeOptionalJSON(resp.Meta)
-	if err != nil {
-		diags.AddError("Serialize metadata", err.Error())
-	}
-
 	readIDs := extractGroupIDsFromAccessControl(resp.AccessControl, "read")
 	writeIDs := extractGroupIDsFromAccessControl(resp.AccessControl, "write")
 
@@ -322,8 +294,6 @@ func knowledgeResponseToModel(ctx context.Context, apiClient *client.Client, res
 		ID:          types.StringValue(resp.ID),
 		Name:        types.StringValue(resp.Name),
 		Description: types.StringValue(resp.Description),
-		DataJSON:    data,
-		MetaJSON:    meta,
 		ReadGroups:  readList,
 		WriteGroups: writeList,
 		CreatedAt:   formatDateValue(resp.CreatedAt),

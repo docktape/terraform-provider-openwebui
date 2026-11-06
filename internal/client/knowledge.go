@@ -16,8 +16,6 @@ type KnowledgeForm struct {
 	Name          string         `json:"name"`
 	Description   string         `json:"description"`
 	AccessControl map[string]any `json:"-"`
-	Data          map[string]any `json:"data,omitempty"`
-	Meta          map[string]any `json:"meta,omitempty"`
 }
 
 // MarshalJSON serialises the form using the API's access_grants list, derived
