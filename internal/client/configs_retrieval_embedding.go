@@ -140,7 +140,7 @@ func (c *Client) UpdateRetrievalEmbeddingConfig(ctx context.Context, update Retr
 	if !changed {
 		return nil
 	}
-	return c.do(ctx, http.MethodPost, "retrieval/embedding/update", nil, body, nil)
+	return c.doModelReload(ctx, http.MethodPost, "retrieval/embedding/update", body, nil)
 }
 
 // embeddingNestedForms lists the nested connection objects with their
