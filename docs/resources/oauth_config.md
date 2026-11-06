@@ -4,7 +4,6 @@ page_title: "openwebui_oauth_config Resource - openwebui"
 subcategory: ""
 description: |-
   Manages Open WebUI's single generic OIDC provider configuration and cross-cutting OAuth behavior (role/group mapping, domain allowlist, claims). Configuring per-provider (Google/Microsoft/GitHub) client credentials is done via environment variables, not this resource.
-  ~> Requires Open WebUI v0.10.0+. This endpoint did not exist in earlier releases.
   ~> This resource applies a partial update: only attributes that have a value in the plan are sent, and everything else is left untouched on the server. Removing an attribute from your configuration therefore does not reset it to its default; set it to the value you want instead (an empty string clears a string attribute). Open WebUI cannot store null for these settings.
   ~> oauth_client_secret is stored in Terraform state because Open WebUI returns it in plain text. Protect your state accordingly.
   ~> Be careful with oauth_auto_redirect and enable_oauth: a misconfigured provider combined with auto-redirect can lock password-based admins out of the sign-in page.
@@ -13,8 +12,6 @@ description: |-
 # openwebui_oauth_config (Resource)
 
 Manages Open WebUI's single generic OIDC provider configuration and cross-cutting OAuth behavior (role/group mapping, domain allowlist, claims). Configuring per-provider (Google/Microsoft/GitHub) client credentials is done via environment variables, not this resource.
-
-~> **Requires Open WebUI v0.10.0+.** This endpoint did not exist in earlier releases.
 
 ~> This resource applies a partial update: only attributes that have a value in the plan are sent, and everything else is left untouched on the server. Removing an attribute from your configuration therefore does not reset it to its default; set it to the value you want instead (an empty string clears a string attribute). Open WebUI cannot store null for these settings.
 
@@ -30,7 +27,6 @@ variable "oidc_client_secret" {
   sensitive = true
 }
 
-# Requires Open WebUI v0.10.0 or later.
 resource "openwebui_oauth_config" "example" {
   oauth_provider_name = "Corporate SSO"
   openid_provider_url = "https://idp.example.com/.well-known/openid-configuration"
@@ -58,7 +54,7 @@ resource "openwebui_oauth_config" "example" {
 
 ### Optional
 
-- `enable_oauth` (Boolean) Master switch for OAuth login. Server default: `true`. Added in Open WebUI v0.11.0. Setting it against a v0.10.x server fails the apply with an error before anything is written (the provider reads the configuration first and checks that the server reports this setting); left unset, it reads back as null there.
+- `enable_oauth` (Boolean) Master switch for OAuth login. Server default: `true`.
 - `enable_oauth_group_creation` (Boolean) Whether groups found in the claim are created when missing. Server default: `false`.
 - `enable_oauth_group_management` (Boolean) Whether group membership is synchronised from the provider's group claim. Server default: `false`.
 - `enable_oauth_role_management` (Boolean) Whether roles are mapped from the provider's roles claim. Server default: `false`.

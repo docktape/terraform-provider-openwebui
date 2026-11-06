@@ -780,7 +780,7 @@ func TestRetrievalEmbeddingConfigSchemaShape(t *testing.T) {
 	if sensitive != 3 {
 		t.Errorf("expected exactly 3 Sensitive attributes, got %d", sensitive)
 	}
-	// Every attribute exists unchanged since Open WebUI v0.9.6 (the
+	// Every attribute exists at Open WebUI v0.11.0 (the
 	// provider's floor), so none carries an "added in" compatibility note.
 	if strings.Contains(resp.Schema.MarkdownDescription, "added in") {
 		t.Errorf("unexpected compatibility note in the resource description")

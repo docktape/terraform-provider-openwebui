@@ -55,7 +55,7 @@ func (r *chatConfigResource) Schema(_ context.Context, _ resource.SchemaRequest,
 		return schema.StringAttribute{Optional: true, Computed: true, Description: desc, MarkdownDescription: desc, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}
 	}
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "~> **Requires Open WebUI v0.11.0 or later.** The chat config endpoint first appeared in v0.10.0 with only three of this resource's six attributes; `context_compaction_model`, `context_compaction_token_cap` and `context_compaction_retention_percentage` were added in v0.11.0, and this resource reads and writes all six.\n\nManages Open WebUI's chat context-compaction settings. This is a singleton resource.\n\n" +
+		MarkdownDescription: "Manages Open WebUI's chat context-compaction settings. This is a singleton resource.\n\n" +
 			"~> This resource does a full-object update: any attribute not explicitly set in your configuration will be reset to its zero value (false/0/empty string) on every apply.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{

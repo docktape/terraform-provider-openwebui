@@ -10,7 +10,7 @@ type accessGrant struct {
 
 // accessControlToGrants converts the provider's nested access_control map
 // ({"read"|"write": {"group_ids": [...], "user_ids": [...]}}) into the flat
-// access_grants list the Open WebUI API (v0.9.0+) expects. A nil map yields an
+// access_grants list the Open WebUI API expects. A nil map yields an
 // empty list (owner-only / private).
 func accessControlToGrants(ac map[string]any) []accessGrant {
 	grants := []accessGrant{}

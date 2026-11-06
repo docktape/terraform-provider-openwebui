@@ -16,7 +16,7 @@ resource "openwebui_ldap_server_config" "example" {
   use_tls                = true
   validate_cert          = true
 
-  # Group synchronisation requires Open WebUI v0.11.0 or later.
+  # Group synchronisation from LDAP.
   enable_group_management = true
   enable_group_creation   = false
   attribute_for_groups    = "memberOf"

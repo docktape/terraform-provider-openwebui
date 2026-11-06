@@ -57,7 +57,7 @@ resource "openwebui_admin_config" "main" {
 - `api_keys_allowed_endpoints` (String) Comma-separated list of allowed endpoints for API keys.
 - `automation_max_count` (Number) Maximum number of concurrent automations. 0 is not accepted: Open WebUI stores 0 as unset (no limit) and reads it back as null.
 - `automation_min_interval` (Number) Minimum interval between automations in milliseconds. 0 is not accepted: Open WebUI stores 0 as unset (no limit) and reads it back as null.
-- `channel_model_response_mode` (String) Whether model responses in channels are posted as threads or as channel messages (`thread` or `channel`). Requires Open WebUI v0.11.0 or later.
+- `channel_model_response_mode` (String) Whether model responses in channels are posted as threads or as channel messages (`thread` or `channel`).
 - `default_group_id` (String) Default group ID for new users.
 - `default_user_role` (String) Default role for new users (pending, user, or admin).
 - `enable_api_keys` (Boolean) Whether API key authentication is enabled.
@@ -68,7 +68,7 @@ resource "openwebui_admin_config" "main" {
 - `enable_community_sharing` (Boolean) Whether community sharing is enabled.
 - `enable_folders` (Boolean) Whether folders are enabled.
 - `enable_memories` (Boolean) Whether memories are enabled.
-- `enable_memory_system_context` (Boolean) Whether memory system context is enabled. Requires Open WebUI v0.10.2 or later.
+- `enable_memory_system_context` (Boolean) Whether memory system context is enabled.
 - `enable_message_rating` (Boolean) Whether message rating is enabled.
 - `enable_notes` (Boolean) Whether notes are enabled.
 - `enable_signup` (Boolean) Whether user signup is enabled.

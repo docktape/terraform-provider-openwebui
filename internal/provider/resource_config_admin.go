@@ -130,8 +130,8 @@ func (r *adminConfigResource) Schema(_ context.Context, _ resource.SchemaRequest
 			"channel_model_response_mode": schema.StringAttribute{
 				Optional:            true,
 				Computed:            true,
-				Description:         "Whether model responses in channels are posted as threads or as channel messages (thread or channel). Requires Open WebUI v0.11.0 or later.",
-				MarkdownDescription: "Whether model responses in channels are posted as threads or as channel messages (`thread` or `channel`). Requires Open WebUI v0.11.0 or later.",
+				Description:         "Whether model responses in channels are posted as threads or as channel messages (thread or channel).",
+				MarkdownDescription: "Whether model responses in channels are posted as threads or as channel messages (`thread` or `channel`).",
 				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 				Validators: []validator.String{
 					stringvalidator.OneOf("thread", "channel"),
@@ -142,8 +142,8 @@ func (r *adminConfigResource) Schema(_ context.Context, _ resource.SchemaRequest
 			"enable_memory_system_context": schema.BoolAttribute{
 				Optional:            true,
 				Computed:            true,
-				Description:         "Whether memory system context is enabled. Requires Open WebUI v0.10.2 or later.",
-				MarkdownDescription: "Whether memory system context is enabled. Requires Open WebUI v0.10.2 or later.",
+				Description:         "Whether memory system context is enabled.",
+				MarkdownDescription: "Whether memory system context is enabled.",
 				PlanModifiers:       []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
 			},
 			"enable_notes":                 b("Whether notes are enabled."),

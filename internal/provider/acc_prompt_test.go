@@ -68,7 +68,7 @@ func TestAccPromptResource_WithNewFields(t *testing.T) {
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
 		Steps: []resource.TestStep{
 			// Step 1: create with is_active=true and multiple tags.
-			// Note: is_active=false is not honoured by the v0.9.x Create/Update
+			// Note: is_active=false is not honoured by the Create/Update
 			// endpoints — the API always returns true. We test the true path here
 			// and rely on schema-level tests for false coverage.
 			{

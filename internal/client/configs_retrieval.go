@@ -11,7 +11,7 @@ import (
 
 // RetrievalConfig is the GET /retrieval/config response (backend/open_webui/
 // routers/retrieval.py's get_rag_config). Every field is a pointer, nil slice
-// or raw JSON so a key absent on an older server (or served as null) reads as
+// or raw JSON so a key the server omits (or serves as null) reads as
 // nil. The `status` key is a constant `true` and is ignored. The nested `web`
 // object is kept as raw JSON so it can be handed to a separate web-search
 // model without this type knowing its fields.
@@ -103,7 +103,7 @@ type RetrievalConfig struct {
 // decodeIntOrEmptyString (a JSON number, a numeric string, or ""/null as
 // nil). This is required, not defensive: on Open WebUI v0.11.0 the
 // MINERU_API_TIMEOUT env default is the string "300" (it is int-typed only in
-// the update form since v0.10.0, and str-typed on v0.9.6), and the four file
+// the update form), and the four file
 // limits are Union[int, str | None] in the update form, so a string sent by
 // another client is stored and served verbatim.
 func (f *RetrievalConfig) UnmarshalJSON(data []byte) error {
@@ -164,9 +164,8 @@ func (f *RetrievalConfig) UnmarshalJSON(data []byte) error {
 // Lists are pointers so that an explicit [] can be sent. The four file limits
 // accept a negative value meaning "clear": it is sent as "", which the handler
 // stores as None (no limit / no compression). MINERU_API_TIMEOUT is sent as a
-// numeric string: v0.9.6 types it str (and would reject a JSON number with
-// HTTP 422), while v0.10.0+ types it int and Pydantic's lax mode converts the
-// string to an int.
+// numeric string: the env default is a str, and the update form types it int
+// with Pydantic's lax mode converting the string to an int.
 type RetrievalConfigUpdateForm struct {
 	RAGTemplate                 *string `json:"RAG_TEMPLATE,omitempty"`
 	TopK                        *int64  `json:"TOP_K,omitempty"`

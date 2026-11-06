@@ -70,7 +70,7 @@ func (p *openWebUIProvider) Schema(_ context.Context, _ provider.SchemaRequest, 
 			"- `openwebui_admin_config` — admin signup, API keys, JWT, and feature-toggle settings\n" +
 			"- `openwebui_ldap_config` — LDAP authentication enable toggle\n" +
 			"- `openwebui_ldap_server_config` — LDAP server connection, search, and group-sync settings\n" +
-			"- `openwebui_oauth_config` — generic OIDC provider settings, role/group mapping, claims, and domain allowlist (Open WebUI v0.10.0+)\n" +
+			"- `openwebui_oauth_config` — generic OIDC provider settings, role/group mapping, claims, and domain allowlist\n" +
 			"- `openwebui_images_config` — image generation and image editing engines, models, sizes, and engine connection settings\n" +
 			"- `openwebui_audio_config` — text-to-speech and speech-to-text engines, models, voices, and engine connection settings\n" +
 			"- `openwebui_terminal_servers_config` — admin-configured terminal server (Open Terminal / orchestrator) connections\n" +

@@ -81,7 +81,7 @@ Optional:
 - `model` (String) Speech-to-text model for the remote engines, for example `whisper-1`.
 - `openai_api_base_url` (String) Base URL of the OpenAI-compatible transcription API. Server default: the `OPENAI_API_BASE_URL` setting.
 - `openai_api_key` (String, Sensitive) API key for the OpenAI-compatible transcription API.
-- `openai_api_request_format` (String) How audio is sent to the OpenAI-compatible transcription API: `multipart` (file upload) or `json` (base64 in a JSON body). Server default: `multipart`. Added in Open WebUI v0.10.2; setting it against an older server fails the apply (the check runs at apply time, after the current configuration is read and before anything is written).
+- `openai_api_request_format` (String) How audio is sent to the OpenAI-compatible transcription API: `multipart` (file upload) or `json` (base64 in a JSON body). Server default: `multipart`.
 - `supported_content_types` (List of String) MIME types accepted for transcription, for example `["audio/*"]`. An empty list means Open WebUI's built-in default (`audio/*` and `video/webm`). Server default: `[]`.
 - `whisper_model` (String) Local faster-whisper model (for example `base` or `small`) used when `engine` is empty. Server default: `base`. Loaded (and downloaded if not cached) on every apply while `engine` is empty; see the resource notes.
 

@@ -106,9 +106,9 @@ func (c *Client) GetRetrievalEmbeddingConfig(ctx context.Context) (*RetrievalEmb
 // Open WebUI stores the sent nested objects only while the engine after the
 // update is ollama, openai or azure_openai (any of the three objects for any
 // of these engines), and drops them silently for the local
-// sentence-transformers engine (""), on every release from v0.9.6 to v0.11.0.
-// A changed object is therefore refused, before anything is sent, unless the
-// engine after this update is one of the three remote engines.
+// sentence-transformers engine (""), at v0.11.0. A changed object is
+// therefore refused, before anything is sent, unless the engine after this
+// update is one of the three remote engines.
 //
 // Every POST makes Open WebUI unload and reload the embedding model (see the
 // resource documentation), so nothing is sent when the update changes

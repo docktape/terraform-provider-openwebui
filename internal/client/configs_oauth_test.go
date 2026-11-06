@@ -89,8 +89,9 @@ func TestGetOAuthConfigUnionShapes(t *testing.T) {
 	}
 }
 
-// TestGetOAuthConfigV0100Shape: v0.10.x has no ENABLE_OAUTH key.
-func TestGetOAuthConfigV0100Shape(t *testing.T) {
+// TestGetOAuthConfigOmittedEnableOAuth: a response without the ENABLE_OAUTH key
+// reads it as nil.
+func TestGetOAuthConfigOmittedEnableOAuth(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"ENABLE_OAUTH_SIGNUP": true}`))

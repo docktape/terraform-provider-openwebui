@@ -194,9 +194,9 @@ func TestUpdateRetrievalEmbeddingConfigNestedForEngine(t *testing.T) {
 	}
 }
 
-// TestUpdateRetrievalEmbeddingConfigRejectsIgnoredNested: Open WebUI v0.9.6
-// to v0.11.0 store a sent nested connection object only while the engine
-// after the update is ollama, openai or azure_openai, and drop it silently
+// TestUpdateRetrievalEmbeddingConfigRejectsIgnoredNested: Open WebUI v0.11.0
+// stores a sent nested connection object only while the engine
+// after the update is ollama, openai or azure_openai, and drops it silently
 // for the local engine. A change that would be dropped is refused before
 // anything is sent, and the error never prints the values.
 func TestUpdateRetrievalEmbeddingConfigRejectsIgnoredNested(t *testing.T) {

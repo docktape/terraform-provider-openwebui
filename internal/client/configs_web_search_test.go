@@ -125,7 +125,7 @@ func TestGetWebSearchConfigLenientInts(t *testing.T) {
 	if got.WebSearchResultCount == nil || *got.WebSearchResultCount != 5 || got.PlaywrightTimeout != nil || *got.BraveSearchContextTokens != 4096 {
 		t.Errorf("unexpected ints: %v %v %v", got.WebSearchResultCount, got.PlaywrightTimeout, got.BraveSearchContextTokens)
 	}
-	// Keys absent on an older server decode as nil.
+	// Keys the server omits decode as nil.
 	if got.OpenSERPBaseURL != nil || got.EnableWebSearchConfirmation != nil || got.YouTubeLoaderLanguage != nil {
 		t.Error("absent keys must decode as nil")
 	}
@@ -233,8 +233,8 @@ func TestUpdateWebSearchConfigRefusesWithoutCurrentWebObject(t *testing.T) {
 }
 
 // TestUpdateWebSearchConfigOmitsNullNonNullableKeys: exactly two WebConfig
-// fields have a non-Optional annotation on every release from v0.9.6 to
-// v0.11.0, WEB_SEARCH_DOMAIN_FILTER_LIST (`list[str | None] = []`) and
+// fields have a non-Optional annotation at v0.11.0,
+// WEB_SEARCH_DOMAIN_FILTER_LIST (`list[str | None] = []`) and
 // YOUTUBE_LOADER_LANGUAGE (`list[str | None] = None`). Pydantic rejects an
 // explicit null for them ("Input should be a valid list", HTTP 422, confirmed
 // against a live v0.11.0), while an omitted key takes the default. The server

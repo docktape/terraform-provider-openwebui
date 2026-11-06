@@ -61,7 +61,7 @@ resource "openwebui_retrieval_config" "example" {
 - `chunk_overlap` (Number) Overlap between consecutive chunks. Server default: `100`.
 - `chunk_size` (Number) Chunk size (characters or tokens, depending on `text_splitter`). Server default: `1000`.
 - `content_extraction_engine` (String) Document content extraction engine: `""` (built-in loaders), `external`, `tika`, `docling`, `datalab_marker`, `document_intelligence`, `mistral_ocr`, `mineru` or `paddleocr_vl`. Server default: `""`.
-- `content_extraction_supported_media_mime_types` (List of String) MIME type patterns of image/video uploads sent to the content extraction engine. Null (the server default) means only the `external` engine receives media; `[]` means none does. Once set it cannot be returned to null through the API. Added in Open WebUI v0.11.0; on older servers the value is ignored and reads back as null, so setting it fails the apply.
+- `content_extraction_supported_media_mime_types` (List of String) MIME type patterns of image/video uploads sent to the content extraction engine. Null (the server default) means only the `external` engine receives media; `[]` means none does. Once set it cannot be returned to null through the API.
 - `datalab_marker_additional_config` (String) Additional Datalab Marker options as JSON text. Stored verbatim as a string, so it is compared exactly.
 - `datalab_marker_api_base_url` (String) Datalab Marker API base URL. Empty means the hosted service.
 - `datalab_marker_api_key` (String, Sensitive) Datalab Marker API key.
@@ -85,7 +85,7 @@ resource "openwebui_retrieval_config" "example" {
 - `enable_rag_hybrid_search` (Boolean) Whether hybrid (BM25 + vector) search with reranking is enabled. See the note on reranking model loading. Server default: `false`.
 - `enable_rag_hybrid_search_enriched_texts` (Boolean) Whether BM25 indexes enriched texts (file name, title, headings) in hybrid search. Server default: `false`.
 - `external_document_loader_api_key` (String, Sensitive) API key for the external document loader.
-- `external_document_loader_headers_json` (String, Sensitive) JSON object of extra HTTP headers sent to the external document loader, for example `jsonencode({ "X-Tenant" = "a" })`. Sensitive because headers commonly carry credentials. Server default: `{}`. Compared semantically: key order and whitespace differences are not drift. Use `{}` for none (Open WebUI cannot store null here once set). Number literals must survive Open WebUI's Python JSON round trip: integers are exact (up to Python's 4300-digit limit), but a fraction or exponent that a 64-bit float cannot hold exactly (for example `9007199254740993.0`) or that overflows it (`1e400`) is rejected at plan time. Added in Open WebUI v0.10.0; on older servers the value is ignored and reads back as null, so setting it fails the apply.
+- `external_document_loader_headers_json` (String, Sensitive) JSON object of extra HTTP headers sent to the external document loader, for example `jsonencode({ "X-Tenant" = "a" })`. Sensitive because headers commonly carry credentials. Server default: `{}`. Compared semantically: key order and whitespace differences are not drift. Use `{}` for none (Open WebUI cannot store null here once set). Number literals must survive Open WebUI's Python JSON round trip: integers are exact (up to Python's 4300-digit limit), but a fraction or exponent that a 64-bit float cannot hold exactly (for example `9007199254740993.0`) or that overflows it (`1e400`) is rejected at plan time.
 - `external_document_loader_url` (String) URL of the external document loader.
 - `file_image_compression_height` (Number) Height in pixels uploaded images are compressed to. Set `-1` for no compression: Open WebUI stores it as null, and this resource keeps showing `-1` while the server value stays null. Server default: null (no compression).
 - `file_image_compression_width` (Number) Width in pixels uploaded images are compressed to. Set `-1` for no compression: Open WebUI stores it as null, and this resource keeps showing `-1` while the server value stays null. Server default: null (no compression).
@@ -94,13 +94,13 @@ resource "openwebui_retrieval_config" "example" {
 - `hybrid_bm25_weight` (Number) Weight of BM25 in hybrid search; the vector search weight is `1 - hybrid_bm25_weight`. Server default: `0.5`.
 - `mineru_api_key` (String, Sensitive) MinerU API key (cloud mode).
 - `mineru_api_mode` (String) MinerU API mode: `local` or `cloud`. Server default: `local`.
-- `mineru_api_timeout` (Number) MinerU request timeout in seconds. Open WebUI v0.9.6 stores it as a string and v0.10.0+ as an integer; both are read as a number. Server default: `300`.
+- `mineru_api_timeout` (Number) MinerU request timeout in seconds. Open WebUI may return it as a string or an integer; both are read as a number. Server default: `300`.
 - `mineru_api_url` (String) MinerU API URL. Server default: `http://localhost:8000`.
 - `mineru_file_extensions` (List of String) File extensions routed to MinerU. Server default: `["pdf"]`.
 - `mineru_params_json` (String) JSON object of MinerU parameters. Server default: `{}`. Compared semantically: key order and whitespace differences are not drift. Use `{}` for none (Open WebUI cannot store null here once set). Number literals must survive Open WebUI's Python JSON round trip: integers are exact (up to Python's 4300-digit limit), but a fraction or exponent that a 64-bit float cannot hold exactly (for example `9007199254740993.0`) or that overflows it (`1e400`) is rejected at plan time.
 - `mistral_ocr_api_base_url` (String) Mistral OCR API base URL. Server default: `https://api.mistral.ai/v1`.
 - `mistral_ocr_api_key` (String, Sensitive) Mistral OCR API key.
-- `mistral_ocr_use_base64` (Boolean) Whether documents are sent to Mistral OCR inline as base64 instead of being uploaded. Server default: `false`. Added in Open WebUI v0.10.0; on older servers the value is ignored and reads back as null, so setting it fails the apply.
+- `mistral_ocr_use_base64` (Boolean) Whether documents are sent to Mistral OCR inline as base64 instead of being uploaded. Server default: `false`.
 - `paddleocr_vl_base_url` (String) PaddleOCR-VL server base URL. Server default: `http://localhost:8080`.
 - `paddleocr_vl_token` (String, Sensitive) PaddleOCR-VL access token.
 - `pdf_extract_images` (Boolean) Whether images in PDFs are extracted and OCR'd by the built-in loader. Server default: `false`.
@@ -113,7 +113,7 @@ resource "openwebui_retrieval_config" "example" {
 - `rag_reranking_engine` (String) Reranking engine: `""` (local sentence-transformers) or `external`. Server default: `""`.
 - `rag_reranking_model` (String) Reranking model used by hybrid search. Empty means none.
 - `rag_template` (String) Prompt template used to inject retrieved context. Server default: Open WebUI's built-in RAG template.
-- `rag_tokenizer_model` (String) Hugging Face tokenizer used by the `token` splitter. Empty means tiktoken. Must not start or end with whitespace (Open WebUI strips it). Added in Open WebUI v0.10.0; on older servers the value is ignored and reads back as null, so setting it fails the apply.
+- `rag_tokenizer_model` (String) Hugging Face tokenizer used by the `token` splitter. Empty means tiktoken. Must not start or end with whitespace (Open WebUI strips it).
 - `relevance_threshold` (Number) Minimum reranker relevance score for a chunk to be kept (0 keeps all). Server default: `0`.
 - `text_splitter` (String) Text splitter: `""`/`character` or `token`. Server default: `""`.
 - `tika_server_url` (String) Apache Tika server URL. Server default: `http://tika:9998`.

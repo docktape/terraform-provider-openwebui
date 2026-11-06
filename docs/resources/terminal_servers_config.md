@@ -4,18 +4,18 @@ page_title: "openwebui_terminal_servers_config Resource - openwebui"
 subcategory: ""
 description: |-
   Manages Open WebUI's list of admin-configured terminal servers (Open Terminal instances or orchestrators), the TERMINAL_SERVER_CONNECTIONS setting.
-  ~> Open WebUI replaces the whole connection list on every apply. Entries added in the admin UI that are not in your configuration are removed, and extra per-connection keys Open WebUI stores but this resource does not model are dropped, because only the modelled attributes are sent. In particular the cached orchestrator policy: Open WebUI v0.9.6 and v0.10.x store policy: null for every connection on each apply, and v0.11.0 never stores policy or lifecycle from this endpoint at all.
+  ~> Open WebUI replaces the whole connection list on every apply. Entries added in the admin UI that are not in your configuration are removed, and extra per-connection keys Open WebUI stores but this resource does not model are dropped, because only the modelled attributes are sent. In particular, Open WebUI v0.11.0 does not store the cached orchestrator policy or lifecycle from this endpoint at all.
   -> A connection stored with a null id, name, path or auth_type (possible when it was written directly through the API) is read as an empty string, so the next plan shows a change back to your configured value or the attribute's default; applying it stores that value explicitly.
   ~> Each apply makes Open WebUI contact every enabled connection to cache its OpenAPI specification. Unreachable servers do not fail the apply, but an apply against many slow or unreachable servers takes correspondingly longer.
   ~> Connection keys are stored in Terraform state because Open WebUI returns them in plain text. Protect your state accordingly.
-  Deleting this resource only removes it from state; the connections stay configured in Open WebUI. The endpoint is available in Open WebUI v0.9.6 and later.
+  Deleting this resource only removes it from state; the connections stay configured in Open WebUI.
 ---
 
 # openwebui_terminal_servers_config (Resource)
 
 Manages Open WebUI's list of admin-configured terminal servers (Open Terminal instances or orchestrators), the `TERMINAL_SERVER_CONNECTIONS` setting.
 
-~> Open WebUI replaces the whole connection list on every apply. Entries added in the admin UI that are not in your configuration are removed, and extra per-connection keys Open WebUI stores but this resource does not model are dropped, because only the modelled attributes are sent. In particular the cached orchestrator `policy`: Open WebUI v0.9.6 and v0.10.x store `policy: null` for every connection on each apply, and v0.11.0 never stores `policy` or `lifecycle` from this endpoint at all.
+~> Open WebUI replaces the whole connection list on every apply. Entries added in the admin UI that are not in your configuration are removed, and extra per-connection keys Open WebUI stores but this resource does not model are dropped, because only the modelled attributes are sent. In particular, Open WebUI v0.11.0 does not store the cached orchestrator `policy` or `lifecycle` from this endpoint at all.
 
 -> A connection stored with a null `id`, `name`, `path` or `auth_type` (possible when it was written directly through the API) is read as an empty string, so the next plan shows a change back to your configured value or the attribute's default; applying it stores that value explicitly.
 
@@ -23,7 +23,7 @@ Manages Open WebUI's list of admin-configured terminal servers (Open Terminal in
 
 ~> Connection keys are stored in Terraform state because Open WebUI returns them in plain text. Protect your state accordingly.
 
-Deleting this resource only removes it from state; the connections stay configured in Open WebUI. The endpoint is available in Open WebUI v0.9.6 and later.
+Deleting this resource only removes it from state; the connections stay configured in Open WebUI.
 
 ## Example Usage
 

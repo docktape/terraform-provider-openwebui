@@ -91,7 +91,7 @@ func testAccSkipBelow(t *testing.T, minVersion string) {
 }
 
 // testAccSkipAtOrAbove skips the test when the instance is v or newer, for
-// tests that pin behaviour only older releases have.
+// tests that pin behaviour a later release changed.
 func testAccSkipAtOrAbove(t *testing.T, v string) {
 	t.Helper()
 	if got := testAccOpenWebUIVersion(t); compareVersions(got, v) >= 0 {

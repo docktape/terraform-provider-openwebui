@@ -71,13 +71,13 @@ func (r *knowledgeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			"data_json": schema.StringAttribute{
 				Optional:      true,
 				Computed:      true,
-				Description:   "Deprecated: Open WebUI's knowledge create/update API no longer accepts a `data` field (removed prior to v0.9.6), so this attribute has no effect on the server and always reads back as unset. Kept only for backward compatibility with existing configurations; will be removed in a future major version.",
+				Description:   "Deprecated: Open WebUI's knowledge create/update API no longer accepts a `data` field, so this attribute has no effect on the server and always reads back as unset. Kept only for backward compatibility with existing configurations; will be removed in a future major version.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"meta_json": schema.StringAttribute{
 				Optional:      true,
 				Computed:      true,
-				Description:   "Deprecated: Open WebUI's knowledge create/update API no longer accepts a `meta` field in the request body (removed prior to v0.9.6) — `meta` is only ever set internally by Open WebUI's external-knowledge sync flow. Setting this attribute has no effect on the server. Kept only for backward compatibility with existing configurations; will be removed in a future major version.",
+				Description:   "Deprecated: Open WebUI's knowledge create/update API no longer accepts a `meta` field in the request body — `meta` is only ever set internally by Open WebUI's external-knowledge sync flow. Setting this attribute has no effect on the server. Kept only for backward compatibility with existing configurations; will be removed in a future major version.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"read_groups": schema.ListAttribute{

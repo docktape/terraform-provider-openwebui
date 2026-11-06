@@ -139,7 +139,7 @@ func (b *webSearchFakeBackend) ServeHTTP(w http.ResponseWriter, r *http.Request)
 }
 
 // webSearchNonNullableKeys are the WebConfig fields whose annotation is not
-// Optional (`list[str | None]`) on every release from v0.9.6 to v0.11.0.
+// Optional (`list[str | None]`) on v0.11.0.
 var webSearchNonNullableKeys = []string{"WEB_SEARCH_DOMAIN_FILTER_LIST", "YOUTUBE_LOADER_LANGUAGE"}
 
 func (b *webSearchFakeBackend) web() map[string]any {
@@ -279,9 +279,9 @@ func TestWebSearchModelFromAPIShapes(t *testing.T) {
 	}
 }
 
-// TestWebSearchModelFromOlderServer: keys a server response omits (for
-// example a server without OpenSERP) read as null instead of failing.
-func TestWebSearchModelFromOlderServer(t *testing.T) {
+// TestWebSearchModelFromOmittedKeys: keys a server response omits read as
+// null instead of failing.
+func TestWebSearchModelFromOmittedKeys(t *testing.T) {
 	m, diags := webSearchConfigModelFromAPI(context.Background(), decodeStockWeb(t, `{"ENABLE_WEB_SEARCH": false, "WEB_SEARCH_RESULT_COUNT": 3}`))
 	if diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)

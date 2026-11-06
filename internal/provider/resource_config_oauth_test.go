@@ -81,7 +81,7 @@ func TestOAuthModelFromFormNullEmptyPopulated(t *testing.T) {
 		t.Errorf("unexpected populated values: %+v", m)
 	}
 	if !m.EnableOAuthSignup.IsNull() {
-		t.Errorf("expected absent bool (v0.10.x shape) to be null")
+		t.Errorf("expected absent bool to be null")
 	}
 
 	back := oauthConfigFormFromModel(m)
