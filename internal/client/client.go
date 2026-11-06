@@ -35,6 +35,21 @@ func (e *APIError) Error() string {
 	return fmt.Sprintf("openwebui: status %d: %s", e.Status, e.Body)
 }
 
+// notFoundDetail is the body phrase Open WebUI sends in ERROR_MESSAGES.NOT_FOUND
+// and ERROR_MESSAGES.USER_NOT_FOUND. It is identical at v0.11.0 and v0.12.0.
+const notFoundDetail = "We could not find what you're looking for"
+
+// isNotFoundDetail reports whether err is an API error with the given HTTP
+// status whose body carries Open WebUI's not-found detail. Several endpoints
+// report a missing record with a status other than 404 (functions and groups
+// answer 401, users answer 400), so the status alone cannot be trusted: a
+// genuine auth or validation failure carries a different detail and must stay
+// a hard error.
+func isNotFoundDetail(err error, status int) bool {
+	var apiErr *APIError
+	return errors.As(err, &apiErr) && apiErr.Status == status && strings.Contains(apiErr.Body, notFoundDetail)
+}
+
 // Client wraps HTTP access to the Open WebUI API.
 type Client struct {
 	baseURL    string

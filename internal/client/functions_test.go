@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -199,5 +200,38 @@ func TestUpdateFunctionValves(t *testing.T) {
 	}
 	if gotPriority != 9 || outPriority != 9 {
 		t.Fatalf("unexpected valves: sent %+v got %+v", gotBody, out)
+	}
+}
+
+func TestGetFunctionNotFoundMapsTo401Detail(t *testing.T) {
+	c := newFunctionsTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"detail":"We could not find what you're looking for :/"}`))
+	})
+	_, err := c.GetFunction(context.Background(), "missing")
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestGetFunctionUnauthorizedStaysError(t *testing.T) {
+	c := newFunctionsTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"detail":"Not authenticated"}`))
+	})
+	_, err := c.GetFunction(context.Background(), "forbidden")
+	if err == nil || errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected a non-ErrNotFound error, got %v", err)
+	}
+}
+
+func TestGetFunctionNotFoundDetailOnOtherStatusStaysError(t *testing.T) {
+	c := newFunctionsTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"detail":"We could not find what you're looking for :/"}`))
+	})
+	_, err := c.GetFunction(context.Background(), "odd")
+	if err == nil || errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected a non-ErrNotFound error, got %v", err)
 	}
 }

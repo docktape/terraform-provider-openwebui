@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"testing"
@@ -35,6 +36,19 @@ func TestAccFunctionResource(t *testing.T) {
 					resource.TestCheckResourceAttr("openwebui_function.test", "name", "Acc Filter Renamed"),
 					resource.TestCheckResourceAttr("openwebui_function.test", "is_active", "false"),
 				),
+			},
+			{
+				// Delete the function out of band. Open WebUI answers a missing
+				// function with 401, which must drop the resource from state
+				// (a plan that wants to recreate it) rather than fail the refresh.
+				PreConfig: func() {
+					if err := testAccAPIClient(t).DeleteFunction(context.Background(), "tf_acc_filter"); err != nil {
+						t.Fatalf("delete function out of band: %v", err)
+					}
+				},
+				Config:             testAccFunctionResourceConfig("Acc Filter Renamed", false),
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: true,
 			},
 		},
 	})
