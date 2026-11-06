@@ -1,5 +1,49 @@
 # Changelog
 
+## [1.2.0] - 2026-11-06
+
+Adds support for Open WebUI v0.11.0. Supported range is now v0.9.0 – v0.11.0.
+
+### Upgrade notes
+
+- `openwebui_tool`, `openwebui_knowledge`, `openwebui_model`, `openwebui_prompt` and `openwebui_skill` now validate at plan time that every entry in `write_groups` is also in `read_groups`. Open WebUI always stores write groups as read groups too; such configurations previously failed at apply time with "Provider produced inconsistent result after apply".
+- `openwebui_prompt` and `openwebui_knowledge` now store empty group lists as `[]` instead of null. This is a state-only change that shows up on the next refresh.
+- Several new admin config resources write the whole config object on every apply, so attributes left unset are reset to their defaults. Each affected resource's documentation says so.
+
+### Bug Fixes
+
+- **model:** Stop stripping `file_context`, `terminal`, `builtin_tools` and `memory` capabilities on apply
+- **model:** Add the new capability keys to the `openwebui_model` data source
+- **knowledge_file:** Stop hardcoding page 1 when looking up a file by ID
+- **access-control:** Keep write_groups a subset of read_groups at plan time
+- **client:** Longer timeout for model-reloading retrieval calls
+
+### Documentation
+
+- Bump compatibility range to Open WebUI v0.9.0 – v0.11.0
+- **knowledge:** Mark `data_json`/`meta_json` as deprecated and inert
+- Document known behavior gaps found in the v0.11.0 compatibility audit
+
+### Features
+
+- **group:** Support Open WebUI v0.10.0/v0.11.0 permission keys (`skills_import`, `skills_export`, sharing `folders`, chat `import`, features `webhooks`, access grants `allow_groups`)
+- **models_config:** Support `default_model_metadata_json` and `default_model_params_json`
+- **skill:** Add `openwebui_skill` resource and data source
+- **tasks_config:** Add `openwebui_tasks_config` resource
+- **chat_config:** Add `openwebui_chat_config` resource
+- **evaluation_arena_config:** Add `openwebui_evaluation_arena_config` resource
+- **subagents_config:** Add `openwebui_subagents_config` resource
+- **admin_config:** Add `openwebui_admin_config` resource
+- **ldap_config:** Add `openwebui_ldap_config` resource
+- **ldap_server_config:** Add `openwebui_ldap_server_config` resource
+- **oauth_config:** Add `openwebui_oauth_config` resource (Open WebUI v0.10.0+)
+- **images_config:** Add `openwebui_images_config` resource
+- **audio_config:** Add `openwebui_audio_config` resource
+- **terminal_servers_config:** Add `openwebui_terminal_servers_config` resource and `openwebui_terminal_server_verify` data source
+- **retrieval_config:** Add `openwebui_retrieval_config` resource
+- **web_search_config:** Add `openwebui_web_search_config` resource
+- **retrieval_embedding_config:** Add `openwebui_retrieval_embedding_config` resource
+
 ## [1.1.0] - 2026-06-09
 
 ### Bug Fixes

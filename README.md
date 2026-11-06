@@ -2,8 +2,9 @@
 
 A Terraform provider that manages [Open WebUI](https://openwebui.com) resources
 through its REST API. Declaratively manage knowledge bases, models, prompts,
-groups, tools, pipelines, functions, files, model connections, and admin-level
-configuration in any Open WebUI deployment.
+groups, tools, skills, pipelines, functions, files, model connections, and
+admin-level configuration (authentication, retrieval and web search, images,
+audio, tasks, and more) in any Open WebUI deployment.
 
 - **Provider address:** `registry.terraform.io/docktape/openwebui`
 - **Module path:** `github.com/docktape/terraform-provider-openwebui`
@@ -52,48 +53,65 @@ variable "openwebui_token" {
 
 ## Resources
 
-| Resource                          | Description                                     |
-| --------------------------------- | ----------------------------------------------- |
-| `openwebui_knowledge`             | Knowledge base entries                          |
-| `openwebui_knowledge_file`        | File attachments on a knowledge base            |
-| `openwebui_model`                 | Custom model definitions                        |
-| `openwebui_prompt`                | Reusable prompt commands                        |
-| `openwebui_group`                 | User groups with permissions                    |
-| `openwebui_tool`                  | Python tools                                    |
-| `openwebui_tool_valves`           | Settings (valves) for a tool                    |
-| `openwebui_pipeline`              | Pipeline registrations                          |
-| `openwebui_pipeline_valves`       | Settings (valves) for a pipeline                |
-| `openwebui_function`              | Python functions                                |
-| `openwebui_function_valves`       | Settings (valves) for a function                |
-| `openwebui_file`                  | Uploaded files                                  |
-| `openwebui_openai_connections`    | OpenAI-compatible model connections             |
-| `openwebui_ollama_connections`    | Ollama model connections                        |
-| `openwebui_connections_config`    | Direct connection settings                      |
-| `openwebui_tool_servers_config`   | External tool server registrations              |
-| `openwebui_code_execution_config` | Code execution and interpreter settings         |
-| `openwebui_models_config`         | Default model ordering settings                 |
-| `openwebui_suggestions_config`    | Default prompt suggestions                      |
-| `openwebui_banners_config`        | UI announcement banners                         |
-| `openwebui_oauth_client`          | OAuth client registrations                      |
-| `openwebui_config_import`         | Bulk configuration restore                      |
+| Resource                               | Description                                        |
+| -------------------------------------- | -------------------------------------------------- |
+| `openwebui_knowledge`                  | Knowledge base entries                             |
+| `openwebui_knowledge_file`             | File attachments on a knowledge base               |
+| `openwebui_model`                      | Custom model definitions                           |
+| `openwebui_prompt`                     | Reusable prompt commands                           |
+| `openwebui_group`                      | User groups with permissions                       |
+| `openwebui_tool`                       | Python tools                                       |
+| `openwebui_tool_valves`                | Settings (valves) for a tool                       |
+| `openwebui_skill`                      | Reusable instructional skills exposed to models    |
+| `openwebui_pipeline`                   | Pipeline registrations                             |
+| `openwebui_pipeline_valves`            | Settings (valves) for a pipeline                   |
+| `openwebui_function`                   | Python functions                                   |
+| `openwebui_function_valves`            | Settings (valves) for a function                   |
+| `openwebui_file`                       | Uploaded files                                     |
+| `openwebui_openai_connections`         | OpenAI-compatible model connections                |
+| `openwebui_ollama_connections`         | Ollama model connections                           |
+| `openwebui_connections_config`         | Direct connection settings                         |
+| `openwebui_tool_servers_config`        | External tool server registrations                 |
+| `openwebui_terminal_servers_config`    | Terminal server connections                        |
+| `openwebui_code_execution_config`      | Code execution and interpreter settings            |
+| `openwebui_models_config`              | Default model ordering and default model settings  |
+| `openwebui_tasks_config`               | Title, tag, autocomplete, and follow-up generation |
+| `openwebui_chat_config`                | Chat context-compaction settings                   |
+| `openwebui_evaluation_arena_config`    | Evaluation arena settings                          |
+| `openwebui_subagents_config`           | Sub-agent orchestration settings                   |
+| `openwebui_suggestions_config`         | Default prompt suggestions                         |
+| `openwebui_banners_config`             | UI announcement banners                            |
+| `openwebui_admin_config`               | Signup, API key, JWT, and feature toggles          |
+| `openwebui_ldap_config`                | LDAP authentication toggle                         |
+| `openwebui_ldap_server_config`         | LDAP server connection and group sync              |
+| `openwebui_oauth_config`               | Generic OIDC provider and OAuth mapping (v0.10.0+) |
+| `openwebui_oauth_client`               | OAuth client registrations                         |
+| `openwebui_images_config`              | Image generation and editing engines               |
+| `openwebui_audio_config`               | Text-to-speech and speech-to-text engines          |
+| `openwebui_retrieval_config`           | Document retrieval (RAG) settings                  |
+| `openwebui_web_search_config`          | Web search engines and web page loader             |
+| `openwebui_retrieval_embedding_config` | Embedding engine, model, and connections           |
+| `openwebui_config_import`              | Bulk configuration restore                         |
 
 ## Data Sources
 
-| Data Source                          | Description                                        |
-| ------------------------------------ | -------------------------------------------------- |
-| `openwebui_model`                    | Look up a model by name or ID                      |
-| `openwebui_knowledge`                | Look up a knowledge base by name or ID             |
-| `openwebui_prompt`                   | Look up a prompt by command or ID                  |
-| `openwebui_group`                    | Look up a group by name or ID                      |
-| `openwebui_tool`                     | Look up a tool by name or ID                       |
-| `openwebui_pipeline`                 | Look up a pipeline by name or ID                   |
-| `openwebui_file`                     | Look up a single uploaded file                     |
-| `openwebui_files`                    | List uploaded files                                |
-| `openwebui_user`                     | Look up a user by email or ID                      |
-| `openwebui_config_export`            | Export the current Open WebUI configuration        |
-| `openwebui_tool_server_verify`       | Verify connectivity to an external tool server     |
-| `openwebui_openai_connection_verify` | Verify an OpenAI-compatible connection             |
-| `openwebui_ollama_connection_verify` | Verify an Ollama connection                        |
+| Data Source                          | Description                                    |
+| ------------------------------------ | ---------------------------------------------- |
+| `openwebui_model`                    | Look up a model by name or ID                  |
+| `openwebui_knowledge`                | Look up a knowledge base by name or ID         |
+| `openwebui_prompt`                   | Look up a prompt by command or ID              |
+| `openwebui_group`                    | Look up a group by name or ID                  |
+| `openwebui_tool`                     | Look up a tool by name or ID                   |
+| `openwebui_skill`                    | Look up a skill by name or ID                  |
+| `openwebui_pipeline`                 | Look up a pipeline by name or ID               |
+| `openwebui_file`                     | Look up a single uploaded file                 |
+| `openwebui_files`                    | List uploaded files                            |
+| `openwebui_user`                     | Look up a user by email or ID                  |
+| `openwebui_config_export`            | Export the current Open WebUI configuration    |
+| `openwebui_tool_server_verify`       | Verify connectivity to an external tool server |
+| `openwebui_terminal_server_verify`   | Probe a terminal server and detect its type    |
+| `openwebui_openai_connection_verify` | Verify an OpenAI-compatible connection         |
+| `openwebui_ollama_connection_verify` | Verify an Ollama connection                    |
 
 Full per-resource and per-data-source documentation is in [`docs/`](docs), with
 runnable configurations under [`examples/`](examples).
