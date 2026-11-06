@@ -35,7 +35,7 @@ resource "openwebui_prompt" "example" {
 ### Optional
 
 - `data_json` (String) Arbitrary JSON metadata object for the prompt. Use `jsonencode({})` to set an empty object.
-- `is_active` (Boolean) Whether the prompt is active and available to users. Defaults to `true`.
+- `is_active` (Boolean) Whether the prompt is active and available to users. Open WebUI creates prompts as active, so when this is `false` the provider deactivates the prompt right after creating it. When unset, the value reported by Open WebUI is used (`true` for new prompts).
 - `meta_json` (String) Arbitrary JSON metadata object for the prompt. Use `jsonencode({})` to set an empty object.
 - `read_groups` (List of String) Names of groups granted read access to the prompt, spelled exactly as stored in Open WebUI (state holds the stored group name, so an ID or a different letter case shows up as a difference). Open WebUI stores every write group as a read group too, so this list always includes the `write_groups` entries. When `read_groups` is not set, its planned value keeps the current read groups and is extended with any `write_groups` entry missing from it. When it is set, it must include every write group: to remove a group from `read_groups`, remove it from `write_groups` too (or set `write_groups = []`). Set both lists to `[]` for no group grants.
 - `tags` (List of String) List of tags for categorising the prompt.

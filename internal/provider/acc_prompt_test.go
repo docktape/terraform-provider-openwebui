@@ -67,10 +67,8 @@ func TestAccPromptResource_WithNewFields(t *testing.T) {
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
 		Steps: []resource.TestStep{
-			// Step 1: create with is_active=true and multiple tags.
-			// Note: is_active=false is not honoured by the Create/Update
-			// endpoints — the API always returns true. We test the true path here
-			// and rely on schema-level tests for false coverage.
+			// Step 1: create with is_active=true and multiple tags. The
+			// inactive path is covered by TestAccPromptResource_Inactive.
 			{
 				Config: fmt.Sprintf(`%s
 resource "openwebui_prompt" "test" {
@@ -103,6 +101,73 @@ resource "openwebui_prompt" "test" {
 					resource.TestCheckResourceAttr("openwebui_prompt.test", "tags.#", "1"),
 					resource.TestCheckResourceAttr("openwebui_prompt.test", "tags.0", "updated"),
 				),
+			},
+		},
+	})
+}
+
+// TestAccPromptResource_Inactive covers is_active = false. Open WebUI's create
+// and update forms have no is_active (create always yields true), so the
+// provider flips it through POST /prompts/id/{id}/toggle.
+func TestAccPromptResource_Inactive(t *testing.T) {
+	suffix := acctest.RandStringFromCharSet(6, acctest.CharSetAlphaNum)
+	command := "tfaccia" + suffix
+
+	cfg := func(content string, active bool) string {
+		return fmt.Sprintf(`%s
+resource "openwebui_prompt" "test" {
+  command   = %q
+  name      = "Inactive Prompt"
+  content   = %q
+  is_active = %t
+}
+`, testAccProviderConfig(), command, content, active)
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			// Create inactive: the server creates it active and the provider toggles it.
+			{
+				Config: cfg("v1", false),
+				Check:  resource.TestCheckResourceAttr("openwebui_prompt.test", "is_active", "false"),
+			},
+			// A refresh and plan against the live (inactive) prompt shows no diff.
+			{
+				Config:   cfg("v1", false),
+				PlanOnly: true,
+			},
+			// Import of an inactive prompt reads is_active from the server.
+			{
+				ResourceName:      "openwebui_prompt.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+			// An update that leaves is_active alone must not re-activate it.
+			{
+				Config: cfg("v2", false),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("openwebui_prompt.test", "content", "v2"),
+					resource.TestCheckResourceAttr("openwebui_prompt.test", "is_active", "false"),
+				),
+			},
+			// Activate.
+			{
+				Config: cfg("v2", true),
+				Check:  resource.TestCheckResourceAttr("openwebui_prompt.test", "is_active", "true"),
+			},
+			// Deactivate again together with a content change.
+			{
+				Config: cfg("v3", false),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("openwebui_prompt.test", "content", "v3"),
+					resource.TestCheckResourceAttr("openwebui_prompt.test", "is_active", "false"),
+				),
+			},
+			{
+				Config:   cfg("v3", false),
+				PlanOnly: true,
 			},
 		},
 	})

@@ -143,13 +143,11 @@ func TestListPromptsHitsRoot(t *testing.T) {
 }
 
 func TestPromptFormMarshal_WithNewFields(t *testing.T) {
-	active := true
 	form := PromptForm{
-		Command:  "/greet",
-		Name:     "Greet",
-		Content:  "Hello!",
-		IsActive: &active,
-		Tags:     []string{"util", "greeting"},
+		Command: "/greet",
+		Name:    "Greet",
+		Content: "Hello!",
+		Tags:    []string{"util", "greeting"},
 	}
 	data, err := json.Marshal(form)
 	if err != nil {
@@ -159,11 +157,58 @@ func TestPromptFormMarshal_WithNewFields(t *testing.T) {
 	if err := json.Unmarshal(data, &out); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if out["is_active"] != true {
-		t.Fatalf("expected is_active=true, got %v", out["is_active"])
+	// Neither PromptForm at v0.11.0 nor at v0.12.0 declares is_active; it can
+	// only be changed through POST /prompts/id/{id}/toggle.
+	if _, ok := out["is_active"]; ok {
+		t.Fatalf("PromptForm must not send is_active, got %v", out["is_active"])
 	}
 	tags, ok := out["tags"].([]any)
 	if !ok || len(tags) != 2 {
 		t.Fatalf("expected 2 tags, got %v", out["tags"])
+	}
+}
+
+func TestPromptWritesSendNoIsActive(t *testing.T) {
+	var bodies []map[string]any
+	c := newPromptTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		var sent map[string]any
+		body, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(body, &sent)
+		bodies = append(bodies, sent)
+		_, _ = w.Write([]byte(`{"id":"p1","command":"/greet","user_id":"u1","name":"Greet","content":"hi","is_active":true,"created_at":1,"updated_at":2,"access_grants":[]}`))
+	})
+	form := PromptForm{Command: "/greet", Name: "Greet", Content: "hi"}
+	if _, err := c.CreatePrompt(context.Background(), form); err != nil {
+		t.Fatalf("CreatePrompt: %v", err)
+	}
+	if _, err := c.UpdatePrompt(context.Background(), "p1", form); err != nil {
+		t.Fatalf("UpdatePrompt: %v", err)
+	}
+	if len(bodies) != 2 {
+		t.Fatalf("expected 2 requests, got %d", len(bodies))
+	}
+	for i, b := range bodies {
+		if _, ok := b["is_active"]; ok {
+			t.Fatalf("request %d sent is_active: %v", i, b)
+		}
+	}
+}
+
+func TestTogglePromptPath(t *testing.T) {
+	var gotPath, gotMethod string
+	c := newPromptTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotMethod = r.Method
+		_, _ = w.Write([]byte(`{"id":"p1","command":"/greet","user_id":"u1","name":"Greet","content":"hi","is_active":false,"created_at":10,"updated_at":40,"access_grants":[]}`))
+	})
+	out, err := c.TogglePrompt(context.Background(), "p1")
+	if err != nil {
+		t.Fatalf("TogglePrompt: %v", err)
+	}
+	if gotPath != "/api/v1/prompts/id/p1/toggle" || gotMethod != http.MethodPost {
+		t.Fatalf("expected POST /api/v1/prompts/id/p1/toggle, got %s %q", gotMethod, gotPath)
+	}
+	if out.ID != "p1" || out.IsActive == nil || *out.IsActive {
+		t.Fatalf("expected decoded prompt p1 with is_active=false, got %+v", out)
 	}
 }
