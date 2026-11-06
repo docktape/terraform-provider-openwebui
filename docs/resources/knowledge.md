@@ -37,8 +37,8 @@ resource "openwebui_knowledge" "example" {
 
 - `data_json` (String) Deprecated: Open WebUI's knowledge create/update API no longer accepts a `data` field (removed prior to v0.9.6), so this attribute has no effect on the server and always reads back as unset. Kept only for backward compatibility with existing configurations; will be removed in a future major version.
 - `meta_json` (String) Deprecated: Open WebUI's knowledge create/update API no longer accepts a `meta` field in the request body (removed prior to v0.9.6) — `meta` is only ever set internally by Open WebUI's external-knowledge sync flow. Setting this attribute has no effect on the server. Kept only for backward compatibility with existing configurations; will be removed in a future major version.
-- `read_groups` (List of String) List of group names or IDs granted read access. Leave unset or empty for public access.
-- `write_groups` (List of String) List of group names or IDs granted write access. Groups here automatically receive read access too. Leave unset or empty for public access.
+- `read_groups` (List of String) Names of groups granted read access to the knowledge base, spelled exactly as stored in Open WebUI (state holds the stored group name, so an ID or a different letter case shows up as a difference). Open WebUI stores every write group as a read group too, so this list always includes the `write_groups` entries. When `read_groups` is not set, its planned value keeps the current read groups and is extended with any `write_groups` entry missing from it. When it is set, it must include every write group: to remove a group from `read_groups`, remove it from `write_groups` too (or set `write_groups = []`). Set both lists to `[]` for no group grants.
+- `write_groups` (List of String) Names of groups granted write access to the knowledge base, spelled exactly as stored in Open WebUI. Open WebUI stores these groups as read groups too: when `read_groups` is set it must list every group here, and when it is not set it is extended with them automatically. Leaving `write_groups` unset keeps the current write groups; set it to `[]` to revoke write access.
 
 ### Read-Only
 

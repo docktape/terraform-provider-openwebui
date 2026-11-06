@@ -4,16 +4,12 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
-	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
 	"github.com/docktape/terraform-provider-openwebui/internal/client"
 )
@@ -257,7 +253,7 @@ func TestSkill_AccessGroupsRoundTrip(t *testing.T) {
 
 	plan := skillBasePlan()
 	// Open WebUI v0.11.0 does not treat write as read, so every write group must
-	// also be listed under read_groups (enforced by the resource's ValidateConfig).
+	// also be listed under read_groups (enforced by the shared access-group ValidateConfig/ModifyPlan).
 	plan.ReadGroups = skillStrList(t, "Support", "Editors")
 	plan.WriteGroups = skillStrList(t, "Editors")
 	form, diags := skillFormFromPlan(ctx, apiClient, plan)
@@ -377,100 +373,6 @@ func TestSkillIDValidator(t *testing.T) {
 		if resp.Diagnostics.HasError() {
 			t.Fatalf("unexpected error for %v: %s", val, resp.Diagnostics)
 		}
-	}
-}
-
-func skillTFList(l types.List) tftypes.Value {
-	typ := tftypes.List{ElementType: tftypes.String}
-	switch {
-	case l.IsNull():
-		return tftypes.NewValue(typ, nil)
-	case l.IsUnknown():
-		return tftypes.NewValue(typ, tftypes.UnknownValue)
-	}
-	vals := make([]tftypes.Value, 0, len(l.Elements()))
-	for _, e := range l.Elements() {
-		sv, _ := e.(types.String)
-		if sv.IsUnknown() {
-			vals = append(vals, tftypes.NewValue(tftypes.String, tftypes.UnknownValue))
-			continue
-		}
-		vals = append(vals, tftypes.NewValue(tftypes.String, sv.ValueString()))
-	}
-	return tftypes.NewValue(typ, vals)
-}
-
-func skillValidateConfig(t *testing.T, read, write types.List) diag.Diagnostics {
-	t.Helper()
-	r := &skillResource{}
-	var schemaResp resource.SchemaResponse
-	r.Schema(context.Background(), resource.SchemaRequest{}, &schemaResp)
-
-	listType := tftypes.List{ElementType: tftypes.String}
-	raw := tftypes.NewValue(tftypes.Object{AttributeTypes: map[string]tftypes.Type{
-		"id": tftypes.String, "skill_id": tftypes.String, "name": tftypes.String, "description": tftypes.String,
-		"content": tftypes.String, "is_active": tftypes.Bool, "tags": listType,
-		"read_groups": listType, "write_groups": listType,
-		"user_id": tftypes.String, "created_at": tftypes.Number, "updated_at": tftypes.Number, "write_access": tftypes.Bool,
-	}}, map[string]tftypes.Value{
-		"id": tftypes.NewValue(tftypes.String, nil), "skill_id": tftypes.NewValue(tftypes.String, "s"),
-		"name": tftypes.NewValue(tftypes.String, "S"), "description": tftypes.NewValue(tftypes.String, nil),
-		"content": tftypes.NewValue(tftypes.String, "c"), "is_active": tftypes.NewValue(tftypes.Bool, nil),
-		"tags":        tftypes.NewValue(listType, nil),
-		"read_groups": skillTFList(read), "write_groups": skillTFList(write),
-		"user_id": tftypes.NewValue(tftypes.String, nil), "created_at": tftypes.NewValue(tftypes.Number, nil),
-		"updated_at": tftypes.NewValue(tftypes.Number, nil), "write_access": tftypes.NewValue(tftypes.Bool, nil),
-	})
-
-	var resp resource.ValidateConfigResponse
-	r.ValidateConfig(context.Background(), resource.ValidateConfigRequest{
-		Config: tfsdk.Config{Schema: schemaResp.Schema, Raw: raw},
-	}, &resp)
-	return resp.Diagnostics
-}
-
-func TestSkillValidateConfig_WriteGroupsMustBeReadGroups(t *testing.T) {
-	null := types.ListNull(types.StringType)
-	unknown := types.ListUnknown(types.StringType)
-	withUnknownElem := types.ListValueMust(types.StringType, []attr.Value{types.StringValue("A"), types.StringUnknown()})
-
-	valid := map[string][2]types.List{
-		"superset":              {skillStrList(t, "Support", "Editors"), skillStrList(t, "Editors")},
-		"equal":                 {skillStrList(t, "Support"), skillStrList(t, "Support")},
-		"case insensitive":      {skillStrList(t, "support"), skillStrList(t, "SUPPORT")},
-		"whitespace":            {skillStrList(t, "Support"), skillStrList(t, " Support ")},
-		"empty write":           {skillStrList(t, "Support"), skillStrList(t)},
-		"both empty":            {skillStrList(t), skillStrList(t)},
-		"read null skipped":     {null, skillStrList(t, "Editors")},
-		"write null skipped":    {skillStrList(t, "Support"), null},
-		"read unknown skipped":  {unknown, skillStrList(t, "Editors")},
-		"write unknown skipped": {skillStrList(t, "Support"), unknown},
-		"unknown element read":  {withUnknownElem, skillStrList(t, "B")},
-		"unknown element write": {skillStrList(t, "A"), withUnknownElem},
-	}
-	for name, c := range valid {
-		t.Run("valid/"+name, func(t *testing.T) {
-			if diags := skillValidateConfig(t, c[0], c[1]); diags.HasError() {
-				t.Fatalf("expected no error, got %s", diags)
-			}
-		})
-	}
-
-	invalid := map[string][2]types.List{
-		"write not in read": {skillStrList(t, "Support"), skillStrList(t, "Editors")},
-		"read empty":        {skillStrList(t), skillStrList(t, "Editors")},
-		"partially in read": {skillStrList(t, "Support"), skillStrList(t, "Support", "Editors")},
-	}
-	for name, c := range invalid {
-		t.Run("invalid/"+name, func(t *testing.T) {
-			diags := skillValidateConfig(t, c[0], c[1])
-			if !diags.HasError() {
-				t.Fatalf("expected an error")
-			}
-			if !strings.Contains(diags.Errors()[0].Detail(), "Editors") {
-				t.Fatalf("expected the offending group in the message, got %s", diags)
-			}
-		})
 	}
 }
 
