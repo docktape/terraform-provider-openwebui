@@ -9,9 +9,11 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
@@ -1153,34 +1155,80 @@ resource "openwebui_terminal_servers_config" "test" {
 // the acceptance-test instance and returns the decoded JSON object.
 func testAccRetrievalRaw(t *testing.T, method, apiPath string, body map[string]any) map[string]any {
 	t.Helper()
+	out, err := testAccRetrievalRawErr(http.DefaultClient, method, apiPath, body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+// testAccRetrievalRawErr is testAccRetrievalRaw returning its error instead
+// of failing the test, for best-effort cleanups. Errors never contain the
+// request or response body (see testAccErrorSummary).
+func testAccRetrievalRawErr(hc *http.Client, method, apiPath string, body map[string]any) (map[string]any, error) {
 	var reader io.Reader
 	if body != nil {
 		encoded, err := json.Marshal(body)
 		if err != nil {
-			t.Fatalf("encode body: %v", err)
+			return nil, fmt.Errorf("encode body: %w", err)
 		}
 		reader = bytes.NewReader(encoded)
 	}
 	req, err := http.NewRequestWithContext(context.Background(), method, strings.TrimRight(os.Getenv("OPENWEBUI_ENDPOINT"), "/")+"/api/v1/"+apiPath, reader)
 	if err != nil {
-		t.Fatalf("build request: %v", err)
+		return nil, fmt.Errorf("build request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+os.Getenv("OPENWEBUI_TOKEN"))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := hc.Do(req)
 	if err != nil {
-		t.Fatalf("%s %s: %v", method, apiPath, err)
+		return nil, fmt.Errorf("%s %s: %w", method, apiPath, err)
 	}
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("%s %s: HTTP %d: %s", method, apiPath, resp.StatusCode, testAccErrorSummary(raw))
+		return nil, fmt.Errorf("%s %s: HTTP %d: %s", method, apiPath, resp.StatusCode, testAccErrorSummary(raw))
 	}
 	var out map[string]any
 	if err := json.Unmarshal(raw, &out); err != nil {
-		t.Fatalf("decode %s %s: %v", method, apiPath, err)
+		return nil, fmt.Errorf("decode %s %s: %w", method, apiPath, err)
 	}
-	return out
+	return out, nil
+}
+
+// testAccDifferingKeys lists the key names (never values) whose values differ
+// between want and got, descending one level into nested objects as
+// "parent.child".
+func testAccDifferingKeys(want, got map[string]any) []string {
+	var diffs []string
+	seen := map[string]bool{}
+	for k := range want {
+		seen[k] = true
+	}
+	for k := range got {
+		seen[k] = true
+	}
+	keys := make([]string, 0, len(seen))
+	for k := range seen {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		w, wok := want[k].(map[string]any)
+		g, gok := got[k].(map[string]any)
+		if wok && gok {
+			for _, nested := range testAccDifferingKeys(w, g) {
+				diffs = append(diffs, k+"."+nested)
+			}
+			continue
+		}
+		a, _ := json.Marshal(want[k])
+		b, _ := json.Marshal(got[k])
+		if string(a) != string(b) {
+			diffs = append(diffs, k)
+		}
+	}
+	return diffs
 }
 
 // testAccErrorSummary reduces an error response to what is safe to print: the
@@ -1616,12 +1664,11 @@ func TestAccRetrievalEmbeddingConfigResource(t *testing.T) {
 			restore[k] = v
 		}
 	}
-	originalJSON, _ := json.Marshal(original)
 	t.Cleanup(func() {
 		testAccRetrievalRaw(t, http.MethodPost, "retrieval/embedding/update", restore)
-		after, _ := json.Marshal(testAccRetrievalRaw(t, http.MethodGet, "retrieval/embedding", nil))
-		if string(after) != string(originalJSON) {
-			t.Errorf("the embedding settings were not restored (%d bytes before, %d after)", len(originalJSON), len(after))
+		after := testAccRetrievalRaw(t, http.MethodGet, "retrieval/embedding", nil)
+		if diffs := testAccDifferingKeys(original, after); len(diffs) > 0 {
+			t.Errorf("the embedding settings were not restored; differing keys: %v", diffs)
 		}
 	})
 
@@ -1795,45 +1842,65 @@ resource "openwebui_retrieval_embedding_config" "test" {
 // live, which needs a remote engine (Open WebUI ignores the blocks for the
 // local engine): it switches the embedding engine to "openai" with dummy
 // connection values. Opt-in, because for a few seconds the instance has no
-// working embedding engine: set OPENWEBUI_TEST_ALLOW_ENGINE_SWITCH=1 (in
-// addition to TF_ACC) to run it. Per Open WebUI v0.11.0's
+// working embedding engine: set OPENWEBUI_TEST_ALLOW_ENGINE_SWITCH=1 exactly
+// (in addition to TF_ACC) to run it. Per Open WebUI v0.11.0's
 // update_embedding_config, selecting a remote engine only stores the values
 // and builds the embedding function lazily: no network call and no model
 // download happen during the update. The captured engine, model, scalars and
-// all three blocks are restored on cleanup (also after a failure), and the
-// restored settings must equal the capture.
+// all three blocks are restored on cleanup (also after a failure, best
+// effort), and the restored settings must equal the capture.
 func TestAccRetrievalEmbeddingConfigRemoteEngine(t *testing.T) {
 	testAccPreCheck(t)
-	testAccRequireEnv(t, "OPENWEBUI_TEST_ALLOW_ENGINE_SWITCH")
+	if os.Getenv("OPENWEBUI_TEST_ALLOW_ENGINE_SWITCH") != "1" {
+		t.Skip("OPENWEBUI_TEST_ALLOW_ENGINE_SWITCH=1 must be set for this acceptance test (it switches the embedding engine)")
+	}
 	const name = "openwebui_retrieval_embedding_config.test"
 	remote := map[string]bool{"ollama": true, "openai": true, "azure_openai": true}
 
 	original := testAccRetrievalRaw(t, http.MethodGet, "retrieval/embedding", nil)
-	originalJSON, _ := json.Marshal(original)
 	engine, _ := original["RAG_EMBEDDING_ENGINE"].(string)
+	// The remote-engine window lasts about 2 s; the cleanup cannot run if
+	// the test process is killed (SIGINT, go test -timeout) inside it.
 	t.Cleanup(func() {
-		// The blocks are stored only with a remote engine: restore them
-		// first, then the captured engine and scalars.
-		restore := map[string]any{}
+		// Best effort: every step runs even if an earlier one fails, and
+		// every failure is reported. Restoring the local model can take a
+		// while (model reload), so the timeout is generous but finite.
+		hc := &http.Client{Timeout: 2 * time.Minute}
+		post := func(step string, body map[string]any) {
+			if _, err := testAccRetrievalRawErr(hc, http.MethodPost, "retrieval/embedding/update", body); err != nil {
+				t.Errorf("restore (%s): %v", step, err)
+			}
+		}
+		scalars := map[string]any{}
+		for _, k := range []string{"RAG_EMBEDDING_ENGINE", "RAG_EMBEDDING_MODEL", "RAG_EMBEDDING_BATCH_SIZE", "ENABLE_ASYNC_EMBEDDING", "RAG_EMBEDDING_CONCURRENT_REQUESTS"} {
+			scalars[k] = original[k]
+		}
+		blocks := map[string]any{}
 		for k, v := range original {
 			if k != "status" {
-				restore[k] = v
+				blocks[k] = v
 			}
 		}
-		if !remote[engine] {
-			restore["RAG_EMBEDDING_ENGINE"] = "openai"
+		if remote[engine] {
+			// One request restores everything: blocks are stored with the
+			// captured (remote) engine.
+			post("engine, model, scalars and blocks", blocks)
+		} else {
+			// Priority: get off the dummy remote engine. Then store the
+			// captured blocks, which needs a remote engine, and go back to
+			// the captured local engine again.
+			post("engine, model and scalars", scalars)
+			blocks["RAG_EMBEDDING_ENGINE"] = "openai"
+			post("connection blocks", blocks)
+			post("engine, model and scalars after the blocks", scalars)
 		}
-		testAccRetrievalRaw(t, http.MethodPost, "retrieval/embedding/update", restore)
-		if !remote[engine] {
-			scalars := map[string]any{}
-			for _, k := range []string{"RAG_EMBEDDING_ENGINE", "RAG_EMBEDDING_MODEL", "RAG_EMBEDDING_BATCH_SIZE", "ENABLE_ASYNC_EMBEDDING", "RAG_EMBEDDING_CONCURRENT_REQUESTS"} {
-				scalars[k] = original[k]
-			}
-			testAccRetrievalRaw(t, http.MethodPost, "retrieval/embedding/update", scalars)
+		after, err := testAccRetrievalRawErr(hc, http.MethodGet, "retrieval/embedding", nil)
+		if err != nil {
+			t.Errorf("verify restore: %v", err)
+			return
 		}
-		after, _ := json.Marshal(testAccRetrievalRaw(t, http.MethodGet, "retrieval/embedding", nil))
-		if string(after) != string(originalJSON) {
-			t.Errorf("the embedding settings were not restored (%d bytes before, %d after)", len(originalJSON), len(after))
+		if diffs := testAccDifferingKeys(original, after); len(diffs) > 0 {
+			t.Errorf("the embedding settings were not restored; differing keys: %v", diffs)
 		}
 	})
 
@@ -1938,4 +2005,18 @@ resource "openwebui_retrieval_embedding_config" "test" {
 			{Config: partial, PlanOnly: true},
 		},
 	})
+}
+
+// TestDifferingKeysReportsNamesOnly pins the restore-check helper: it reports
+// differing top-level and nested key names, never values.
+func TestDifferingKeysReportsNamesOnly(t *testing.T) {
+	want := map[string]any{"A": 1, "B": "x", "blk": map[string]any{"key": "secret-1", "url": "u"}}
+	got := map[string]any{"A": 1.5, "B": "x", "blk": map[string]any{"key": "secret-2", "url": "u"}, "C": true}
+	diffs := testAccDifferingKeys(want, got)
+	if fmt.Sprint(diffs) != "[A C blk.key]" {
+		t.Errorf("got %v", diffs)
+	}
+	if strings.Contains(fmt.Sprint(diffs), "secret") {
+		t.Errorf("values must not be reported")
+	}
 }
