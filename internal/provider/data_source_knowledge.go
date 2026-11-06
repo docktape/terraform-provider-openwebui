@@ -24,6 +24,7 @@ type knowledgeDataSource struct {
 // knowledgeDataSourceModel embeds the resource fields and adds the lookup identifier.
 type knowledgeDataSourceModel struct {
 	KnowledgeID types.String `tfsdk:"knowledge_id"`
+	MetaJSON    types.String `tfsdk:"meta_json"`
 	knowledgeResourceModel
 }
 
@@ -59,10 +60,6 @@ func (d *knowledgeDataSource) Schema(_ context.Context, _ datasource.SchemaReque
 			"description": schema.StringAttribute{
 				Computed:    true,
 				Description: "Description returned by Open WebUI.",
-			},
-			"data_json": schema.StringAttribute{
-				Computed:    true,
-				Description: "JSON data blob associated with the knowledge base as returned by Open WebUI.",
 			},
 			"meta_json": schema.StringAttribute{
 				Computed:    true,
@@ -191,8 +188,15 @@ func (d *knowledgeDataSource) Read(ctx context.Context, req datasource.ReadReque
 		return
 	}
 
+	meta, err := encodeOptionalJSON(current.Meta)
+	if err != nil {
+		resp.Diagnostics.AddError("Serialize metadata", err.Error())
+		return
+	}
+
 	state := knowledgeDataSourceModel{
 		KnowledgeID:            types.StringValue(current.ID),
+		MetaJSON:               meta,
 		knowledgeResourceModel: model,
 	}
 

@@ -29,7 +29,6 @@ data "openwebui_knowledge" "faq" {
 ### Read-Only
 
 - `created_at` (String) Creation date in `YYYY-MM-DD` format.
-- `data_json` (String) JSON data blob associated with the knowledge base as returned by Open WebUI.
 - `description` (String) Description returned by Open WebUI.
 - `id` (String) UUID of the knowledge base. Set after lookup.
 - `meta_json` (String) JSON metadata blob associated with the knowledge base as returned by Open WebUI.
