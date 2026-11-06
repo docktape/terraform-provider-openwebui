@@ -357,8 +357,7 @@ func TestLDAPServerGroupAttributeCheck(t *testing.T) {
 		t.Errorf("blank state attribute_for_groups must be rejected")
 	}
 
-	// Accepted: a non-blank value, management off, or an older server
-	// without group settings (nil).
+	// Accepted: a non-blank value, management off, or a nil attribute.
 	m.AttributeForGroups = types.StringValue("groups")
 	if diags := checkLDAPServerGroupAttribute(overlayLDAPServerConfigPlan(current, m)); diags.HasError() {
 		t.Errorf("non-blank attribute_for_groups rejected: %v", diags)
@@ -367,7 +366,7 @@ func TestLDAPServerGroupAttributeCheck(t *testing.T) {
 		t.Errorf("blank attribute with management off rejected: %v", diags)
 	}
 	if diags := checkLDAPServerGroupAttribute(client.LDAPServerConfigForm{EnableGroupManagement: &on}); diags.HasError() {
-		t.Errorf("older server (nil attribute) rejected: %v", diags)
+		t.Errorf("nil attribute rejected: %v", diags)
 	}
 }
 

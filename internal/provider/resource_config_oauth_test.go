@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"regexp"
 	"sync"
 	"testing"
 
@@ -200,32 +199,13 @@ func newFakeOAuthServer(withEnableOAuth bool) *fakeOAuthServer {
 	return f
 }
 
-// TestOAuthEnableOAuthGuard: setting enable_oauth against a server that does
-// not report ENABLE_OAUTH (v0.10.x) fails before anything is written, while a
-// v0.11.0-like server accepts it; leaving it unset needs no extra read.
-func TestOAuthEnableOAuthGuard(t *testing.T) {
+// TestOAuthEnableOAuth: enable_oauth is written like any other attribute, and
+// a server response that omits ENABLE_OAUTH reads back as null instead of
+// failing.
+func TestOAuthEnableOAuth(t *testing.T) {
 	const name = "openwebui_oauth_config.test"
 
-	t.Run("v0.10.x rejects before POST", func(t *testing.T) {
-		fake := newFakeOAuthServer(false)
-		server := httptest.NewServer(fake)
-		defer server.Close()
-		t.Setenv("OPENWEBUI_ENDPOINT", server.URL)
-		t.Setenv("OPENWEBUI_TOKEN", "test-token")
-		tfresource.UnitTest(t, tfresource.TestCase{
-			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
-			Steps: []tfresource.TestStep{{
-				Config: oauthHCL(`  enable_oauth        = false
-  oauth_provider_name = "Corp"`),
-				ExpectError: regexp.MustCompile(`(?s)Unsupported by this Open WebUI.*v0\.11\.0`),
-			}},
-		})
-		if fake.posts != 0 || fake.store["OAUTH_PROVIDER_NAME"] != "SSO" {
-			t.Errorf("nothing must be written: posts=%d store=%v", fake.posts, fake.store)
-		}
-	})
-
-	t.Run("v0.10.x without enable_oauth", func(t *testing.T) {
+	t.Run("response without ENABLE_OAUTH reads as null", func(t *testing.T) {
 		fake := newFakeOAuthServer(false)
 		server := httptest.NewServer(fake)
 		defer server.Close()
@@ -244,7 +224,7 @@ func TestOAuthEnableOAuthGuard(t *testing.T) {
 		})
 	})
 
-	t.Run("v0.11.0 accepts", func(t *testing.T) {
+	t.Run("enable_oauth is written", func(t *testing.T) {
 		fake := newFakeOAuthServer(true)
 		server := httptest.NewServer(fake)
 		defer server.Close()

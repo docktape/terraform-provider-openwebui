@@ -172,13 +172,7 @@ func (r *oauthConfigResource) Create(ctx context.Context, req resource.CreateReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	var configured types.Bool
-	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("enable_oauth"), &configured)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	state, diags := applyOAuthConfig(ctx, r.client, plan, !configured.IsNull() && !configured.IsUnknown())
+	state, diags := applyOAuthConfig(ctx, r.client, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -198,13 +192,7 @@ func (r *oauthConfigResource) Update(ctx context.Context, req resource.UpdateReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	var configured types.Bool
-	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("enable_oauth"), &configured)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	state, diags := applyOAuthConfig(ctx, r.client, plan, !configured.IsNull() && !configured.IsUnknown())
+	state, diags := applyOAuthConfig(ctx, r.client, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -219,28 +207,8 @@ func (r *oauthConfigResource) Update(ctx context.Context, req resource.UpdateReq
 // model_dump(exclude_none=True)). The returned state is flattened from the
 // server's response, which carries every stored value including the ones the
 // plan left unknown.
-//
-// When the configuration sets enable_oauth, the current configuration is read
-// first: a server that does not report ENABLE_OAUTH (v0.10.x) would ignore the
-// value and read it back as null, failing the apply only after the other
-// settings were written. The check turns that into a clear error before the
-// POST. Open WebUI v0.11.0 always reports the key (oauth.enable has a
-// built-in default).
-func applyOAuthConfig(ctx context.Context, apiClient *client.Client, plan oauthConfigModel, enableOAuthConfigured bool) (oauthConfigModel, diag.Diagnostics) {
+func applyOAuthConfig(ctx context.Context, apiClient *client.Client, plan oauthConfigModel) (oauthConfigModel, diag.Diagnostics) {
 	var diags diag.Diagnostics
-
-	if enableOAuthConfigured {
-		current, err := apiClient.GetOAuthConfig(ctx)
-		if err != nil {
-			diags.AddError("Read OAuth config failed", err.Error())
-			return oauthConfigModel{}, diags
-		}
-		if current.EnableOAuth == nil {
-			diags.AddAttributeError(path.Root("enable_oauth"), "Unsupported by this Open WebUI version",
-				"The server does not report ENABLE_OAUTH, so it would ignore this value. The setting was added in Open WebUI v0.11.0; remove enable_oauth from the configuration or upgrade Open WebUI. Nothing was written.")
-			return oauthConfigModel{}, diags
-		}
-	}
 
 	updated, err := apiClient.SetOAuthConfig(ctx, oauthConfigFormFromModel(plan))
 	if err != nil {

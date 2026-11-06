@@ -15,7 +15,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
@@ -211,13 +210,7 @@ func (r *audioConfigResource) Create(ctx context.Context, req resource.CreateReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	formatConfigured, d := audioRequestFormatConfigured(ctx, req.Config)
-	resp.Diagnostics.Append(d...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	state, diags := applyAudioConfig(ctx, r.client, plan, formatConfigured)
+	state, diags := applyAudioConfig(ctx, r.client, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -237,13 +230,7 @@ func (r *audioConfigResource) Update(ctx context.Context, req resource.UpdateReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	formatConfigured, d := audioRequestFormatConfigured(ctx, req.Config)
-	resp.Diagnostics.Append(d...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	state, diags := applyAudioConfig(ctx, r.client, plan, formatConfigured)
+	state, diags := applyAudioConfig(ctx, r.client, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -252,25 +239,12 @@ func (r *audioConfigResource) Update(ctx context.Context, req resource.UpdateReq
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-// audioRequestFormatConfigured reports whether the configuration itself (not
-// a value UseStateForUnknown copied from state into the plan) sets
-// stt.openai_api_request_format.
-func audioRequestFormatConfigured(ctx context.Context, config tfsdk.Config) (bool, diag.Diagnostics) {
-	var stt types.Object
-	diags := config.GetAttribute(ctx, path.Root("stt"), &stt)
-	if diags.HasError() || !knownObject(stt) {
-		return false, diags
-	}
-	format, ok := stt.Attributes()["openai_api_request_format"].(types.String)
-	return ok && !format.IsNull() && !format.IsUnknown(), diags
-}
-
 // applyAudioConfig performs a fetch-then-merge write. AudioConfigUpdateForm
 // requires both sub-objects and nearly every field in them, and the handler
 // upserts every field it receives, so the POST replaces the whole audio
 // configuration. The current configuration is therefore read first and every
 // unknown attribute (or wholly unknown sub-object) keeps its server value.
-func applyAudioConfig(ctx context.Context, apiClient *client.Client, plan audioConfigModel, formatConfigured bool) (audioConfigModel, diag.Diagnostics) {
+func applyAudioConfig(ctx context.Context, apiClient *client.Client, plan audioConfigModel) (audioConfigModel, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	current, err := apiClient.GetAudioConfig(ctx)
@@ -279,7 +253,7 @@ func applyAudioConfig(ctx context.Context, apiClient *client.Client, plan audioC
 		return audioConfigModel{}, diags
 	}
 
-	form, formDiags := overlayAudioConfigPlan(ctx, *current, plan, formatConfigured)
+	form, formDiags := overlayAudioConfigPlan(ctx, *current, plan)
 	diags.Append(formDiags...)
 	if diags.HasError() {
 		return audioConfigModel{}, diags
@@ -340,11 +314,7 @@ func (r *audioConfigResource) ImportState(ctx context.Context, req resource.Impo
 
 // overlayAudioConfigPlan returns current with every known plan value applied.
 // Null or unknown sub-objects and attributes keep the current server value.
-// formatConfigured tells whether a known stt.openai_api_request_format comes
-// from the configuration (true) or was copied from prior state (false); it
-// only changes the wording of the error raised when the server does not
-// support the setting.
-func overlayAudioConfigPlan(ctx context.Context, current client.AudioConfigForm, m audioConfigModel, formatConfigured bool) (client.AudioConfigForm, diag.Diagnostics) {
+func overlayAudioConfigPlan(ctx context.Context, current client.AudioConfigForm, m audioConfigModel) (client.AudioConfigForm, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	f := current
 	// OPENAI_PARAMS is Optional[dict] on write, but the GET has no response
@@ -411,24 +381,7 @@ func overlayAudioConfigPlan(ctx context.Context, current client.AudioConfigForm,
 		}
 		setString(&f.STT.OpenAIAPIBaseURL, stt.OpenAIAPIBaseURL)
 		setString(&f.STT.OpenAIAPIKey, stt.OpenAIAPIKey)
-		if p := stringPtr(stt.OpenAIAPIRequestFormat); p != nil {
-			if f.STT.OpenAIAPIRequestFormat == nil {
-				// Raised before anything is written. Skipping the value instead
-				// would not help: the plan already holds it as known, so the
-				// server's null would fail the apply as an inconsistent result.
-				detail := "The server does not report OPENAI_API_REQUEST_FORMAT, so it would ignore this value. The setting was added in Open WebUI v0.10.2; remove it from the configuration or upgrade Open WebUI. Nothing was written."
-				if !formatConfigured {
-					detail = "Your configuration does not set this attribute, but the prior state holds a value for it and the server no longer reports OPENAI_API_REQUEST_FORMAT (Open WebUI older than v0.10.2, for example after a downgrade). Run the plan with refresh enabled (without -refresh=false) so the state is updated to null. Nothing was written."
-				}
-				diags.AddAttributeError(
-					path.Root("stt").AtName("openai_api_request_format"),
-					"Unsupported by this Open WebUI version",
-					detail,
-				)
-				return f, diags
-			}
-			f.STT.OpenAIAPIRequestFormat = p
-		}
+		setString(&f.STT.OpenAIAPIRequestFormat, stt.OpenAIAPIRequestFormat)
 		setString(&f.STT.Engine, stt.Engine)
 		setString(&f.STT.Model, stt.Model)
 		setList(&f.STT.SupportedContentTypes, stt.SupportedContentTypes, "supported_content_types")
@@ -479,7 +432,7 @@ func audioConfigModelFromForm(ctx context.Context, f client.AudioConfigForm) (au
 	stt := audioSTTModel{
 		OpenAIAPIBaseURL:          types.StringValue(f.STT.OpenAIAPIBaseURL),
 		OpenAIAPIKey:              types.StringValue(f.STT.OpenAIAPIKey),
-		OpenAIAPIRequestFormat:    stringValueOrNull(f.STT.OpenAIAPIRequestFormat),
+		OpenAIAPIRequestFormat:    types.StringValue(f.STT.OpenAIAPIRequestFormat),
 		Engine:                    types.StringValue(f.STT.Engine),
 		Model:                     types.StringValue(f.STT.Model),
 		SupportedContentTypes:     contentTypes,

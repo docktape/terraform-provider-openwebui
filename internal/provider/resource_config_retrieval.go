@@ -3,12 +3,10 @@ package provider
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"regexp"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -593,10 +591,11 @@ func preserveRetrievalConfig(preferred, fresh retrievalConfigModel) retrievalCon
 	return fresh
 }
 
-// checkRetrievalApplyResult turns the two known ways the server can disagree
-// with a configured (sent) value into clear errors, instead of Terraform's
-// generic "inconsistent result after apply". Attributes the configuration
-// leaves out are never checked here (see reconcileUnconfiguredRetrieval).
+// checkRetrievalApplyResult turns the way the server can disagree with a
+// configured (sent) value, Open WebUI turning hybrid search back off after a
+// failed reranker load, into a clear error instead of Terraform's generic
+// "inconsistent result after apply". Attributes the configuration leaves out
+// are never checked here (see reconcileUnconfiguredRetrieval).
 func checkRetrievalApplyResult(config, fresh retrievalConfigModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 
@@ -604,25 +603,6 @@ func checkRetrievalApplyResult(config, fresh retrievalConfigModel) diag.Diagnost
 		!fresh.EnableRAGHybridSearch.IsNull() && !fresh.EnableRAGHybridSearch.ValueBool() {
 		diags.AddAttributeError(path.Root("enable_rag_hybrid_search"), "Hybrid search was turned off by Open WebUI",
 			"Open WebUI could not load the reranking model (rag_reranking_engine / rag_reranking_model / rag_external_reranker_*) and disabled hybrid search. Check the Open WebUI server log, fix the reranking settings, and apply again.")
-	}
-
-	type compat struct {
-		name    string
-		planned bool
-		missing bool
-		version string
-	}
-	known := func(v attr.Value) bool { return !v.IsNull() && !v.IsUnknown() }
-	for _, c := range []compat{
-		{"external_document_loader_headers_json", known(config.ExternalDocumentLoaderHeadersJSON), fresh.ExternalDocumentLoaderHeadersJSON.IsNull(), "v0.10.0"},
-		{"rag_tokenizer_model", known(config.RAGTokenizerModel), fresh.RAGTokenizerModel.IsNull(), "v0.10.0"},
-		{"mistral_ocr_use_base64", known(config.MistralOCRUseBase64), fresh.MistralOCRUseBase64.IsNull(), "v0.10.0"},
-		{"content_extraction_supported_media_mime_types", known(config.ContentExtractionSupportedMediaMimeTypes), fresh.ContentExtractionSupportedMediaMimeTypes.IsNull(), "v0.11.0"},
-	} {
-		if c.planned && c.missing {
-			diags.AddAttributeError(path.Root(c.name), "Setting not supported by this Open WebUI version",
-				fmt.Sprintf("%s was added in Open WebUI %s; this server ignored it. Remove it from the configuration or upgrade Open WebUI.", c.name, c.version))
-		}
 	}
 	return diags
 }
