@@ -59,6 +59,40 @@ func TestAccPromptDataSource(t *testing.T) {
 	})
 }
 
+// TestAccPromptDataSource_Inactive reads a prompt that the resource has
+// deactivated. GET /prompts/ hides inactive prompts, so the data source
+// searches GET /prompts/list instead.
+func TestAccPromptDataSource_Inactive(t *testing.T) {
+	suffix := acctest.RandStringFromCharSet(6, acctest.CharSetAlphaNum)
+	command := "tfaccdi" + suffix
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`%s
+resource "openwebui_prompt" "seed" {
+  command   = %q
+  name      = "Acc Inactive DS Prompt"
+  content   = "Inactive data source lookup test."
+  is_active = false
+}
+
+data "openwebui_prompt" "test" {
+  command = openwebui_prompt.seed.command
+}
+`, testAccProviderConfig(), command),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrPair("data.openwebui_prompt.test", "id", "openwebui_prompt.seed", "id"),
+					resource.TestCheckResourceAttr("data.openwebui_prompt.test", "name", "Acc Inactive DS Prompt"),
+					resource.TestCheckResourceAttr("data.openwebui_prompt.test", "is_active", "false"),
+				),
+			},
+		},
+	})
+}
+
 func TestAccPromptResource_WithNewFields(t *testing.T) {
 	suffix := acctest.RandStringFromCharSet(6, acctest.CharSetAlphaNum)
 	command := "tfaccnf" + suffix

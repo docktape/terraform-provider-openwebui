@@ -13,6 +13,11 @@ import (
 // WebUI server did not store because it predates minVersion. Attributes added
 // after v0.11.0 use it instead of surfacing Terraform's generic "inconsistent
 // result after apply" error.
+//
+// minVersion is printed verbatim, so callers pass it with the leading "v"
+// (for example "v0.12.0"), matching the "Requires Open WebUI v0.12.0+."
+// wording of the attribute descriptions. compareVersions and the acceptance
+// skip helpers accept either form.
 func requiresNewerServer(attr path.Path, minVersion string) diag.Diagnostic {
 	return diag.NewAttributeErrorDiagnostic(
 		attr,

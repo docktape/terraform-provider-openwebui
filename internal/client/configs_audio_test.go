@@ -79,7 +79,7 @@ func TestGetAudioConfig(t *testing.T) {
 
 // A response without OPENAI_API_REQUEST_FORMAT decodes to ""; AZURE_MAX_SPEAKERS
 // is decoded leniently in case a number was stored; OPENAI_PARAMS may be null.
-func TestGetAudioConfigOlderAndLenientShapes(t *testing.T) {
+func TestGetAudioConfigOmittedKeyAndLenientShapes(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"tts": {"OPENAI_PARAMS": null}, "stt": {"AZURE_MAX_SPEAKERS": 4, "SUPPORTED_CONTENT_TYPES": ["audio/*"]}}`))
 	})

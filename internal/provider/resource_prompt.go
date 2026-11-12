@@ -213,14 +213,13 @@ func (r *promptResource) Create(ctx context.Context, req resource.CreateRequest,
 
 	state, diags := promptResponseToModel(ctx, r.client, created)
 	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 	if activeErr != nil {
 		resp.Diagnostics.AddError("Set prompt is_active failed", activeErr.Error())
 	}
+
+	// The prompt exists on the server, so it goes into state even when
+	// flattening it reported an error (for example a failed group lookup).
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
 // Read refreshes state from the API.
@@ -325,14 +324,15 @@ func (r *promptResource) Update(ctx context.Context, req resource.UpdateRequest,
 
 	newState, diags := promptResponseToModel(ctx, r.client, updatedPrompt)
 	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
+	// Report the toggle failure before any early return so it is never dropped.
+	if activeErr != nil {
+		resp.Diagnostics.AddError("Set prompt is_active failed", activeErr.Error())
+	}
+	if diags.HasError() {
 		return
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &newState)...)
-	if activeErr != nil {
-		resp.Diagnostics.AddError("Set prompt is_active failed", activeErr.Error())
-	}
 }
 
 // promptIsActive reads is_active from an API response; Open WebUI defaults it

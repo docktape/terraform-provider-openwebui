@@ -63,22 +63,31 @@ var (
 
 // testAccOpenWebUIVersion returns the version of the Open WebUI instance the
 // acceptance tests run against (for example "0.12.0"). The lookup uses
-// OPENWEBUI_ENDPOINT / OPENWEBUI_TOKEN and is cached for the process. The test
-// fails when the version cannot be read.
+// OPENWEBUI_ENDPOINT / OPENWEBUI_TOKEN (and OPENWEBUI_INSECURE) and is cached
+// for the process. It runs testAccPreCheck first, so outside acceptance mode
+// (no TF_ACC, token or endpoint) the calling test is skipped rather than
+// failed. When acceptance mode is on and the version cannot be read, the
+// calling test fails with the lookup error; the error is cached for the
+// process because the instance is the same for every test.
 func testAccOpenWebUIVersion(t *testing.T) string {
 	t.Helper()
+	testAccPreCheck(t)
 	testAccVersionOnce.Do(func() {
-		c, err := client.NewClient(os.Getenv("OPENWEBUI_ENDPOINT"), os.Getenv("OPENWEBUI_TOKEN"), false)
-		if err != nil {
-			testAccVersionErr = err
-			return
-		}
-		testAccVersion, testAccVersionErr = c.GetVersion(context.Background())
+		testAccVersion, testAccVersionErr = testAccLookupVersion(t)
 	})
 	if testAccVersionErr != nil {
-		t.Fatalf("read Open WebUI version: %v", testAccVersionErr)
+		t.Fatalf("read Open WebUI version from %s (cached for this test process): %v", os.Getenv("OPENWEBUI_ENDPOINT"), testAccVersionErr)
 	}
 	return testAccVersion
+}
+
+func testAccLookupVersion(t *testing.T) (string, error) {
+	t.Helper()
+	c, err := client.NewClient(os.Getenv("OPENWEBUI_ENDPOINT"), os.Getenv("OPENWEBUI_TOKEN"), os.Getenv("OPENWEBUI_INSECURE") != "")
+	if err != nil {
+		return "", err
+	}
+	return c.GetVersion(context.Background())
 }
 
 // testAccSkipBelow skips the test when the instance is older than minVersion, for

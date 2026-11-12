@@ -82,3 +82,32 @@ func TestAccServerVersion(t *testing.T) {
 		}
 	})
 }
+
+// TestAccVersionHelpersSkipOutsideAcceptanceMode guards the helpers that
+// acceptance tests call at the top: without TF_ACC they must skip, never fail
+// on a failed version lookup.
+func TestAccVersionHelpersSkipOutsideAcceptanceMode(t *testing.T) {
+	t.Setenv("TF_ACC", "")
+
+	helpers := map[string]func(*testing.T){
+		"testAccOpenWebUIVersion": func(t *testing.T) { testAccOpenWebUIVersion(t) },
+		"testAccSkipBelow":        func(t *testing.T) { testAccSkipBelow(t, "0.12.0") },
+		"testAccSkipAtOrAbove":    func(t *testing.T) { testAccSkipAtOrAbove(t, "0.11.1") },
+	}
+	for name, helper := range helpers {
+		t.Run(name, func(t *testing.T) {
+			// t.Skip ends the goroutine, so record the outcome in a defer.
+			var skipped, failed bool
+			ok := t.Run("inner", func(inner *testing.T) {
+				defer func() {
+					skipped = inner.Skipped()
+					failed = inner.Failed()
+				}()
+				helper(inner)
+			})
+			if !skipped || failed || !ok {
+				t.Errorf("helper should skip without TF_ACC (skipped=%v failed=%v ok=%v)", skipped, failed, ok)
+			}
+		})
+	}
+}
