@@ -41,10 +41,10 @@ const notFoundDetail = "We could not find what you're looking for"
 
 // isNotFoundDetail reports whether err is an API error with the given HTTP
 // status whose body carries Open WebUI's not-found detail. Several endpoints
-// report a missing record with a status other than 404 (functions and groups
-// answer 401, users answer 400), so the status alone cannot be trusted: a
-// genuine auth or validation failure carries a different detail and must stay
-// a hard error.
+// report a missing record with a status other than 404 (functions answer 401,
+// groups answer 401 on v0.11.x and 404 on v0.12.0, users answer 400), so the
+// status alone cannot be trusted: a genuine auth or validation failure carries
+// a different detail and must stay a hard error.
 func isNotFoundDetail(err error, status int) bool {
 	var apiErr *APIError
 	return errors.As(err, &apiErr) && apiErr.Status == status && strings.Contains(apiErr.Body, notFoundDetail)

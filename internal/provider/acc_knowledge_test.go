@@ -52,7 +52,17 @@ func TestAccKnowledgeResource(t *testing.T) {
 // result after apply". The step 1 config therefore leaves it unset. The
 // non-null state case is covered by
 // TestKnowledgeResource_UpgradeStateDropsRemovedAttributes.
+//
+// plugin-testing registers ProtoV6ProviderFactories under
+// registry.terraform.io/hashicorp/<name> unless TF_ACC_PROVIDER_NAMESPACE is
+// set, while step 1 stores the state under registry.terraform.io/docktape/openwebui.
+// Terraform happens to re-attribute that state to the hashicorp address, but the
+// test sets the namespace so that both steps use the shipped provider address
+// and do not depend on that. (Without it, a plan-only step 2 passed while the
+// same step 2 at the docktape address failed reading the not-yet-upgraded
+// state, so the address changes what the test exercises.)
 func TestAccKnowledgeResource_UpgradeFrom1x(t *testing.T) {
+	t.Setenv("TF_ACC_PROVIDER_NAMESPACE", "docktape")
 	name := acctest.RandomWithPrefix("tf-acc-knowledge-upgrade")
 
 	resource.Test(t, resource.TestCase{
@@ -82,6 +92,20 @@ resource "openwebui_knowledge" "test" {
 }
 `, testAccProviderConfig(), name),
 				PlanOnly: true,
+			},
+			{
+				// An apply persists the upgraded state (a plan does not), as the first
+				// apply after upgrading would. terraform show cannot read a 1.2.0
+				// state file that still carries data_json until it has been written
+				// by the current provider.
+				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+				Config: fmt.Sprintf(`%s
+resource "openwebui_knowledge" "test" {
+  name        = %q
+  description = "Upgrade from 1.x"
+}
+`, testAccProviderConfig(), name),
+				Check: resource.TestCheckResourceAttr("openwebui_knowledge.test", "name", name),
 			},
 		},
 	})

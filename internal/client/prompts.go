@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 )
 
 // PromptForm represents the payload for creating or updating prompt definitions.
@@ -83,6 +84,41 @@ func (c *Client) ListPrompts(ctx context.Context) ([]PromptModel, error) {
 	}
 
 	return resp, nil
+}
+
+// FindPromptByCommand returns the prompt with exactly the given command,
+// whether or not it is active, or ErrNotFound. GET /prompts/ only lists active
+// prompts, so this searches GET /prompts/list, which has no is_active filter
+// (v0.11.0 and v0.12.0) but applies the same read-access rules. The server
+// matches the query as a substring of name, command, content and owner and
+// pages by 30, so the exact match is made here and further pages are fetched
+// until the result is exhausted.
+func (c *Client) FindPromptByCommand(ctx context.Context, command string) (*PromptModel, error) {
+	seen := 0
+	for page := 1; ; page++ {
+		query := url.Values{}
+		query.Set("query", command)
+		query.Set("page", strconv.Itoa(page))
+
+		var resp struct {
+			Items []PromptModel `json:"items"`
+			Total int           `json:"total"`
+		}
+		if err := c.do(ctx, http.MethodGet, "prompts/list", query, nil, &resp); err != nil {
+			return nil, err
+		}
+
+		for i := range resp.Items {
+			if resp.Items[i].Command == command {
+				return &resp.Items[i], nil
+			}
+		}
+
+		seen += len(resp.Items)
+		if len(resp.Items) == 0 || seen >= resp.Total {
+			return nil, ErrNotFound
+		}
+	}
 }
 
 // GetPrompt fetches a prompt by its server identifier (UUID).

@@ -3,6 +3,8 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -210,5 +212,78 @@ func TestTogglePromptPath(t *testing.T) {
 	}
 	if out.ID != "p1" || out.IsActive == nil || *out.IsActive {
 		t.Fatalf("expected decoded prompt p1 with is_active=false, got %+v", out)
+	}
+}
+
+func TestFindPromptByCommandUsesListRouteAndMatchesExactly(t *testing.T) {
+	var gotPath, gotQuery, gotPage string
+	c := newPromptTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotQuery = r.URL.Query().Get("query")
+		gotPage = r.URL.Query().Get("page")
+		// /greet-more contains the command as a substring and must be skipped;
+		// the inactive prompt is the one we want.
+		_, _ = w.Write([]byte(`{"total":2,"items":[
+			{"id":"p2","command":"/greet-more","user_id":"u1","name":"More","content":"x","is_active":true,"created_at":1,"updated_at":2,"access_grants":[],"write_access":true},
+			{"id":"p1","command":"/greet","user_id":"u1","name":"Greet","content":"hi","is_active":false,"created_at":1,"updated_at":2,"access_grants":[],"write_access":true}]}`))
+	})
+	got, err := c.FindPromptByCommand(context.Background(), "/greet")
+	if err != nil {
+		t.Fatalf("FindPromptByCommand: %v", err)
+	}
+	if gotPath != "/api/v1/prompts/list" {
+		t.Fatalf("expected /api/v1/prompts/list, got %q", gotPath)
+	}
+	if gotQuery != "/greet" || gotPage != "1" {
+		t.Fatalf("expected query=/greet page=1, got query=%q page=%q", gotQuery, gotPage)
+	}
+	if got.ID != "p1" || got.IsActive == nil || *got.IsActive {
+		t.Fatalf("expected the inactive prompt p1, got %+v", got)
+	}
+}
+
+func TestFindPromptByCommandPagesUntilFound(t *testing.T) {
+	var pages []string
+	c := newPromptTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		page := r.URL.Query().Get("page")
+		pages = append(pages, page)
+		if page == "1" {
+			// A full page of look-alikes, 31 matches in total.
+			items := ""
+			for i := 0; i < 30; i++ {
+				if i > 0 {
+					items += ","
+				}
+				items += fmt.Sprintf(`{"id":"a%d","command":"/greet%d","user_id":"u1","name":"n","content":"c","created_at":1,"updated_at":2,"access_grants":[]}`, i, i)
+			}
+			_, _ = w.Write([]byte(`{"total":31,"items":[` + items + `]}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"total":31,"items":[{"id":"p1","command":"/greet","user_id":"u1","name":"Greet","content":"hi","is_active":false,"created_at":1,"updated_at":2,"access_grants":[]}]}`))
+	})
+	got, err := c.FindPromptByCommand(context.Background(), "/greet")
+	if err != nil {
+		t.Fatalf("FindPromptByCommand: %v", err)
+	}
+	if got.ID != "p1" {
+		t.Fatalf("expected p1, got %+v", got)
+	}
+	if len(pages) != 2 || pages[0] != "1" || pages[1] != "2" {
+		t.Fatalf("expected pages 1 then 2, got %v", pages)
+	}
+}
+
+func TestFindPromptByCommandNotFound(t *testing.T) {
+	calls := 0
+	c := newPromptTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		_, _ = w.Write([]byte(`{"total":0,"items":[]}`))
+	})
+	_, err := c.FindPromptByCommand(context.Background(), "/missing")
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("expected a single request, got %d", calls)
 	}
 }

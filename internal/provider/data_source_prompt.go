@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -107,7 +108,7 @@ func (d *promptDataSource) Configure(_ context.Context, req datasource.Configure
 	}
 }
 
-// Read retrieves the prompt definition by matching its command in the prompt list.
+// Read retrieves the prompt definition, active or not, by its exact command.
 func (d *promptDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	if d.client == nil {
 		resp.Diagnostics.AddError("Unconfigured API client", "Expected provider to configure the Open WebUI client before using the prompt data source.")
@@ -130,26 +131,18 @@ func (d *promptDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 		return
 	}
 
-	prompts, err := d.client.ListPrompts(ctx)
-	if err != nil {
-		resp.Diagnostics.AddError("List prompts failed", err.Error())
-		return
-	}
-
-	var match *client.PromptModel
-	for i := range prompts {
-		if prompts[i].Command == command {
-			match = &prompts[i]
-			break
-		}
-	}
-
-	if match == nil {
+	// GET /prompts/ hides inactive prompts; the paged search route does not.
+	match, err := d.client.FindPromptByCommand(ctx, command)
+	if errors.Is(err, client.ErrNotFound) {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("command"),
 			"Prompt not found",
 			"No Open WebUI prompt was found with the supplied command.",
 		)
+		return
+	}
+	if err != nil {
+		resp.Diagnostics.AddError("Find prompt failed", err.Error())
 		return
 	}
 
